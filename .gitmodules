@@ -5,3 +5,7 @@
 [submodule "libs/PBVS2025_translation"]
 	path = libs/PBVS2025_translation
 	url = https://ghfast.top/https://github.com/wsqmyself/PBVS2025_translation
+
+[submodule "libs/DDBM"]
+	path = libs/DDBM
+	url = https://ghfast.top/https://github.com/Bili-Sakura/DDBM
