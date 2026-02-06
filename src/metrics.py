@@ -135,11 +135,7 @@ class FIDStatistics:
 
         diff = mu1 - mu2
 
-        covmean_result = linalg.sqrtm(sigma1.dot(sigma2))
-        if isinstance(covmean_result, tuple):
-            covmean = covmean_result[0]
-        else:
-            covmean = covmean_result
+        covmean = linalg.sqrtm(sigma1.dot(sigma2))
         if not np.isfinite(covmean).all():
             offset = np.eye(sigma1.shape[0]) * eps
             covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))

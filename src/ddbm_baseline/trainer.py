@@ -269,7 +269,7 @@ class DDBMTrainer:
         # Optional metric-based loss (LPIPS + L1) on the denoised prediction
         if mavic_criterion is not None:
             # Re-scale from [-1, 1] to [0, 1] for the metric criterion
-            pred_01 = (denoised.detach().clone().requires_grad_(True) + 1) * 0.5
+            pred_01 = (denoised + 1) * 0.5
             target_01 = (x0 + 1) * 0.5
             pred_01 = pred_01.clamp(0, 1)
             target_01 = target_01.clamp(0, 1)
