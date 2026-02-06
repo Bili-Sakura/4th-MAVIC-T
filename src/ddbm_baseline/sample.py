@@ -32,12 +32,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-_VENDOR_ROOT = _PROJECT_ROOT / "vendor" / "DDBM"
-if str(_VENDOR_ROOT) not in sys.path:
-    sys.path.insert(0, str(_VENDOR_ROOT))
-
-from ddbm.schedulers import DDBMScheduler  # noqa: E402
-from ddbm.pipelines.ddbm_pipeline import DDBMPipeline  # noqa: E402
+from src.ddbm_baseline.schedulers import DDBMScheduler  # noqa: E402
+from src.ddbm_baseline.pipelines import DDBMPipeline  # noqa: E402
 
 from src.ddbm_baseline.config import (  # noqa: E402
     TaskConfig,
@@ -47,7 +43,7 @@ from src.ddbm_baseline.config import (  # noqa: E402
     sar2rgb_config,
 )
 from src.ddbm_baseline.dataset_wrapper import MavicTDDBMDataset  # noqa: E402
-from src.ddbm_baseline.model import create_model  # noqa: E402
+from src.ddbm_baseline.models import create_model  # noqa: E402
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
