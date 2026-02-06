@@ -1,0 +1,419 @@
+"""Core DDBM trainer for MAVIC-T tasks.
+
+This module adapts the training logic from ``vendor/DDBM/scripts/train_ddbm_diffusers.py``
+into a reusable :class:`DDBMTrainer` class.  Per-task scripts instantiate the trainer with
+their own :class:`~src.ddbm_baseline.config.TaskConfig` and can monkey-patch / sub-class any
+method for task-specific modifications.
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import os
+import shutil
+import sys
+from pathlib import Path
+
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+
+from accelerate import Accelerator, InitProcessGroupKwargs
+from accelerate.logging import get_logger
+from accelerate.utils import ProjectConfiguration
+from tqdm.auto import tqdm
+from datetime import timedelta
+
+# Ensure vendor is importable
+_VENDOR_ROOT = Path(__file__).resolve().parents[2] / "vendor" / "DDBM"
+if str(_VENDOR_ROOT) not in sys.path:
+    sys.path.insert(0, str(_VENDOR_ROOT))
+
+from ddbm.schedulers import DDBMScheduler  # noqa: E402
+
+from .config import TaskConfig  # noqa: E402
+from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
+from .model import create_model  # noqa: E402
+
+logger = get_logger(__name__, log_level="INFO")
+
+
+# ---------------------------------------------------------------------------
+# Bridge-scaling helpers (ported from vendor training script)
+# ---------------------------------------------------------------------------
+
+def _append_dims(x: torch.Tensor, target_dims: int) -> torch.Tensor:
+    dims = target_dims - x.ndim
+    if dims < 0:
+        raise ValueError(f"input has {x.ndim} dims but target_dims is {target_dims}")
+    return x[(...,) + (None,) * dims]
+
+
+def _vp_logsnr(t: torch.Tensor, beta_d: float, beta_min: float) -> torch.Tensor:
+    t = torch.as_tensor(t)
+    return -torch.log((0.5 * beta_d * (t ** 2) + beta_min * t).exp() - 1)
+
+
+def _vp_logs(t: torch.Tensor, beta_d: float, beta_min: float) -> torch.Tensor:
+    t = torch.as_tensor(t)
+    return -0.25 * t ** 2 * beta_d - 0.5 * t * beta_min
+
+
+def get_bridge_scalings(sigma, sigma_data, sigma_max, beta_d, beta_min, pred_mode):
+    """Return (c_skip, c_out, c_in) bridge scalings."""
+    sigma_data_end = sigma_data
+    cov_xy = 0.0
+    c = 1
+
+    if pred_mode == "ve":
+        A = (
+            sigma ** 4 / sigma_max ** 4 * sigma_data_end ** 2
+            + (1 - sigma ** 2 / sigma_max ** 2) ** 2 * sigma_data ** 2
+            + 2 * sigma ** 2 / sigma_max ** 2 * (1 - sigma ** 2 / sigma_max ** 2) * cov_xy
+            + c ** 2 * sigma ** 2 * (1 - sigma ** 2 / sigma_max ** 2)
+        )
+        c_in = 1 / A ** 0.5
+        c_skip = ((1 - sigma ** 2 / sigma_max ** 2) * sigma_data ** 2 + sigma ** 2 / sigma_max ** 2 * cov_xy) / A
+        c_out = (
+            (sigma / sigma_max) ** 4 * (sigma_data_end ** 2 * sigma_data ** 2 - cov_xy ** 2)
+            + sigma_data ** 2 * c ** 2 * sigma ** 2 * (1 - sigma ** 2 / sigma_max ** 2)
+        ) ** 0.5 * c_in
+        return c_skip, c_out, c_in
+
+    if pred_mode == "vp":
+        logsnr_t = _vp_logsnr(sigma, beta_d, beta_min)
+        logsnr_T = _vp_logsnr(torch.tensor(1.0), beta_d, beta_min)
+        logs_t = _vp_logs(sigma, beta_d, beta_min)
+        logs_T = _vp_logs(torch.tensor(1.0), beta_d, beta_min)
+
+        a_t = (logsnr_T - logsnr_t + logs_t - logs_T).exp()
+        b_t = -torch.expm1(logsnr_T - logsnr_t) * logs_t.exp()
+        c_t = -torch.expm1(logsnr_T - logsnr_t) * (2 * logs_t - logsnr_t).exp()
+
+        A = a_t ** 2 * sigma_data_end ** 2 + b_t ** 2 * sigma_data ** 2 + 2 * a_t * b_t * cov_xy + c ** 2 * c_t
+        c_in = 1 / A ** 0.5
+        c_skip = (b_t * sigma_data ** 2 + a_t * cov_xy) / A
+        c_out = (a_t ** 2 * (sigma_data_end ** 2 * sigma_data ** 2 - cov_xy ** 2) + sigma_data ** 2 * c ** 2 * c_t) ** 0.5 * c_in
+        return c_skip, c_out, c_in
+
+    if pred_mode in ("ve_simple", "vp_simple"):
+        return torch.zeros_like(sigma), torch.ones_like(sigma), torch.ones_like(sigma)
+
+    raise ValueError(f"Unknown pred_mode: {pred_mode}")
+
+
+def get_loss_weights(sigma, sigma_data, sigma_max, beta_d, beta_min, pred_mode):
+    """Return per-sample loss weights (bridge Karras weighting)."""
+    sigma_data_end = sigma_data
+    cov_xy = 0.0
+    c = 1
+
+    if pred_mode == "ve":
+        A = (
+            sigma ** 4 / sigma_max ** 4 * sigma_data_end ** 2
+            + (1 - sigma ** 2 / sigma_max ** 2) ** 2 * sigma_data ** 2
+            + 2 * sigma ** 2 / sigma_max ** 2 * (1 - sigma ** 2 / sigma_max ** 2) * cov_xy
+            + c ** 2 * sigma ** 2 * (1 - sigma ** 2 / sigma_max ** 2)
+        )
+        return A / (
+            (sigma / sigma_max) ** 4 * (sigma_data_end ** 2 * sigma_data ** 2 - cov_xy ** 2)
+            + sigma_data ** 2 * c ** 2 * sigma ** 2 * (1 - sigma ** 2 / sigma_max ** 2)
+        )
+
+    if pred_mode == "vp":
+        logsnr_t = _vp_logsnr(sigma, beta_d, beta_min)
+        logsnr_T = _vp_logsnr(torch.tensor(1.0), beta_d, beta_min)
+        logs_t = _vp_logs(sigma, beta_d, beta_min)
+        logs_T = _vp_logs(torch.tensor(1.0), beta_d, beta_min)
+
+        a_t = (logsnr_T - logsnr_t + logs_t - logs_T).exp()
+        b_t = -torch.expm1(logsnr_T - logsnr_t) * logs_t.exp()
+        c_t = -torch.expm1(logsnr_T - logsnr_t) * (2 * logs_t - logsnr_t).exp()
+
+        A = a_t ** 2 * sigma_data_end ** 2 + b_t ** 2 * sigma_data ** 2 + 2 * a_t * b_t * cov_xy + c ** 2 * c_t
+        return A / (a_t ** 2 * (sigma_data_end ** 2 * sigma_data ** 2 - cov_xy ** 2) + sigma_data ** 2 * c ** 2 * c_t)
+
+    if pred_mode in ("vp_simple", "ve_simple"):
+        return torch.ones_like(sigma)
+
+    raise ValueError(f"Unknown pred_mode: {pred_mode}")
+
+
+# ---------------------------------------------------------------------------
+# Trainer
+# ---------------------------------------------------------------------------
+
+class DDBMTrainer:
+    """End-to-end DDBM trainer driven by a :class:`TaskConfig`.
+
+    Typical usage inside a per-task script::
+
+        from src.ddbm_baseline.config import sar2eo_config
+        from src.ddbm_baseline.trainer import DDBMTrainer
+
+        cfg = sar2eo_config()
+        trainer = DDBMTrainer(cfg)
+        trainer.train()
+    """
+
+    def __init__(self, cfg: TaskConfig) -> None:
+        self.cfg = cfg
+
+    # ----- dataset -----------------------------------------------------------
+
+    def build_datasets(self):
+        """Return ``(train_dataset, val_dataset)``."""
+        train_ds = MavicTDDBMDataset(
+            task=self.cfg.task_name,
+            split="train",
+            resolution=self.cfg.resolution,
+            model_channels=self.cfg.model_channels,
+            use_augmented=self.cfg.use_augmented,
+        )
+        val_ds = MavicTDDBMDataset(
+            task=self.cfg.task_name,
+            split="val",
+            resolution=self.cfg.resolution,
+            model_channels=self.cfg.model_channels,
+            with_target=False,
+        )
+        return train_ds, val_ds
+
+    # ----- model / scheduler -------------------------------------------------
+
+    def build_model(self):
+        """Create the DDBM UNet model."""
+        return create_model(
+            image_size=self.cfg.resolution,
+            in_channels=self.cfg.model_channels,
+            num_channels=self.cfg.num_channels,
+            num_res_blocks=self.cfg.num_res_blocks,
+            unet_type=self.cfg.unet_type,
+            attention_resolutions=self.cfg.attention_resolutions,
+            dropout=self.cfg.dropout,
+            condition_mode=self.cfg.condition_mode,
+            channel_mult=self.cfg.channel_mult,
+        )
+
+    def build_scheduler(self):
+        """Create the DDBM noise scheduler."""
+        return DDBMScheduler(
+            sigma_min=self.cfg.sigma_min,
+            sigma_max=self.cfg.sigma_max,
+            sigma_data=self.cfg.sigma_data,
+            beta_d=self.cfg.beta_d,
+            beta_min=self.cfg.beta_min,
+            pred_mode=self.cfg.pred_mode,
+            num_train_timesteps=self.cfg.num_inference_steps,
+        )
+
+    # ----- loss --------------------------------------------------------------
+
+    @staticmethod
+    def preprocess_batch(batch, device):
+        """Scale a ``(target, source)`` batch from [0,1] to [-1,1]."""
+        x0 = batch[0].to(device) * 2 - 1
+        x_T = batch[1].to(device) * 2 - 1
+        return x0, x_T
+
+    @staticmethod
+    def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp"):
+        """Compute the DDBM denoising loss for one batch."""
+        bsz = x0.shape[0]
+        device = x0.device
+        dtype = x0.dtype
+        sigma_min = scheduler.config.sigma_min
+        sigma_max = scheduler.config.sigma_max
+        sigma_data = scheduler.config.sigma_data
+        rho = scheduler.config.rho
+        beta_d = scheduler.config.beta_d
+        beta_min_val = scheduler.config.beta_min
+
+        # Sample random sigmas (Karras distribution)
+        u = torch.rand(bsz, device=device, dtype=dtype)
+        min_inv_rho = sigma_min ** (1 / rho)
+        max_inv_rho = (sigma_max - 1e-4) ** (1 / rho)
+        sigmas = (max_inv_rho + u * (min_inv_rho - max_inv_rho)) ** rho
+        sigmas = torch.clamp(sigmas, max=sigma_max)
+
+        noise = torch.randn_like(x0)
+        noisy_samples = scheduler.add_noise(x0, noise, sigmas, x_T)
+
+        c_skip, c_out, c_in = get_bridge_scalings(sigmas, sigma_data, sigma_max, beta_d, beta_min_val, pred_mode)
+        dims = x0.ndim
+        c_skip = _append_dims(c_skip, dims)
+        c_out = _append_dims(c_out, dims)
+        c_in = _append_dims(c_in, dims)
+
+        rescaled_t = 1000 * 0.25 * torch.log(sigmas + 1e-44)
+        model_output = model(c_in * noisy_samples, rescaled_t, xT=x_T)
+        denoised = c_out * model_output + c_skip * noisy_samples
+
+        weights = get_loss_weights(sigmas, sigma_data, sigma_max, beta_d, beta_min_val, pred_mode)
+        weights = _append_dims(weights, dims)
+
+        loss = F.mse_loss(denoised, x0, reduction="none")
+        loss = (loss * weights).mean()
+        return loss
+
+    # ----- main training loop ------------------------------------------------
+
+    def train(self):
+        """Run the full training loop."""
+        cfg = self.cfg
+
+        # Accelerator setup
+        logging_dir = os.path.join(cfg.output_dir, "logs")
+        project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
+        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
+        accelerator = Accelerator(
+            gradient_accumulation_steps=cfg.gradient_accumulation_steps,
+            mixed_precision=cfg.mixed_precision,
+            log_with=cfg.log_with,
+            project_config=project_config,
+            kwargs_handlers=kwargs_handlers,
+        )
+        logging.basicConfig(
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+            level=logging.INFO,
+        )
+        logger.info(accelerator.state, main_process_only=False)
+
+        if cfg.seed is not None:
+            torch.manual_seed(cfg.seed)
+
+        if accelerator.is_main_process:
+            os.makedirs(cfg.output_dir, exist_ok=True)
+
+        # Build components
+        logger.info(f"[{cfg.task_name}] Creating model  (channels={cfg.model_channels}, res={cfg.resolution})")
+        model = self.build_model()
+        scheduler = self.build_scheduler()
+
+        ema_model = None
+        if cfg.use_ema:
+            from diffusers.training_utils import EMAModel
+            ema_model = EMAModel(model.parameters(), decay=cfg.ema_decay, use_ema_warmup=True, model_cls=type(model))
+
+        optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
+
+        logger.info(f"[{cfg.task_name}] Loading dataset …")
+        train_dataset, val_dataset = self.build_datasets()
+        train_dataloader = DataLoader(
+            train_dataset,
+            batch_size=cfg.train_batch_size,
+            shuffle=True,
+            num_workers=cfg.dataloader_num_workers,
+            drop_last=True,
+        )
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=cfg.eval_batch_size,
+            shuffle=False,
+            num_workers=cfg.dataloader_num_workers,
+        )
+
+        from diffusers.optimization import get_scheduler as get_lr_scheduler
+        total_steps = cfg.max_train_steps if cfg.max_train_steps else len(train_dataloader) * cfg.num_epochs
+        lr_scheduler = get_lr_scheduler(
+            cfg.lr_scheduler,
+            optimizer=optimizer,
+            num_warmup_steps=cfg.lr_warmup_steps * cfg.gradient_accumulation_steps,
+            num_training_steps=total_steps * cfg.gradient_accumulation_steps,
+        )
+
+        model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            model, optimizer, train_dataloader, lr_scheduler
+        )
+        if cfg.use_ema and ema_model is not None:
+            ema_model.to(accelerator.device)
+
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
+        if cfg.max_train_steps is None:
+            cfg.max_train_steps = cfg.num_epochs * num_update_steps_per_epoch
+        cfg.num_epochs = math.ceil(cfg.max_train_steps / num_update_steps_per_epoch)
+
+        if accelerator.is_main_process:
+            tracker_config = {k: str(v) for k, v in vars(cfg).items()}
+            accelerator.init_trackers(f"ddbm-{cfg.task_name}", config=tracker_config)
+
+        logger.info("***** Running training *****")
+        logger.info(f"  Task             = {cfg.task_name}")
+        logger.info(f"  Num examples     = {len(train_dataset)}")
+        logger.info(f"  Num epochs       = {cfg.num_epochs}")
+        logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
+        logger.info(f"  Total opt steps  = {cfg.max_train_steps}")
+
+        global_step = 0
+        first_epoch = 0
+
+        # Resume
+        if cfg.resume_from_checkpoint:
+            path = cfg.resume_from_checkpoint
+            if path == "latest":
+                dirs = sorted(
+                    [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
+                    key=lambda x: int(x.split("-")[1]),
+                )
+                path = dirs[-1] if dirs else None
+            if path is not None:
+                accelerator.load_state(os.path.join(cfg.output_dir, path))
+                global_step = int(Path(path).name.split("-")[1])
+                first_epoch = global_step // num_update_steps_per_epoch
+                logger.info(f"Resumed from {path}")
+
+        progress_bar = tqdm(range(global_step, cfg.max_train_steps), disable=not accelerator.is_local_main_process, desc=f"Training {cfg.task_name}")
+
+        for epoch in range(first_epoch, cfg.num_epochs):
+            model.train()
+            for step, batch in enumerate(train_dataloader):
+                with accelerator.accumulate(model):
+                    x0, x_T = self.preprocess_batch(batch, accelerator.device)
+                    loss = self.compute_training_loss(model, scheduler, x0, x_T, pred_mode=cfg.pred_mode)
+
+                    accelerator.backward(loss)
+                    if accelerator.sync_gradients:
+                        accelerator.clip_grad_norm_(model.parameters(), 1.0)
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+
+                if accelerator.sync_gradients:
+                    if cfg.use_ema and ema_model is not None:
+                        ema_model.step(model.parameters())
+                    progress_bar.update(1)
+                    global_step += 1
+
+                    logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+                    progress_bar.set_postfix(**logs)
+                    accelerator.log(logs, step=global_step)
+
+                    if global_step % cfg.checkpointing_steps == 0 and accelerator.is_main_process:
+                        save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
+                        accelerator.save_state(save_path)
+                        logger.info(f"Saved state to {save_path}")
+
+                        if cfg.checkpoints_total_limit is not None:
+                            ckpts = sorted(
+                                [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
+                                key=lambda x: int(x.split("-")[1]),
+                            )
+                            for old in ckpts[: -cfg.checkpoints_total_limit]:
+                                shutil.rmtree(os.path.join(cfg.output_dir, old))
+
+                if global_step >= cfg.max_train_steps:
+                    break
+
+            # Save at epoch boundary
+            if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
+                unwrapped = accelerator.unwrap_model(model)
+                torch.save(unwrapped.state_dict(), os.path.join(cfg.output_dir, f"model_epoch_{epoch + 1}.pt"))
+                if cfg.use_ema and ema_model is not None:
+                    torch.save(ema_model.state_dict(), os.path.join(cfg.output_dir, f"ema_model_epoch_{epoch + 1}.pt"))
+                scheduler.save_config(cfg.output_dir)
+                logger.info(f"Saved model at epoch {epoch + 1}")
+
+        accelerator.end_training()
+        logger.info(f"[{cfg.task_name}] Training complete!")
