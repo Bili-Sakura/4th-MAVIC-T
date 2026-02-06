@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -310,12 +309,14 @@ class Pix2PixTurboTrainer:
                         logger.info(f"Saved checkpoint to {outf}")
 
                         if cfg.checkpoints_total_limit is not None:
+                            ckpt_dir = os.path.join(cfg.output_dir, "checkpoints")
                             ckpts = sorted(
-                                [f for f in os.listdir(os.path.join(cfg.output_dir, "checkpoints"))
-                                 if f.endswith(".pkl")],
+                                [f for f in os.listdir(ckpt_dir)
+                                 if f.endswith(".pkl") and f != "model_final.pkl"],
+                                key=lambda x: int(x.split("_")[1].split(".")[0]),
                             )
                             for old in ckpts[:-cfg.checkpoints_total_limit]:
-                                os.remove(os.path.join(cfg.output_dir, "checkpoints", old))
+                                os.remove(os.path.join(ckpt_dir, old))
 
                 if global_step >= cfg.max_train_steps:
                     break
