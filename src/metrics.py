@@ -228,12 +228,12 @@ class MetricCalculator:
                 self._compute_fid = False
 
         self._l1_values: List[float] = []
-        self._lpips_values: List[float] = []
+        self._num_updates: int = 0
 
     def reset(self) -> None:
         """Clear all accumulated state."""
         self._l1_values.clear()
-        self._lpips_values.clear()
+        self._num_updates = 0
         self._lpips.reset()
         if self._fid is not None:
             self._fid.reset()
@@ -253,14 +253,13 @@ class MetricCalculator:
         # L1
         self._l1_values.append(F.l1_loss(predictions, targets).item())
 
-        # LPIPS (expects [-1, 1], 3 channels)
+        # LPIPS (expects [-1, 1], 3 channels) – accumulates internally
         preds_lp = predictions * 2 - 1
         tgts_lp = targets * 2 - 1
         if preds_lp.shape[1] == 1:
             preds_lp = preds_lp.expand(-1, 3, -1, -1)
             tgts_lp = tgts_lp.expand(-1, 3, -1, -1)
-        self._lpips_values.append(self._lpips(preds_lp, tgts_lp).item())
-        self._lpips.reset()
+        self._lpips.update(preds_lp, tgts_lp)
 
         # FID (expects uint8, 3 channels)
         if self._fid is not None:
@@ -272,8 +271,13 @@ class MetricCalculator:
             self._fid.update(tgts_uint8, real=True)
             self._fid.update(preds_uint8, real=False)
 
+        self._num_updates += 1
+
     def compute(self) -> MetricResults:
         """Return aggregated :class:`MetricResults`."""
+        if self._num_updates == 0:
+            return MetricResults(lpips=0.0, l1=0.0, fid=None)
+
         fid_val: Optional[float] = None
         if self._fid is not None:
             try:
@@ -282,8 +286,8 @@ class MetricCalculator:
                 fid_val = None
 
         return MetricResults(
-            lpips=float(np.mean(self._lpips_values)) if self._lpips_values else 0.0,
-            l1=float(np.mean(self._l1_values)) if self._l1_values else 0.0,
+            lpips=self._lpips.compute().item(),
+            l1=float(np.mean(self._l1_values)),
             fid=fid_val,
         )
 
