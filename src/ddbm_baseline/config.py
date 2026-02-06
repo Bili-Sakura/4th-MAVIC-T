@@ -96,13 +96,13 @@ def sar2eo_config(**overrides) -> TaskConfig:
 
 
 def rgb2ir_config(**overrides) -> TaskConfig:
-    """RGB-to-IR: 3-band 1024x1024 → 1-band 1024x1024."""
+    """RGB-to-IR: 3-band → 1-band (native 1024×1024, default training at 256)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
         source_channels=3,
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
-        resolution=256,     # train at 256; scale up later if needed
+        resolution=256,     # default; override to 1024 if GPU memory allows
         use_augmented=True,
         output_dir="./outputs/ddbm_rgb2ir",
         train_batch_size=8,
@@ -114,13 +114,13 @@ def rgb2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2ir_config(**overrides) -> TaskConfig:
-    """SAR-to-IR: 1-band 1024x1024 → 1-band 1024x1024."""
+    """SAR-to-IR: 1-band → 1-band (native 1024×1024, default training at 256)."""
     cfg = TaskConfig(
         task_name="sar2ir",
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=256,
+        resolution=256,     # default; override to 1024 if GPU memory allows
         use_augmented=True,
         output_dir="./outputs/ddbm_sar2ir",
         train_batch_size=8,
@@ -132,13 +132,13 @@ def sar2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2rgb_config(**overrides) -> TaskConfig:
-    """SAR-to-RGB: 1-band 1024x1024 → 3-band 1024x1024."""
+    """SAR-to-RGB: 1-band → 3-band (native 1024×1024, default training at 256)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         source_channels=1,
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
-        resolution=256,
+        resolution=256,     # default; override to 1024 if GPU memory allows
         use_augmented=True,
         output_dir="./outputs/ddbm_sar2rgb",
         train_batch_size=8,

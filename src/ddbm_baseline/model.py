@@ -156,14 +156,8 @@ def create_model(
             attn_res_list = [int(r) for r in attention_resolutions.split(",")]
         else:
             attn_res_list = list(attention_resolutions)
-        # Convert absolute resolutions to down-block indices (0-indexed)
-        attn_indices = tuple(
-            i for i, _ in enumerate(
-                _channel_mult_for_resolution(image_size) if not channel_mult else range(100)
-            )
-        )
-        # Actually, map resolution to block index: block i has resolution image_size / 2^i
-        attn_indices = []
+
+        # Determine channel_mult to know the number of blocks
         cm = None
         if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
             cm = tuple(int(c) for c in channel_mult.split(","))
@@ -172,11 +166,11 @@ def create_model(
         else:
             cm = _channel_mult_for_resolution(image_size)
 
-        for i in range(len(cm)):
-            block_res = image_size // (2 ** i)
-            if block_res in attn_res_list:
-                attn_indices.append(i)
-        attn_indices = tuple(attn_indices)
+        # Map resolution to block index: block i has resolution image_size / 2^i
+        attn_indices = tuple(
+            i for i in range(len(cm))
+            if image_size // (2 ** i) in attn_res_list
+        )
 
     # Parse channel_mult
     cm_tuple: Optional[Tuple[int, ...]] = None
