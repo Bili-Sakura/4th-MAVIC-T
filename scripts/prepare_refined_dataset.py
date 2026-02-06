@@ -11,8 +11,10 @@ Outputs to: datasets/BiliSakura/MACIV-T-2025-Structure-Refined/
 Rules:
 - sar2eo:  256x256 paired PNGs from EO/SAR dataset (symlinked, no resize).
 - rgb2ir:  from city tiles, pair *_rgb.tiff with *_ir.tiff; resize both to 1024x1024.
-- sar2ir:  from city tiles, pair each SAR scene with the tile's IR mosaic; resize to 1024.
-- sar2rgb: from city tiles, pair each SAR scene with the tile's RGB mosaic; resize to 1024.
+- sar2ir:  from city tiles, pair each SAR scene with the tile's IR mosaic.
+           Both are reprojected into a common CRS and cropped to their geographic
+           overlap before resampling to 1024x1024 (spatially aligned).
+- sar2rgb: same georef-aligned approach as sar2ir.
 - Full set, no split.
 """
 
@@ -22,13 +24,15 @@ import csv
 import os
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 import rasterio
 from rasterio.enums import Resampling
-from rasterio.transform import from_origin
+from rasterio.transform import from_bounds, from_origin
+from rasterio.warp import reproject, transform_bounds
 
 
 SRC_ROOT = Path("/mnt/data/projects/4th-MAVIC-T/datasets/BiliSakura/MAVIC-T-2025")
@@ -210,64 +214,239 @@ def process_rgb2ir(writer: csv.writer) -> int:
     return count
 
 
-def process_sar_to_optical(kind: str, writer: csv.writer) -> int:
-    """Pair SAR→IR or SAR→RGB from city tiles, resample to 1024x1024."""
-    assert kind in ("ir", "rgb")
-    task = f"sar2{kind}"
+def warp_aligned_pair(
+    sar_path: Path,
+    target_path: Path,
+    size: int,
+) -> Tuple[np.ndarray, np.ndarray, dict, dict] | None:
+    """Reproject SAR & target into their geographic overlap at *size x size*.
+
+    1. Compute overlapping bounds in the target's CRS.
+    2. Warp both images into that bounding box at the requested pixel size.
+    3. Normalize uint16 → uint8 if needed.
+
+    Returns (sar_data, target_data, sar_profile, target_profile) or None if
+    the overlap is too small (< 50 % of the SAR footprint).
+    """
+    with rasterio.open(sar_path) as sar_src, rasterio.open(target_path) as tgt_src:
+        # Use the target CRS as the common CRS.
+        dst_crs = tgt_src.crs
+
+        # Reproject SAR bounds into target CRS.
+        sar_bounds_in_tgt = transform_bounds(sar_src.crs, dst_crs, *sar_src.bounds)
+        tgt_bounds = tgt_src.bounds
+
+        # Compute overlap.
+        left = max(sar_bounds_in_tgt[0], tgt_bounds.left)
+        bottom = max(sar_bounds_in_tgt[1], tgt_bounds.bottom)
+        right = min(sar_bounds_in_tgt[2], tgt_bounds.right)
+        top = min(sar_bounds_in_tgt[3], tgt_bounds.top)
+
+        if right <= left or top <= bottom:
+            return None
+
+        overlap_area = (right - left) * (top - bottom)
+        sar_area = (sar_bounds_in_tgt[2] - sar_bounds_in_tgt[0]) * (
+            sar_bounds_in_tgt[3] - sar_bounds_in_tgt[1]
+        )
+        if sar_area <= 0 or overlap_area / sar_area < 0.5:
+            return None
+
+        # Build common transform for the overlap region at *size x size*.
+        dst_transform = from_bounds(left, bottom, right, top, size, size)
+
+        def _warp(src, band_count):
+            out = np.zeros((band_count, size, size), dtype=np.float32)
+            for b in range(band_count):
+                reproject(
+                    source=rasterio.band(src, b + 1),
+                    destination=out[b],
+                    dst_transform=dst_transform,
+                    dst_crs=dst_crs,
+                    resampling=Resampling.bilinear,
+                )
+            return out
+
+        sar_data = _warp(sar_src, sar_src.count)
+        tgt_data = _warp(tgt_src, tgt_src.count)
+
+    def _normalize(data: np.ndarray, dtype_str: str):
+        if dtype_str == "uint16":
+            data = (data / 65535.0 * 255.0).clip(0, 255).astype(np.uint8)
+            return data, "uint8"
+        return data.clip(0, 255).astype(np.uint8), "uint8"
+
+    with rasterio.open(sar_path) as s:
+        sar_dtype = s.dtypes[0]
+        sar_count = s.count
+    with rasterio.open(target_path) as t:
+        tgt_dtype = t.dtypes[0]
+        tgt_count = t.count
+
+    sar_data, sar_out_dtype = _normalize(sar_data, sar_dtype)
+    tgt_data, tgt_out_dtype = _normalize(tgt_data, tgt_dtype)
+
+    base_profile = dict(
+        driver="GTiff",
+        height=size,
+        width=size,
+        transform=from_origin(0, size, 1, 1),
+        crs=None,
+        tiled=False,
+    )
+    sar_profile = {**base_profile, "count": sar_count, "dtype": sar_out_dtype}
+    tgt_profile = {**base_profile, "count": tgt_count, "dtype": tgt_out_dtype}
+
+    return sar_data, tgt_data, sar_profile, tgt_profile
+
+
+def sar_opt_worker(args: Tuple) -> Tuple[List[str] | None, bool]:
+    city, tile_name, sar_path, target_path, task, kind, size = args
+    sar_path = Path(sar_path)
+    target_path = Path(target_path)
+    result = warp_aligned_pair(sar_path, target_path, size)
+    if result is None:
+        return None, True
+    sar_data, tgt_data, sar_profile, tgt_profile = result
+
     dst_input = DST_ROOT / task / "train" / "input"
     dst_target = DST_ROOT / task / "train" / "target"
+    in_name = f"{city}__{tile_name}__{sar_path.stem}__sar.tif"
+    tg_name = f"{city}__{tile_name}__{sar_path.stem}__{target_path.stem}__{kind}.tif"
+    write_tiff(dst_input / in_name, sar_data, sar_profile)
+    write_tiff(dst_target / tg_name, tgt_data, tgt_profile)
+
+    row = [
+        task,
+        "train",
+        f"{task}/train/input/{in_name}",
+        f"{task}/train/target/{tg_name}",
+        tile_name,
+        city,
+    ]
+    return row, False
+
+
+def process_sar_to_optical(kind: str, writer: csv.writer, workers: int) -> int:
+    """Pair SAR→IR or SAR→RGB from city tiles, spatially aligned to 1024x1024."""
+    assert kind in ("ir", "rgb")
+    task = f"sar2{kind}"
     count = 0
+    skipped = 0
+    tasks: List[Tuple] = []
     for city in CITIES:
         city_dir = SRC_ROOT / city
         tiles = sorted(d for d in city_dir.iterdir() if d.is_dir() and not is_hidden(d.name))
-        city_count = 0
         for tile in tiles:
             target_path = pick_mosaic(tile, kind)
             if target_path is None:
                 continue
-            target_data, target_profile = resample_to_square(target_path, 1024)
             for sar_f in sar_files(tile):
-                sar_data, sar_profile = resample_to_square(sar_f, 1024)
-                in_name = f"{city}__{tile.name}__{sar_f.stem}__sar.tif"
-                tg_name = f"{city}__{tile.name}__{target_path.stem}__{kind}.tif"
-                write_tiff(dst_input / in_name, sar_data, sar_profile)
-                write_tiff(dst_target / tg_name, target_data, target_profile)
-                writer.writerow([
-                    task, "train",
-                    f"{task}/train/input/{in_name}",
-                    f"{task}/train/target/{tg_name}",
-                    tile.name, city,
-                ])
-                city_count += 1
+                tasks.append((city, tile.name, sar_f, target_path, task, kind, 1024))
+
+    if workers <= 1:
+        for args in tasks:
+            row, was_skipped = sar_opt_worker(args)
+            if was_skipped:
+                skipped += 1
+                continue
+            writer.writerow(row)
+            count += 1
+        print(f"  {task}: {count} pairs")
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(sar_opt_worker, args) for args in tasks]
+            for future in as_completed(futures):
+                row, was_skipped = future.result()
+                if was_skipped:
+                    skipped += 1
+                    continue
+                writer.writerow(row)
                 count += 1
-        print(f"  {task}/{city}: {city_count} pairs")
+        print(f"  {task}: {count} pairs (workers={workers})")
+
+    if skipped:
+        print(f"  [INFO] {task}: skipped {skipped} pairs with < 50% overlap")
     return count
 
 
+ALL_TASKS = ("sar2eo", "rgb2ir", "sar2ir", "sar2rgb")
+
+
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Prepare refined MAVIC-T datasets")
+    parser.add_argument(
+        "--tasks",
+        nargs="*",
+        default=None,
+        help=f"Tasks to run (default: all). Choices: {', '.join(ALL_TASKS)}",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=max(1, min(32, os.cpu_count() or 1)),
+        help="Number of worker processes for SAR alignment (default: min(32, cpu_count)).",
+    )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append to existing manifest instead of overwriting.",
+    )
+    args = parser.parse_args()
+
+    tasks = [t.lower() for t in args.tasks] if args.tasks else list(ALL_TASKS)
+    for t in tasks:
+        if t not in ALL_TASKS:
+            parser.error(f"Unknown task '{t}'. Choose from: {', '.join(ALL_TASKS)}")
+
     t0 = time.time()
     ensure_dir(DST_ROOT / "manifests")
     manifest_path = DST_ROOT / "manifests" / "refined_manifest.csv"
 
+    # When appending, read existing rows for tasks we are NOT re-running.
+    existing_rows: List[List[str]] = []
+    if args.append and manifest_path.is_file():
+        with manifest_path.open(newline="") as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            for row in reader:
+                if row and row[0] not in tasks:
+                    existing_rows.append(row)
+
     with manifest_path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["task", "split", "input", "target", "tile", "source_city"])
+        for row in existing_rows:
+            writer.writerow(row)
 
-        print("[1/4] Processing sar2eo (256x256 symlinks)...")
-        n = process_sar2eo(writer)
-        print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
+        step = 0
+        total = len(tasks)
 
-        print("[2/4] Processing rgb2ir (1024x1024 TIFF)...")
-        n = process_rgb2ir(writer)
-        print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
+        if "sar2eo" in tasks:
+            step += 1
+            print(f"[{step}/{total}] Processing sar2eo (256x256 symlinks)...")
+            n = process_sar2eo(writer)
+            print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
 
-        print("[3/4] Processing sar2ir (1024x1024 TIFF)...")
-        n = process_sar_to_optical("ir", writer)
-        print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
+        if "rgb2ir" in tasks:
+            step += 1
+            print(f"[{step}/{total}] Processing rgb2ir (1024x1024 TIFF)...")
+            n = process_rgb2ir(writer)
+            print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
 
-        print("[4/4] Processing sar2rgb (1024x1024 TIFF)...")
-        n = process_sar_to_optical("rgb", writer)
-        print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
+        if "sar2ir" in tasks:
+            step += 1
+            print(f"[{step}/{total}] Processing sar2ir (1024x1024 aligned TIFF)...")
+            n = process_sar_to_optical("ir", writer, workers=args.workers)
+            print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
+
+        if "sar2rgb" in tasks:
+            step += 1
+            print(f"[{step}/{total}] Processing sar2rgb (1024x1024 aligned TIFF)...")
+            n = process_sar_to_optical("rgb", writer, workers=args.workers)
+            print(f"  => {n} pairs  ({time.time()-t0:.0f}s)\n")
 
     elapsed = time.time() - t0
     print(f"Done in {elapsed:.0f}s. Manifest: {manifest_path}")
