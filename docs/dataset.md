@@ -14,7 +14,7 @@ The refined dataset contains preprocessed and paired samples for supervised trai
 
 | Task | Resolution | Input Format | Target Format | Samples | Disk Size |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`sar2eo`** | 256x256 | 1-band PNG (link) | 1-band PNG (link) | 89,411 | 12 MB |
+| **`sar2eo`** | 256x256 | 1-band PNG | 1-band PNG | 89,411 | 7.0 GB |
 | **`rgb2ir`** | 1024x1024 | 3-band TIFF | 1-band TIFF | 2,272 | 8.9 GB |
 | **`sar2ir`** | 1024x1024 | 1-band TIFF | 1-band TIFF | 10,576 | 21 GB |
 | **`sar2rgb`** | 1024x1024 | 1-band TIFF | 3-band TIFF | 10,576 | 42 GB |

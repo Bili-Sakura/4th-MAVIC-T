@@ -1,6 +1,7 @@
 datasets
 models
 .vscode
+ckpt
 
 
 *.pptx
