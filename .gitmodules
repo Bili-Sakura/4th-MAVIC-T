@@ -5,3 +5,11 @@
 [submodule "libs/PBVS2025_translation"]
 	path = libs/PBVS2025_translation
 	url = https://github.com/wsqmyself/PBVS2025_translation
+
+[submodule "libs/img2img-turbo"]
+	path = libs/img2img-turbo
+	url = https://github.com/GaParmar/img2img-turbo
+
+[submodule "libs/contrastive-unpaired-translation"]
+	path = libs/contrastive-unpaired-translation
+	url = https://github.com/taesungp/contrastive-unpaired-translation
