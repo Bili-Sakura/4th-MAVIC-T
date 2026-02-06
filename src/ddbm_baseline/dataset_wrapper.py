@@ -19,6 +19,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
+import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -81,6 +82,12 @@ class MavicTDDBMDataset(Dataset):
     use_augmented : bool
         If ``True`` and ``split == "train"``, also include the ``*_crop_aug``
         variant as additional samples.
+    use_horizontal_flip : bool
+        If ``True`` and ``split == "train"``, randomly apply horizontal flip
+        (applied consistently to both source and target).
+    use_vertical_flip : bool
+        If ``True`` and ``split == "train"``, randomly apply vertical flip
+        (applied consistently to both source and target).
     refined_root, eval_root : str or Path or None
         Forwarded to :class:`MavicTImageToImageDataset`.
     """
@@ -93,6 +100,8 @@ class MavicTDDBMDataset(Dataset):
         model_channels: int = 3,
         with_target: Optional[bool] = None,
         use_augmented: bool = False,
+        use_horizontal_flip: bool = False,
+        use_vertical_flip: bool = False,
         refined_root: Optional[str] = None,
         eval_root: Optional[str] = None,
     ) -> None:
@@ -101,6 +110,8 @@ class MavicTDDBMDataset(Dataset):
         self.split = split
         self.resolution = resolution
         self.model_channels = model_channels
+        self.use_horizontal_flip = use_horizontal_flip and split == "train"
+        self.use_vertical_flip = use_vertical_flip and split == "train"
 
         if with_target is None:
             with_target = split == "train"
@@ -143,5 +154,13 @@ class MavicTDDBMDataset(Dataset):
             target = _load_image_as_tensor(rec["target_path"], self.model_channels, self.resolution)
         else:
             target = torch.zeros_like(source)
+
+        # Apply random flip augmentations consistently to both source and target
+        if self.use_horizontal_flip and torch.rand(1).item() > 0.5:
+            source = TF.hflip(source)
+            target = TF.hflip(target)
+        if self.use_vertical_flip and torch.rand(1).item() > 0.5:
+            source = TF.vflip(source)
+            target = TF.vflip(target)
 
         return target, source
