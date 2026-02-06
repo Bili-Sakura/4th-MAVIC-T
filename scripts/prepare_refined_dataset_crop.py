@@ -28,6 +28,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from tqdm import tqdm
+
 import numpy as np
 import rasterio
 from rasterio.enums import Resampling
@@ -209,9 +211,7 @@ def sar2opt_worker(args: Tuple) -> List[List[str]]:
         # Build transform for the full overlap region at native resolution.
         overlap_transform = from_bounds(left, bottom, right, top, overlap_w, overlap_h)
 
-        # Warp both into this common grid.
-        sar_aligned = _warp_to_grid(sar_src, dst_crs, overlap_transform, overlap_w)
-        # Fix: _warp_to_grid assumes square; use explicit shape
+        # Warp both into this common grid at native target resolution.
         sar_aligned = np.zeros((sar_src.count, overlap_h, overlap_w), dtype=np.float32)
         for b in range(sar_src.count):
             reproject(
@@ -245,13 +245,29 @@ def sar2opt_worker(args: Tuple) -> List[List[str]]:
     if max_crops is not None:
         windows = windows[:max_crops]
 
+    # Use SAR stem in BOTH input and target names to avoid race conditions
+    # when multiple SAR scenes share the same mosaic target.
+    sar_stem = sar_path.stem
+
     if not windows:
-        # Overlap smaller than crop_size: resize to crop_size
-        from skimage.transform import resize as sk_resize
-        sar_resized = sk_resize(sar_aligned.transpose(1, 2, 0), (crop_size, crop_size), preserve_range=True, anti_aliasing=True).transpose(2, 0, 1).astype(np.uint8)
-        tgt_resized = sk_resize(tgt_aligned.transpose(1, 2, 0), (crop_size, crop_size), preserve_range=True, anti_aliasing=True).transpose(2, 0, 1).astype(np.uint8)
-        in_name = f"{city}__{tile_name}__{sar_path.stem}__sar.tif"
-        tg_name = f"{city}__{tile_name}__{target_path.stem}__{kind}.tif"
+        # Overlap smaller than crop_size: resize to crop_size using numpy interp
+        def _resize_array(arr: np.ndarray, h: int, w: int) -> np.ndarray:
+            """Simple bilinear-ish resize via rasterio reproject in-memory."""
+            from rasterio.transform import from_bounds as _fb
+            from rasterio.warp import reproject as _rp
+            c = arr.shape[0]
+            out = np.zeros((c, h, w), dtype=arr.dtype)
+            src_t = _fb(0, 0, arr.shape[2], arr.shape[1], arr.shape[2], arr.shape[1])
+            dst_t = _fb(0, 0, arr.shape[2], arr.shape[1], w, h)
+            for b in range(c):
+                _rp(arr[b], out[b], src_transform=src_t, dst_transform=dst_t,
+                    src_crs="EPSG:4326", dst_crs="EPSG:4326",
+                    resampling=Resampling.bilinear)
+            return out
+        sar_resized = _resize_array(sar_aligned, crop_size, crop_size)
+        tgt_resized = _resize_array(tgt_aligned, crop_size, crop_size)
+        in_name = f"{city}__{tile_name}__{sar_stem}__sar.tif"
+        tg_name = f"{city}__{tile_name}__{sar_stem}__{kind}.tif"
         write_tiff(dst_input / in_name, sar_resized, out_profile(sar_count, crop_size, sar_out_dt))
         write_tiff(dst_target / tg_name, tgt_resized, out_profile(tgt_count, crop_size, tgt_out_dt))
         rows.append([task_name, "train", f"{task_name}/train/input/{in_name}", f"{task_name}/train/target/{tg_name}", tile_name, city])
@@ -263,8 +279,8 @@ def sar2opt_worker(args: Tuple) -> List[List[str]]:
         sar_crop = sar_aligned[:, y:y + crop_size, x:x + crop_size].copy()
         tgt_crop = tgt_aligned[:, y:y + crop_size, x:x + crop_size].copy()
         suffix = crop_suffix(window, idx)
-        in_name = f"{city}__{tile_name}__{sar_path.stem}__{suffix}__sar.tif"
-        tg_name = f"{city}__{tile_name}__{target_path.stem}__{suffix}__{kind}.tif"
+        in_name = f"{city}__{tile_name}__{sar_stem}__{suffix}__sar.tif"
+        tg_name = f"{city}__{tile_name}__{sar_stem}__{suffix}__{kind}.tif"
         write_tiff(dst_input / in_name, sar_crop, out_profile(sar_count, crop_size, sar_out_dt))
         write_tiff(dst_target / tg_name, tgt_crop, out_profile(tgt_count, crop_size, tgt_out_dt))
         rows.append([task_name, "train", f"{task_name}/train/input/{in_name}", f"{task_name}/train/target/{tg_name}", tile_name, city])
@@ -344,14 +360,14 @@ def process_rgb2ir(writer: csv.writer, workers: int) -> int:
                     task, str(DST_ROOT),
                 ))
     if workers <= 1:
-        for item in work_items:
+        for item in tqdm(work_items, desc=f"  {task}", unit="tile"):
             for row in rgb2ir_worker(item):
                 writer.writerow(row)
                 count += 1
     else:
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = [executor.submit(rgb2ir_worker, item) for item in work_items]
-            for future in as_completed(futures):
+            for future in tqdm(as_completed(futures), total=len(futures), desc=f"  {task}", unit="tile"):
                 for row in future.result():
                     writer.writerow(row)
                     count += 1
@@ -380,7 +396,7 @@ def process_sar_to_optical(kind: str, writer: csv.writer, workers: int) -> int:
                     task, str(DST_ROOT),
                 ))
     if workers <= 1:
-        for item in work_items:
+        for item in tqdm(work_items, desc=f"  {task}", unit="pair"):
             rows = sar2opt_worker(item)
             if not rows:
                 skipped += 1
@@ -391,7 +407,7 @@ def process_sar_to_optical(kind: str, writer: csv.writer, workers: int) -> int:
     else:
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = [executor.submit(sar2opt_worker, item) for item in work_items]
-            for future in as_completed(futures):
+            for future in tqdm(as_completed(futures), total=len(futures), desc=f"  {task}", unit="pair"):
                 rows = future.result()
                 if not rows:
                     skipped += 1

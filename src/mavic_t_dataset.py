@@ -24,6 +24,7 @@ def _repo_root() -> Path:
 
 DEFAULT_REFINED_ROOT = _repo_root() / "datasets/BiliSakura/MACIV-T-2025-Structure-Refined"
 DEFAULT_ORIGINAL_ROOT = _repo_root() / "datasets/BiliSakura/MAVIC-T-2025"
+DEFAULT_EVAL_ROOT = DEFAULT_REFINED_ROOT
 REFINED_MANIFEST_FILES = (
     DEFAULT_REFINED_ROOT / "manifests" / "refined_manifest.csv",
     DEFAULT_REFINED_ROOT / "manifests" / "refined_manifest_crop_aug.csv",
@@ -50,10 +51,14 @@ class MavicTImageToImageDataset:
     def __init__(
         self,
         refined_root: str | Path = DEFAULT_REFINED_ROOT,
-        original_root: str | Path = DEFAULT_ORIGINAL_ROOT,
+        original_root: str | Path | None = None,
+        eval_root: str | Path | None = None,
     ) -> None:
         self.refined_root = Path(refined_root)
-        self.original_root = Path(original_root)
+        if eval_root is None:
+            eval_root = original_root if original_root is not None else DEFAULT_EVAL_ROOT
+        self.eval_root = Path(eval_root)
+        self.original_root = Path(original_root) if original_root is not None else self.eval_root
 
     def load(
         self,
@@ -73,7 +78,7 @@ class MavicTImageToImageDataset:
         if split in ("val", "test"):
             if task is None:
                 raise ValueError("task is required for val/test splits.")
-            return self._load_original_eval(split, task, with_target, diffusers_format)
+            return self._load_eval_split(split, task, with_target, diffusers_format)
 
         raise ValueError("split must be one of: train, val, test.")
 
@@ -83,10 +88,10 @@ class MavicTImageToImageDataset:
             tasks = TASKS
         elif split in ("val", "test"):
             tasks = tuple(
-                task for task in TASKS if (self.original_root / split / task).is_dir()
+                task for task in TASKS if (self.eval_root / split / task).is_dir()
             )
             if not tasks:
-                raise FileNotFoundError(f"No task folders found under {self.original_root}/{split}")
+                raise FileNotFoundError(f"No task folders found under {self.eval_root}/{split}")
         else:
             raise ValueError("split must be one of: train, val, test.")
 
@@ -155,7 +160,7 @@ class MavicTImageToImageDataset:
         )
         return dataset.cast(features)
 
-    def _load_original_eval(
+    def _load_eval_split(
         self,
         split: str,
         task: str,
@@ -165,7 +170,7 @@ class MavicTImageToImageDataset:
         if with_target:
             raise ValueError("Targets are not available for val/test splits.")
 
-        task_dir = self.original_root / split / task
+        task_dir = self.eval_root / split / task
         if not task_dir.is_dir():
             raise FileNotFoundError(f"Missing task directory: {task_dir}")
 
