@@ -30,7 +30,7 @@ from datetime import timedelta
 
 from .config import TaskConfig
 from .dataset_wrapper import MavicTTurboDataset
-from .model import Pix2PixTurbo
+from .models import Pix2PixTurbo
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:

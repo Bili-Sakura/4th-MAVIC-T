@@ -40,7 +40,7 @@ from src.img2img_turbo.config import (  # noqa: E402
     sar2rgb_config,
 )
 from src.img2img_turbo.dataset_wrapper import MavicTTurboDataset  # noqa: E402
-from src.img2img_turbo.model import Pix2PixTurbo  # noqa: E402
+from src.img2img_turbo.models import Pix2PixTurbo  # noqa: E402
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
