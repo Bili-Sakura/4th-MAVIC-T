@@ -170,6 +170,8 @@ class DDBMTrainer:
             resolution=self.cfg.resolution,
             model_channels=self.cfg.model_channels,
             use_augmented=self.cfg.use_augmented,
+            use_horizontal_flip=self.cfg.use_horizontal_flip,
+            use_vertical_flip=self.cfg.use_vertical_flip,
         )
         val_ds = MavicTDDBMDataset(
             task=self.cfg.task_name,

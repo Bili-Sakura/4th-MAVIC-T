@@ -24,6 +24,8 @@ class TaskConfig:
     model_channels: int = 1  # channels the DDBM UNet operates in
     resolution: int = 256
     use_augmented: bool = False  # also load *_crop_aug training split
+    use_horizontal_flip: bool = False  # random horizontal flip augmentation
+    use_vertical_flip: bool = False  # random vertical flip augmentation
 
     # ---- model ----
     unet_type: str = "adm"
