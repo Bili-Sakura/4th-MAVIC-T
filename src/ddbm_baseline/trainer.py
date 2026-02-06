@@ -12,7 +12,6 @@ import logging
 import math
 import os
 import shutil
-import sys
 from pathlib import Path
 
 import torch
@@ -25,16 +24,10 @@ from accelerate.utils import ProjectConfiguration
 from tqdm.auto import tqdm
 from datetime import timedelta
 
-# Ensure vendor is importable
-_VENDOR_ROOT = Path(__file__).resolve().parents[2] / "vendor" / "DDBM"
-if str(_VENDOR_ROOT) not in sys.path:
-    sys.path.insert(0, str(_VENDOR_ROOT))
-
-from ddbm.schedulers import DDBMScheduler  # noqa: E402
-
-from .config import TaskConfig  # noqa: E402
-from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
-from .model import create_model  # noqa: E402
+from .schedulers import DDBMScheduler
+from .config import TaskConfig
+from .dataset_wrapper import MavicTDDBMDataset
+from .models import create_model
 
 from src.metrics import MavicCriterion  # noqa: E402
 
