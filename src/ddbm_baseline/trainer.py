@@ -36,6 +36,8 @@ from .config import TaskConfig  # noqa: E402
 from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
 from .model import create_model  # noqa: E402
 
+from src.metrics import MavicCriterion  # noqa: E402
+
 logger = get_logger(__name__, log_level="INFO")
 
 
@@ -220,8 +222,14 @@ class DDBMTrainer:
         return x0, x_T
 
     @staticmethod
-    def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp"):
-        """Compute the DDBM denoising loss for one batch."""
+    def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp",
+                              mavic_criterion=None, mavic_loss_weight=0.1):
+        """Compute the DDBM denoising loss for one batch.
+
+        When *mavic_criterion* is provided the loss is augmented with a
+        differentiable LPIPS + L1 term computed on the denoised prediction,
+        directly optimising toward the MAVIC-T evaluation metric.
+        """
         bsz = x0.shape[0]
         device = x0.device
         dtype = x0.dtype
@@ -257,6 +265,17 @@ class DDBMTrainer:
 
         loss = F.mse_loss(denoised, x0, reduction="none")
         loss = (loss * weights).mean()
+
+        # Optional metric-based loss (LPIPS + L1) on the denoised prediction
+        if mavic_criterion is not None:
+            # Re-scale from [-1, 1] to [0, 1] for the metric criterion
+            pred_01 = (denoised + 1) * 0.5
+            target_01 = (x0 + 1) * 0.5
+            pred_01 = pred_01.clamp(0, 1)
+            target_01 = target_01.clamp(0, 1)
+            mavic_loss = mavic_criterion(pred_01, target_01)
+            loss = loss + mavic_loss_weight * mavic_loss
+
         return loss
 
     # ----- main training loop ------------------------------------------------
@@ -293,6 +312,16 @@ class DDBMTrainer:
         logger.info(f"[{cfg.task_name}] Creating model  (channels={cfg.model_channels}, res={cfg.resolution})")
         model = self.build_model()
         scheduler = self.build_scheduler()
+
+        mavic_criterion = None
+        if cfg.use_mavic_loss:
+            mavic_criterion = MavicCriterion(
+                lpips_weight=cfg.mavic_lpips_weight,
+                l1_weight=cfg.mavic_l1_weight,
+            )
+            logger.info(f"[{cfg.task_name}] Using MAVIC metric loss "
+                        f"(lpips_w={cfg.mavic_lpips_weight}, l1_w={cfg.mavic_l1_weight}, "
+                        f"loss_w={cfg.mavic_loss_weight})")
 
         ema_model = None
         if cfg.use_ema:
@@ -331,6 +360,8 @@ class DDBMTrainer:
         )
         if cfg.use_ema and ema_model is not None:
             ema_model.to(accelerator.device)
+        if mavic_criterion is not None:
+            mavic_criterion = mavic_criterion.to(accelerator.device)
 
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
         if cfg.max_train_steps is None:
@@ -373,7 +404,11 @@ class DDBMTrainer:
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
                     x0, x_T = self.preprocess_batch(batch, accelerator.device)
-                    loss = self.compute_training_loss(model, scheduler, x0, x_T, pred_mode=cfg.pred_mode)
+                    loss = self.compute_training_loss(
+                        model, scheduler, x0, x_T, pred_mode=cfg.pred_mode,
+                        mavic_criterion=mavic_criterion,
+                        mavic_loss_weight=cfg.mavic_loss_weight,
+                    )
 
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:

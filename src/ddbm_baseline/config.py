@@ -70,6 +70,12 @@ class TaskConfig:
     dataloader_num_workers: int = 4
     seed: int = 42
 
+    # ---- metric-based loss (MAVIC-T evaluation objective) ----
+    use_mavic_loss: bool = False   # add LPIPS + L1 loss alongside denoising loss
+    mavic_lpips_weight: float = 1.0
+    mavic_l1_weight: float = 1.0
+    mavic_loss_weight: float = 0.1  # relative weight vs. the denoising loss
+
     # ---- sampling (evaluation) ----
     num_inference_steps: int = 40
     guidance: float = 1.0
