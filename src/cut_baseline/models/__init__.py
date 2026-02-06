@@ -1,9 +1,10 @@
-"""Backward-compatibility shim — imports from ``models.cut_model``.
+"""CUT model components.
 
-New code should import directly from :mod:`src.cut_baseline.models`.
+Provides the generator, discriminator, feature projection network,
+and associated loss modules for Contrastive Unpaired Translation.
 """
 
-from .models.cut_model import (  # noqa: F401
+from .cut_model import (
     CUTGenerator,
     PatchGANDiscriminator,
     PatchSampleMLP,
