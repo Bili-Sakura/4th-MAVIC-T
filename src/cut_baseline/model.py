@@ -593,7 +593,7 @@ def create_patch_sample_mlp(
 ) -> PatchSampleMLP:
     """Factory for the PatchSampleMLP feature projection network."""
     return PatchSampleMLP(
-        use_mlp=(use_mlp if use_mlp else False),
+        use_mlp=use_mlp,
         nc=nc,
         init_type=init_type,
         init_gain=init_gain,

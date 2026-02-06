@@ -354,7 +354,9 @@ class CUTTrainer:
 
         global_step = 0
         first_epoch = 0
-        optimizer_F = None  # will be created after data-dependent init
+        # optimizer_F is created after data-dependent initialisation of netF
+        # (see PatchSampleMLP.create_mlp which is called on first forward pass)
+        optimizer_F = None
 
         # Resume
         if cfg.resume_from_checkpoint:
@@ -377,8 +379,6 @@ class CUTTrainer:
             desc=f"Training CUT {cfg.task_name}",
         )
 
-        netF_initialized = False
-
         for epoch in range(first_epoch, total_epochs):
             netG.train()
             netD.train()
@@ -386,14 +386,16 @@ class CUTTrainer:
             for step, batch in enumerate(train_dataloader):
                 real_A, real_B = self.preprocess_batch(batch, accelerator.device)
 
-                # Data-dependent initialisation of netF (first step only)
-                if not netF_initialized:
+                # Data-dependent initialisation of netF (first step only).
+                # PatchSampleMLP lazily creates its MLP layers on the first
+                # forward pass based on the encoder feature dimensions;
+                # optimizer_F is created once those parameters exist.
+                if not netF.mlp_init:
                     with torch.no_grad():
                         fake_B_init = netG(real_A)
                         feat_init = netG(fake_B_init, nce_layers, encode_only=True)
                         netF(feat_init, cfg.num_patches, None)
                     optimizer_F = torch.optim.Adam(netF.parameters(), lr=cfg.learning_rate, betas=(cfg.beta1, cfg.beta2))
-                    netF_initialized = True
 
                 with accelerator.accumulate(netG, netD):
                     # Forward G
