@@ -30,42 +30,6 @@ class TestComputeL1:
 
 
 # ---------------------------------------------------------------------------
-# FIDStatistics
-# ---------------------------------------------------------------------------
-
-class TestFIDStatistics:
-    def test_identical_distributions(self):
-        from src.metrics import FIDStatistics
-        rng = np.random.RandomState(0)
-        feats = rng.randn(100, 64)
-        mu = feats.mean(axis=0)
-        sigma = np.cov(feats, rowvar=False)
-        s1 = FIDStatistics(mu, sigma)
-        s2 = FIDStatistics(mu, sigma)
-        assert s1.frechet_distance(s2) == pytest.approx(0.0, abs=1e-4)
-
-    def test_different_distributions(self):
-        from src.metrics import FIDStatistics
-        rng = np.random.RandomState(42)
-        f1 = rng.randn(200, 32)
-        f2 = rng.randn(200, 32) + 5  # shifted
-        s1 = FIDStatistics(f1.mean(0), np.cov(f1, rowvar=False))
-        s2 = FIDStatistics(f2.mean(0), np.cov(f2, rowvar=False))
-        assert s1.frechet_distance(s2) > 0
-
-    def test_symmetry(self):
-        from src.metrics import FIDStatistics
-        rng = np.random.RandomState(1)
-        f1 = rng.randn(100, 16)
-        f2 = rng.randn(100, 16) + 1
-        s1 = FIDStatistics(f1.mean(0), np.cov(f1, rowvar=False))
-        s2 = FIDStatistics(f2.mean(0), np.cov(f2, rowvar=False))
-        assert s1.frechet_distance(s2) == pytest.approx(
-            s2.frechet_distance(s1), abs=1e-4
-        )
-
-
-# ---------------------------------------------------------------------------
 # Task score & overall score
 # ---------------------------------------------------------------------------
 
@@ -143,3 +107,75 @@ class TestMavicCriterion:
         b = torch.ones(2, 3, 64, 64)
         loss = criterion(a, b)
         assert loss.item() > 0.5
+
+
+# ---------------------------------------------------------------------------
+# MetricResults
+# ---------------------------------------------------------------------------
+
+class TestMetricResults:
+    def test_score_with_fid(self):
+        from src.metrics import MetricResults, task_score
+        r = MetricResults(lpips=0.3, fid=10.0, l1=0.15)
+        assert r.score == pytest.approx(task_score(10.0, 0.3, 0.15))
+
+    def test_score_without_fid(self):
+        from src.metrics import MetricResults
+        r = MetricResults(lpips=0.3, l1=0.15)
+        assert r.score is None
+
+    def test_to_dict(self):
+        from src.metrics import MetricResults
+        r = MetricResults(lpips=0.3, fid=10.0, l1=0.15)
+        d = r.to_dict()
+        assert "lpips" in d and "fid" in d and "l1" in d and "score" in d
+
+    def test_repr(self):
+        from src.metrics import MetricResults
+        r = MetricResults(lpips=0.3, fid=10.0, l1=0.15)
+        s = repr(r)
+        assert "LPIPS" in s and "FID" in s and "L1" in s
+
+
+# ---------------------------------------------------------------------------
+# MetricCalculator
+# ---------------------------------------------------------------------------
+
+class TestMetricCalculator:
+    def test_update_and_compute(self):
+        from src.metrics import MetricCalculator
+        calc = MetricCalculator(device="cpu", compute_fid=False)
+        img = torch.rand(2, 3, 64, 64)
+        calc.update(img, img)
+        result = calc.compute()
+        assert result.l1 == pytest.approx(0.0, abs=1e-5)
+        assert result.lpips < 0.1
+        assert result.fid is None  # FID disabled
+
+    def test_reset(self):
+        from src.metrics import MetricCalculator
+        calc = MetricCalculator(device="cpu", compute_fid=False)
+        img = torch.rand(2, 3, 64, 64)
+        calc.update(img, img)
+        calc.reset()
+        result = calc.compute()
+        # After reset, no data accumulated → defaults
+        assert result.l1 == 0.0
+        assert result.lpips == 0.0
+
+    def test_multiple_batches(self):
+        from src.metrics import MetricCalculator
+        calc = MetricCalculator(device="cpu", compute_fid=False)
+        for _ in range(3):
+            img = torch.rand(2, 3, 64, 64)
+            calc.update(img, img)
+        result = calc.compute()
+        assert result.l1 == pytest.approx(0.0, abs=1e-5)
+
+    def test_grayscale_input(self):
+        from src.metrics import MetricCalculator
+        calc = MetricCalculator(device="cpu", compute_fid=False)
+        img = torch.rand(2, 1, 64, 64)
+        calc.update(img, img)
+        result = calc.compute()
+        assert result.l1 == pytest.approx(0.0, abs=1e-5)

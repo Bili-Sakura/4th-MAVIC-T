@@ -28,13 +28,25 @@ excluded from the training criterion but included in evaluation.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from scipy import linalg
+
+from torchmetrics.image import (
+    LearnedPerceptualImagePatchSimilarity,
+)
+
+# FID (optional – requires torchvision for InceptionV3 weights)
+try:
+    from torchmetrics.image.fid import FrechetInceptionDistance
+    FID_AVAILABLE = True
+except (ImportError, RuntimeError):
+    FID_AVAILABLE = False
+    FrechetInceptionDistance = None
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +79,7 @@ def compute_l1(
 class LPIPS(nn.Module):
     """VGG-16 based Learned Perceptual Image Patch Similarity.
 
-    Thin wrapper around ``torchmetrics.image.lpip.LearnedPerceptualImagePatchSimilarity``
+    Thin wrapper around ``torchmetrics.image.LearnedPerceptualImagePatchSimilarity``
     that accepts images in ``[0, 1]`` and re-scales them to ``[-1, 1]`` as
     expected by the underlying network.
 
@@ -79,8 +91,6 @@ class LPIPS(nn.Module):
 
     def __init__(self, net_type: str = "vgg") -> None:
         super().__init__()
-        from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
-
         self._lpips = LearnedPerceptualImagePatchSimilarity(net_type=net_type)
 
     def forward(
@@ -108,127 +118,6 @@ class LPIPS(nn.Module):
             preds = preds.expand(-1, 3, -1, -1)
             tgts = tgts.expand(-1, 3, -1, -1)
         return self._lpips(preds, tgts)
-
-
-# ---------------------------------------------------------------------------
-# FID metric (pure-PyTorch, using torchvision InceptionV3)
-# ---------------------------------------------------------------------------
-
-class FIDStatistics:
-    """Container for the mean and covariance of InceptionV3 activations."""
-
-    def __init__(self, mu: np.ndarray, sigma: np.ndarray) -> None:
-        self.mu = np.atleast_1d(mu)
-        self.sigma = np.atleast_2d(sigma)
-
-    def frechet_distance(self, other: "FIDStatistics", eps: float = 1e-6) -> float:
-        """Compute the Fréchet distance to *other* statistics."""
-        mu1, sigma1 = self.mu, self.sigma
-        mu2, sigma2 = other.mu, other.sigma
-
-        assert mu1.shape == mu2.shape, (
-            f"Mean vectors have different lengths: {mu1.shape} vs {mu2.shape}"
-        )
-        assert sigma1.shape == sigma2.shape, (
-            f"Covariance matrices differ: {sigma1.shape} vs {sigma2.shape}"
-        )
-
-        diff = mu1 - mu2
-
-        covmean = linalg.sqrtm(sigma1.dot(sigma2))
-        if not np.isfinite(covmean).all():
-            offset = np.eye(sigma1.shape[0]) * eps
-            covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
-
-        if np.iscomplexobj(covmean):
-            if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
-                m = np.max(np.abs(covmean.imag))
-                raise ValueError(f"Imaginary component {m}")
-            covmean = covmean.real
-
-        return float(
-            diff.dot(diff)
-            + np.trace(sigma1)
-            + np.trace(sigma2)
-            - 2 * np.trace(covmean)
-        )
-
-
-@torch.no_grad()
-def compute_inception_features(
-    images: torch.Tensor,
-    batch_size: int = 64,
-    device: Optional[torch.device] = None,
-) -> np.ndarray:
-    """Extract pool-3 features from InceptionV3 for FID computation.
-
-    Parameters
-    ----------
-    images : torch.Tensor
-        ``(N, C, H, W)`` float tensor in ``[0, 1]``.
-    batch_size : int
-        Inference batch size.
-    device : torch.device, optional
-        Defaults to CUDA if available.
-
-    Returns
-    -------
-    np.ndarray
-        ``(N, 2048)`` feature matrix.
-    """
-    from torchvision.models import inception_v3, Inception_V3_Weights
-
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = inception_v3(weights=Inception_V3_Weights.DEFAULT, transform_input=False)
-    model.fc = nn.Identity()  # pool-3 features before classification head
-    model = model.to(device).eval()
-
-    features_list: list[np.ndarray] = []
-    n = images.shape[0]
-    for i in range(0, n, batch_size):
-        batch = images[i : i + batch_size].to(device)
-        # InceptionV3 expects 3-channel, 299×299
-        if batch.shape[1] == 1:
-            batch = batch.expand(-1, 3, -1, -1)
-        batch = F.interpolate(batch, size=(299, 299), mode="bilinear", align_corners=False)
-        feats = model(batch)
-        features_list.append(feats.cpu().numpy())
-
-    return np.concatenate(features_list, axis=0)
-
-
-def compute_fid(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    batch_size: int = 64,
-    device: Optional[torch.device] = None,
-) -> float:
-    """Compute FID between two sets of images.
-
-    Parameters
-    ----------
-    predictions, targets : torch.Tensor
-        ``(N, C, H, W)`` float tensors in ``[0, 1]``.
-
-    Returns
-    -------
-    float
-        FID value (lower is better).
-    """
-    feats_pred = compute_inception_features(predictions, batch_size, device)
-    feats_tgt = compute_inception_features(targets, batch_size, device)
-
-    stats_pred = FIDStatistics(
-        mu=np.mean(feats_pred, axis=0),
-        sigma=np.cov(feats_pred, rowvar=False),
-    )
-    stats_tgt = FIDStatistics(
-        mu=np.mean(feats_tgt, axis=0),
-        sigma=np.cov(feats_tgt, rowvar=False),
-    )
-    return stats_pred.frechet_distance(stats_tgt)
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +153,139 @@ def overall_score(
         return float(len(all_tasks))
 
     return sum(attempted) / len(all_tasks) + unattempted
+
+
+# ---------------------------------------------------------------------------
+# MetricResults dataclass
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MetricResults:
+    """Container for MAVIC-T evaluation results."""
+
+    lpips: float
+    fid: Optional[float] = None
+    l1: float = 0.0
+
+    @property
+    def score(self) -> Optional[float]:
+        """MAVIC-T task score, or *None* if FID is unavailable."""
+        if self.fid is None:
+            return None
+        return task_score(self.fid, self.lpips, self.l1)
+
+    def __repr__(self) -> str:
+        parts = [f"LPIPS: {self.lpips:.4f}", f"L1: {self.l1:.4f}"]
+        if self.fid is not None:
+            parts.append(f"FID: {self.fid:.2f}")
+        s = self.score
+        if s is not None:
+            parts.append(f"TaskScore: {s:.4f}")
+        return " | ".join(parts)
+
+    def to_dict(self) -> dict:
+        return {"lpips": self.lpips, "fid": self.fid, "l1": self.l1, "score": self.score}
+
+
+# ---------------------------------------------------------------------------
+# MetricCalculator – batch-wise accumulation using torchmetrics
+# ---------------------------------------------------------------------------
+
+class MetricCalculator:
+    """Accumulates MAVIC-T metrics (LPIPS, FID, L1) over batches.
+
+    Uses ``torchmetrics`` for LPIPS and FID so there is no need for
+    manual InceptionV3 feature extraction or scipy-based Fréchet distance.
+
+    Parameters
+    ----------
+    device : str
+        Torch device string (e.g. ``"cuda"`` or ``"cpu"``).
+    compute_fid : bool
+        Whether to compute FID. Requires ``torchmetrics[image]``.
+    net_type : str
+        LPIPS backbone (``"vgg"`` for the official MAVIC-T evaluation).
+    """
+
+    def __init__(
+        self,
+        device: str = "cpu",
+        compute_fid: bool = True,
+        net_type: str = "vgg",
+    ) -> None:
+        self.device = device
+        self._compute_fid = compute_fid and FID_AVAILABLE
+
+        # LPIPS – torchmetrics (expects [-1, 1])
+        self._lpips = LearnedPerceptualImagePatchSimilarity(net_type=net_type).to(device)
+
+        # FID – torchmetrics (expects uint8 [0, 255])
+        self._fid: Optional[FrechetInceptionDistance] = None
+        if self._compute_fid and FrechetInceptionDistance is not None:
+            try:
+                self._fid = FrechetInceptionDistance(normalize=False).to(device)
+            except Exception:
+                self._compute_fid = False
+
+        self._l1_values: List[float] = []
+        self._lpips_values: List[float] = []
+
+    def reset(self) -> None:
+        """Clear all accumulated state."""
+        self._l1_values.clear()
+        self._lpips_values.clear()
+        self._lpips.reset()
+        if self._fid is not None:
+            self._fid.reset()
+
+    @torch.no_grad()
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor) -> None:
+        """Feed a batch of images in ``[0, 1]`` range (N, C, H, W).
+
+        Parameters
+        ----------
+        predictions, targets : torch.Tensor
+            Float tensors in ``[0, 1]`` with shape ``(N, C, H, W)``.
+        """
+        predictions = predictions.clamp(0, 1)
+        targets = targets.clamp(0, 1)
+
+        # L1
+        self._l1_values.append(F.l1_loss(predictions, targets).item())
+
+        # LPIPS (expects [-1, 1], 3 channels)
+        preds_lp = predictions * 2 - 1
+        tgts_lp = targets * 2 - 1
+        if preds_lp.shape[1] == 1:
+            preds_lp = preds_lp.expand(-1, 3, -1, -1)
+            tgts_lp = tgts_lp.expand(-1, 3, -1, -1)
+        self._lpips_values.append(self._lpips(preds_lp, tgts_lp).item())
+        self._lpips.reset()
+
+        # FID (expects uint8, 3 channels)
+        if self._fid is not None:
+            preds_uint8 = (predictions * 255).to(torch.uint8)
+            tgts_uint8 = (targets * 255).to(torch.uint8)
+            if preds_uint8.shape[1] == 1:
+                preds_uint8 = preds_uint8.expand(-1, 3, -1, -1)
+                tgts_uint8 = tgts_uint8.expand(-1, 3, -1, -1)
+            self._fid.update(tgts_uint8, real=True)
+            self._fid.update(preds_uint8, real=False)
+
+    def compute(self) -> MetricResults:
+        """Return aggregated :class:`MetricResults`."""
+        fid_val: Optional[float] = None
+        if self._fid is not None:
+            try:
+                fid_val = self._fid.compute().item()
+            except Exception:
+                fid_val = None
+
+        return MetricResults(
+            lpips=float(np.mean(self._lpips_values)) if self._lpips_values else 0.0,
+            l1=float(np.mean(self._l1_values)) if self._l1_values else 0.0,
+            fid=fid_val,
+        )
 
 
 # ---------------------------------------------------------------------------
