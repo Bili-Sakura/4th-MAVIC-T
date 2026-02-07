@@ -64,11 +64,12 @@ class TaskConfig:
     output_dir: str = "./outputs/cut"
     train_batch_size: int = 1
     eval_batch_size: int = 4
-    n_epochs: int = 200  # epochs with initial lr
-    n_epochs_decay: int = 200  # epochs to linearly decay lr to zero
+    n_epochs: int = 100  # epochs with initial lr
+    n_epochs_decay: int = 0  # epochs to linearly decay lr to zero
     max_train_steps: Optional[int] = None
     gradient_accumulation_steps: int = 1
-    learning_rate: float = 2e-4
+    optimizer_type: str = "prodigy"  # "prodigy" | "adam"
+    learning_rate: float = 1.0  # Prodigy adapts lr; set to 1.0 by default
     beta1: float = 0.5
     beta2: float = 0.999
     lr_policy: str = "linear"  # linear | step | cosine
@@ -77,11 +78,15 @@ class TaskConfig:
     log_with: str = "tensorboard"
     save_model_epochs: int = 10
     checkpointing_steps: int = 500
-    checkpoints_total_limit: int = 5
+    checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
+    # ---- hub ----
+    push_to_hub: bool = False
+    hub_model_id: Optional[str] = None
+
     # ---- hardware ----
-    mixed_precision: str = "fp16"
+    mixed_precision: str = "bf16"
     dataloader_num_workers: int = 4
     seed: int = 42
 
@@ -117,13 +122,13 @@ def sar2eo_config(**overrides) -> TaskConfig:
 
 
 def rgb2ir_config(**overrides) -> TaskConfig:
-    """RGB-to-IR: 3-band → 1-band (native 1024×1024, default training at 256)."""
+    """RGB-to-IR: 3-band → 1-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
         source_channels=3,
         target_channels=1,
         model_channels=3,
-        resolution=256,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/cut_rgb2ir",
         train_batch_size=4,
@@ -135,13 +140,13 @@ def rgb2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2ir_config(**overrides) -> TaskConfig:
-    """SAR-to-IR: 1-band → 1-band (native 1024×1024, default training at 256)."""
+    """SAR-to-IR: 1-band → 1-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="sar2ir",
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=256,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/cut_sar2ir",
         train_batch_size=4,
@@ -153,13 +158,13 @@ def sar2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2rgb_config(**overrides) -> TaskConfig:
-    """SAR-to-RGB: 1-band → 3-band (native 1024×1024, default training at 256)."""
+    """SAR-to-RGB: 1-band → 3-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         source_channels=1,
         target_channels=3,
         model_channels=3,
-        resolution=256,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/cut_sar2rgb",
         train_batch_size=4,

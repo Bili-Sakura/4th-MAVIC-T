@@ -30,6 +30,11 @@ from .dataset_wrapper import MavicTDDBMDataset
 from .models import create_model
 
 from src.metrics import MavicCriterion  # noqa: E402
+from src.training_utils import (  # noqa: E402
+    create_optimizer,
+    save_checkpoint_diffusers,
+    push_checkpoint_to_hub,
+)
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -321,7 +326,12 @@ class DDBMTrainer:
             from diffusers.training_utils import EMAModel
             ema_model = EMAModel(model.parameters(), decay=cfg.ema_decay, use_ema_warmup=True, model_cls=type(model))
 
-        optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
+        optimizer = create_optimizer(
+            model.parameters(),
+            optimizer_type=cfg.optimizer_type,
+            lr=cfg.learning_rate,
+            weight_decay=cfg.weight_decay,
+        )
 
         logger.info(f"[{cfg.task_name}] Loading dataset …")
         train_dataset, val_dataset = self.build_datasets()
@@ -439,11 +449,25 @@ class DDBMTrainer:
             # Save at epoch boundary
             if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
                 unwrapped = accelerator.unwrap_model(model)
-                torch.save(unwrapped.state_dict(), os.path.join(cfg.output_dir, f"model_epoch_{epoch + 1}.pt"))
+                epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
+                extra_sd = {}
                 if cfg.use_ema and ema_model is not None:
-                    torch.save(ema_model.state_dict(), os.path.join(cfg.output_dir, f"ema_model_epoch_{epoch + 1}.pt"))
-                scheduler.save_config(cfg.output_dir)
+                    extra_sd["ema_unet"] = ema_model.state_dict()
+                save_checkpoint_diffusers(
+                    epoch_dir,
+                    unwrapped,
+                    scheduler=scheduler,
+                    model_name="unet",
+                    extra_state_dicts=extra_sd if extra_sd else None,
+                )
                 logger.info(f"Saved model at epoch {epoch + 1}")
+
+                if cfg.push_to_hub and cfg.hub_model_id:
+                    push_checkpoint_to_hub(
+                        epoch_dir,
+                        hub_model_id=cfg.hub_model_id,
+                        commit_message=f"epoch {epoch + 1}",
+                    )
 
         accelerator.end_training()
         logger.info(f"[{cfg.task_name}] Training complete!")

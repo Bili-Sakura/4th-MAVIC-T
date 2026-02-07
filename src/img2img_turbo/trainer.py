@@ -37,6 +37,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.metrics import MavicCriterion  # noqa: E402
+from src.training_utils import (  # noqa: E402
+    create_optimizer,
+    save_checkpoint_diffusers,
+    push_checkpoint_to_hub,
+)
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -192,8 +197,9 @@ class Pix2PixTurboTrainer:
 
         # Optimizer (only trainable parameters)
         trainable_params = model.get_trainable_params()
-        optimizer = torch.optim.AdamW(
+        optimizer = create_optimizer(
             trainable_params,
+            optimizer_type=cfg.optimizer_type,
             lr=cfg.learning_rate,
             weight_decay=cfg.weight_decay,
         )
@@ -320,6 +326,29 @@ class Pix2PixTurboTrainer:
 
                 if global_step >= cfg.max_train_steps:
                     break
+
+            # Save diffusers-style checkpoint at epoch boundary
+            if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
+                unwrapped = accelerator.unwrap_model(model)
+                epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
+                save_checkpoint_diffusers(
+                    epoch_dir,
+                    unwrapped.unet,
+                    scheduler=unwrapped.sched,
+                    model_name="unet",
+                    extra_state_dicts={
+                        "vae": {k: v for k, v in unwrapped.vae.state_dict().items()
+                                if "lora" in k or "skip" in k},
+                    },
+                )
+                logger.info(f"Saved diffusers-style checkpoint at epoch {epoch + 1}")
+
+                if cfg.push_to_hub and cfg.hub_model_id:
+                    push_checkpoint_to_hub(
+                        epoch_dir,
+                        hub_model_id=cfg.hub_model_id,
+                        commit_message=f"epoch {epoch + 1}",
+                    )
 
         # Save final model
         if accelerator.is_main_process:
