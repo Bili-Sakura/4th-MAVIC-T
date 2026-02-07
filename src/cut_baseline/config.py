@@ -28,6 +28,9 @@ class TaskConfig:
     use_horizontal_flip: bool = True
     use_vertical_flip: bool = False
 
+    # ---- sample filtering ----
+    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+
     # ---- generator ----
     netG: str = "resnet_9blocks"  # resnet_9blocks | resnet_6blocks
     ngf: int = 64

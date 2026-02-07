@@ -28,6 +28,9 @@ class TaskConfig:
     use_horizontal_flip: bool = False
     use_vertical_flip: bool = False
 
+    # ---- sample filtering ----
+    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+
     # ---- model (Pix2Pix-Turbo) ----
     pretrained_model_name_or_path: str = "stabilityai/sd-turbo"
     lora_rank_unet: int = 8

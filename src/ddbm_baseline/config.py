@@ -27,6 +27,9 @@ class TaskConfig:
     use_horizontal_flip: bool = False  # random horizontal flip augmentation
     use_vertical_flip: bool = False  # random vertical flip augmentation
 
+    # ---- sample filtering ----
+    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+
     # ---- model ----
     unet_type: str = "adm"
     num_channels: int = 128

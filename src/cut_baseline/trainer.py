@@ -84,6 +84,7 @@ class CUTTrainer:
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
+            exclude_file=self.cfg.exclude_file,
         )
         # val_ds = MavicTCUTDataset(
         #     task=self.cfg.task_name,

@@ -78,3 +78,51 @@ print(calc.compute())  # -> MetricResults(lpips=..., fid=None, l1=..., score=...
 ```
 
 This offers a quick sanity check on your generated images before packaging a competition submission.
+
+## 5. Filter bad samples & curated fine-tuning
+
+Satellite imagery often contains tiles that are entirely black or filled with N/A values. Use the provided filtering script to detect them and then fine-tune on the curated (clean) dataset.
+
+### Step 1 — Find bad images
+
+```bash
+# Scan all tasks (writes bad_samples.txt in the project root)
+python scripts/filter_bad_samples.py
+
+# Scan specific tasks only
+python scripts/filter_bad_samples.py --tasks sar2ir sar2rgb
+
+# Custom output path and black-pixel threshold
+python scripts/filter_bad_samples.py --output ./filtered_paths.txt --black_thresh 1e-6
+```
+
+The script checks every training image (input **and** target) for all-zero or all-NaN pixels and writes the absolute paths of the bad files to a text file (one path per line).
+
+### Step 2 — Fine-tune with curated data
+
+Pass the exclude list to any baseline trainer with `--exclude_file`. Combine it with `--num_epochs 1` (or `--n_epochs 1` for CUT) and `--resume_from_checkpoint` for a quick curated fine-tuning run:
+
+```bash
+# Pix2Pix-Turbo: 1-epoch fine-tune on clean sar2ir data
+python -m src.img2img_turbo.train_sar2ir \
+  --exclude_file ./bad_samples.txt \
+  --resume_from_checkpoint ./outputs/turbo_sar2ir/checkpoints/model_final.pkl \
+  --num_epochs 1 \
+  --output_dir ./outputs/turbo_sar2ir_curated
+
+# CUT baseline: 1-epoch fine-tune on clean sar2ir data
+python -m src.cut_baseline.train_sar2ir \
+  --exclude_file ./bad_samples.txt \
+  --resume_from_checkpoint latest \
+  --n_epochs 1 \
+  --output_dir ./outputs/cut_sar2ir_curated
+
+# DDBM baseline: 1-epoch fine-tune on clean sar2ir data
+python -m src.ddbm_baseline.train_sar2ir \
+  --exclude_file ./bad_samples.txt \
+  --resume_from_checkpoint latest \
+  --num_epochs 1 \
+  --output_dir ./outputs/ddbm_sar2ir_curated
+```
+
+The `--exclude_file` flag is supported by all three baselines and works for every task.
