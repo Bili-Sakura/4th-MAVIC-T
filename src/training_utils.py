@@ -191,6 +191,7 @@ def push_checkpoint_to_hub(
     hub_model_id: str,
     commit_message: str = "Update checkpoint",
     token: Optional[str] = None,
+    path_in_repo: Optional[str] = None,
 ) -> None:
     """Upload a diffusers-style checkpoint directory to the Hugging Face Hub.
 
@@ -205,6 +206,11 @@ def push_checkpoint_to_hub(
     token : str, optional
         Hugging Face API token.  When *None* the token cached by
         ``huggingface-cli login`` is used.
+    path_in_repo : str, optional
+        Destination subfolder inside the Hub repository.  Use this to
+        organise checkpoints by baseline and task, e.g.
+        ``"ddbm/sar2eo/checkpoint-epoch-5"``.  When *None* the files are
+        uploaded to the repository root (legacy behaviour).
     """
     try:
         from huggingface_hub import HfApi
@@ -217,6 +223,7 @@ def push_checkpoint_to_hub(
     api.upload_folder(
         repo_id=hub_model_id,
         folder_path=save_dir,
+        path_in_repo=path_in_repo,
         commit_message=commit_message,
     )
-    logger.info(f"Pushed checkpoint to hub: {hub_model_id}")
+    logger.info(f"Pushed checkpoint to hub: {hub_model_id} (path_in_repo={path_in_repo})")
