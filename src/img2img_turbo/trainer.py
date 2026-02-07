@@ -143,13 +143,12 @@ class Pix2PixTurboTrainer:
 
         # Optional latent-space L2 loss (RGB2IR ablation)
         if latent_target_encoder is not None:
-            # Get the model's internal latent (before decoding)
+            # Encode the prediction into latent space (gradients flow back)
+            latent_pred = model.vae.encode(x_tgt_pred).latent_dist.mean
+            latent_pred = latent_pred * model.vae.config.scaling_factor
+            # Encode the target with the frozen pre-trained VAE (no gradients)
             with torch.no_grad():
-                latent_pred = model.vae.encode(x_tgt_pred).latent_dist.mean
-                latent_pred = latent_pred * model.vae.config.scaling_factor
-                latent_tgt = latent_target_encoder.encode(x_tgt)
-            # Detach target; only the prediction path contributes gradients
-            # via the main pixel losses – the latent loss is a regulariser.
+                latent_tgt = latent_target_encoder.encode(x_tgt).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss = loss + lambda_latent * loss_latent
 

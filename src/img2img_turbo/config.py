@@ -77,7 +77,7 @@ class TaskConfig:
     mavic_l1_weight: float = 1.0
     mavic_loss_weight: float = 0.1
 
-    # ---- latent modeling ablation (RGB2IR only) ----
+    # ---- latent modeling ablation ----
     use_latent_target: bool = False
     latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
     lambda_latent: float = 1.0  # weight for latent-space L2 loss
