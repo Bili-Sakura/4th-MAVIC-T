@@ -13,6 +13,7 @@ It handles:
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
@@ -168,7 +169,6 @@ class MavicTCUTDataset(Dataset):
             ]
             after = len(self._records)
             if before != after:
-                import logging
                 logging.getLogger(__name__).info(
                     f"Excluded {before - after} samples via {exclude_file} "
                     f"({after} remaining)"

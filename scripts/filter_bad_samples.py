@@ -102,7 +102,7 @@ def collect_paths_from_manifests(
     manifest_dir = refined_root / "manifests"
     csv_files = sorted(manifest_dir.glob("refined_manifest*.csv")) if manifest_dir.is_dir() else []
 
-    paths: list[str] = []
+    paths: List[str] = []
     task_set = set(tasks) if tasks else None
 
     for csv_path in csv_files:
@@ -126,7 +126,7 @@ def collect_paths_from_dirs(
     tasks: Optional[List[str]] = None,
 ) -> List[str]:
     """Fallback: walk task directories to find images when no manifest exists."""
-    paths: list[str] = []
+    paths: List[str] = []
     task_list = tasks if tasks else list(ALL_TASKS)
 
     for task in task_list:
