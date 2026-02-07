@@ -228,7 +228,8 @@ class DDBMTrainer:
     @staticmethod
     def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp",
                               mavic_criterion=None, mavic_loss_weight=0.1,
-                              latent_target_encoder=None, lambda_latent=1.0):
+                              latent_target_encoder=None, lambda_latent=1.0,
+                              rep_alignment_module=None, lambda_rep_alignment=1.0):
         """Compute the DDBM denoising loss for one batch.
 
         When *mavic_criterion* is provided the loss is augmented with a
@@ -237,6 +238,10 @@ class DDBMTrainer:
 
         When *latent_target_encoder* is provided an additional latent-space
         L2 loss is computed between the denoised prediction and the target.
+
+        When *rep_alignment_module* is provided an additional representation
+        alignment loss (REPA) is computed between the source features and
+        the denoised prediction features.
         """
         bsz = x0.shape[0]
         device = x0.device
@@ -291,6 +296,13 @@ class DDBMTrainer:
                 latent_tgt = latent_target_encoder.encode(x0).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss = loss + lambda_latent * loss_latent
+
+        # Optional representation alignment loss (REPA)
+        if rep_alignment_module is not None:
+            with torch.no_grad():
+                enc_feats = rep_alignment_module.extract_features(x_T)
+            rep_loss = rep_alignment_module.compute_alignment_loss(denoised, enc_feats)
+            loss = loss + lambda_rep_alignment * rep_loss
 
         return loss
 
@@ -363,13 +375,19 @@ class DDBMTrainer:
             logger.info(f"[{cfg.task_name}] Using latent target encoder "
                         f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")
 
-        # Representation alignment (placeholder – will log but not activate
-        # until concrete implementations are provided)
+        # Representation alignment (REPA)
+        rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
+            from src.rep_alignment import SARCLIPAlignment, DINOv3SatAlignment
+            if cfg.task_name == "rgb2ir":
+                rep_alignment_module = DINOv3SatAlignment(cfg.rep_alignment_model_path)
+            else:
+                rep_alignment_module = SARCLIPAlignment(cfg.rep_alignment_model_path)
+            rep_alignment_module.build_projector(cfg.model_channels)
             logger.info(
-                f"[{cfg.task_name}] Representation alignment configured "
+                f"[{cfg.task_name}] Representation alignment enabled "
                 f"(model={cfg.rep_alignment_model_path}, "
-                f"lambda={cfg.lambda_rep_alignment}) – placeholder, not yet active"
+                f"lambda={cfg.lambda_rep_alignment})"
             )
 
         ema_model = None
@@ -377,8 +395,11 @@ class DDBMTrainer:
             from diffusers.training_utils import EMAModel
             ema_model = EMAModel(model.parameters(), decay=cfg.ema_decay, use_ema_warmup=True, model_cls=type(model))
 
+        train_params = list(model.parameters())
+        if rep_alignment_module is not None and rep_alignment_module.projector is not None:
+            train_params += list(rep_alignment_module.projector.parameters())
         optimizer = create_optimizer(
-            model.parameters(),
+            train_params,
             optimizer_type=cfg.optimizer_type,
             lr=cfg.learning_rate,
             weight_decay=cfg.weight_decay,
@@ -419,6 +440,8 @@ class DDBMTrainer:
             mavic_criterion = mavic_criterion.to(accelerator.device)
         if latent_target_encoder is not None:
             latent_target_encoder = latent_target_encoder.to(accelerator.device)
+        if rep_alignment_module is not None:
+            rep_alignment_module = rep_alignment_module.to(accelerator.device)
 
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
         if cfg.max_train_steps is None:
@@ -467,6 +490,8 @@ class DDBMTrainer:
                         mavic_loss_weight=cfg.mavic_loss_weight,
                         latent_target_encoder=latent_target_encoder,
                         lambda_latent=cfg.lambda_latent,
+                        rep_alignment_module=rep_alignment_module,
+                        lambda_rep_alignment=cfg.lambda_rep_alignment,
                     )
 
                     accelerator.backward(loss)

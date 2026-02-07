@@ -114,7 +114,8 @@ class Pix2PixTurboTrainer:
     def compute_training_loss(model, batch, prompt_embeds, lambda_l2=1.0,
                               lambda_lpips=5.0, net_lpips=None,
                               mavic_criterion=None, mavic_loss_weight=0.1,
-                              latent_target_encoder=None, lambda_latent=1.0):
+                              latent_target_encoder=None, lambda_latent=1.0,
+                              rep_alignment_module=None, lambda_rep_alignment=1.0):
         """Compute the Pix2Pix-Turbo training loss for one batch.
 
         The loss combines:
@@ -122,6 +123,7 @@ class Pix2PixTurboTrainer:
         * LPIPS perceptual loss (when *net_lpips* is provided)
         * Optional MAVIC metric loss (LPIPS + L1 toward evaluation metric)
         * Optional latent-space L2 loss against a pre-trained VAE encoder
+        * Optional representation alignment loss (REPA)
         """
         x_src = batch["conditioning_pixel_values"]
         x_tgt = batch["output_pixel_values"]
@@ -155,6 +157,13 @@ class Pix2PixTurboTrainer:
                 latent_tgt = latent_target_encoder.encode(x_tgt).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss = loss + lambda_latent * loss_latent
+
+        # Optional representation alignment loss (REPA)
+        if rep_alignment_module is not None:
+            with torch.no_grad():
+                enc_feats = rep_alignment_module.extract_features(x_src_norm)
+            rep_loss = rep_alignment_module.compute_alignment_loss(x_tgt_pred, enc_feats)
+            loss = loss + lambda_rep_alignment * rep_loss
 
         return loss
 
@@ -235,17 +244,25 @@ class Pix2PixTurboTrainer:
             logger.info(f"[{cfg.task_name}] Using latent target encoder "
                         f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")
 
-        # Representation alignment (placeholder – will log but not activate
-        # until concrete implementations are provided)
+        # Representation alignment (REPA)
+        rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
+            from src.rep_alignment import SARCLIPAlignment, DINOv3SatAlignment
+            if cfg.task_name == "rgb2ir":
+                rep_alignment_module = DINOv3SatAlignment(cfg.rep_alignment_model_path)
+            else:
+                rep_alignment_module = SARCLIPAlignment(cfg.rep_alignment_model_path)
+            rep_alignment_module.build_projector(cfg.model_channels)
             logger.info(
-                f"[{cfg.task_name}] Representation alignment configured "
+                f"[{cfg.task_name}] Representation alignment enabled "
                 f"(model={cfg.rep_alignment_model_path}, "
-                f"lambda={cfg.lambda_rep_alignment}) – placeholder, not yet active"
+                f"lambda={cfg.lambda_rep_alignment})"
             )
 
         # Optimizer (only trainable parameters)
-        trainable_params = model.get_trainable_params()
+        trainable_params = list(model.get_trainable_params())
+        if rep_alignment_module is not None and rep_alignment_module.projector is not None:
+            trainable_params += list(rep_alignment_module.projector.parameters())
         optimizer = create_optimizer(
             trainable_params,
             optimizer_type=cfg.optimizer_type,
@@ -288,6 +305,8 @@ class Pix2PixTurboTrainer:
             mavic_criterion = mavic_criterion.to(accelerator.device)
         if latent_target_encoder is not None:
             latent_target_encoder = latent_target_encoder.to(accelerator.device)
+        if rep_alignment_module is not None:
+            rep_alignment_module = rep_alignment_module.to(accelerator.device)
 
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
         if cfg.max_train_steps is None:
@@ -343,6 +362,8 @@ class Pix2PixTurboTrainer:
                         mavic_loss_weight=cfg.mavic_loss_weight,
                         latent_target_encoder=latent_target_encoder,
                         lambda_latent=cfg.lambda_latent,
+                        rep_alignment_module=rep_alignment_module,
+                        lambda_rep_alignment=cfg.lambda_rep_alignment,
                     )
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:

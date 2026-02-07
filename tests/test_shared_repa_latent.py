@@ -4,6 +4,7 @@ Covers:
 * Shared module imports (src.rep_alignment, src.latent_target)
 * New config fields in CUT and DDBM baselines
 * Task-specific config defaults for CUT and DDBM
+* Representation alignment modules (concrete implementations)
 * CUT and DDBM trainer loss signatures accept new kwargs
 """
 
@@ -198,21 +199,68 @@ class TestDDBMTaskConfigPaths:
 
 
 # ---------------------------------------------------------------------------
-# REPA placeholders work from shared import
+# REPA concrete implementations from shared import
 # ---------------------------------------------------------------------------
 
-class TestSharedREPAPlaceholders:
-    """REPA placeholders raise NotImplementedError when imported from src."""
+class TestSharedREPAImplementation:
+    """REPA modules are concrete and compute alignment losses."""
 
-    def test_sarclip_extract_features(self):
+    def test_sarclip_instantiation(self):
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.extract_features(torch.randn(1, 3, 64, 64))
+        assert module.model_path == "./models/BiliSakura/SARCLIP"
+        assert module.encoder_dim == 1024
 
-    def test_dinov3sat_compute_alignment_loss(self):
+    def test_sarclip_build_projector(self):
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        proj = module.build_projector(model_feature_dim=16)
+        assert proj is not None
+        assert len(list(proj.parameters())) > 0
+
+    def test_sarclip_alignment_loss(self):
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module.build_projector(model_feature_dim=16)
+        model_feats = torch.randn(4, 16)
+        enc_feats = torch.randn(4, 32)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
+        assert loss.requires_grad
+
+    def test_dinov3sat_instantiation(self):
         module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.compute_alignment_loss(torch.randn(1, 64), torch.randn(1, 64))
+        assert module.model_path == "./models/BiliSakura/DINOv3-sat"
+        assert module.encoder_dim == 1024
+
+    def test_dinov3sat_build_projector(self):
+        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        proj = module.build_projector(model_feature_dim=16)
+        assert proj is not None
+        assert len(list(proj.parameters())) > 0
+
+    def test_dinov3sat_alignment_loss(self):
+        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=32)
+        module.build_projector(model_feature_dim=16)
+        model_feats = torch.randn(4, 16)
+        enc_feats = torch.randn(4, 32)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
+        assert loss.requires_grad
+
+    def test_alignment_loss_spatial_input(self):
+        """4-D spatial model features are pooled before projection."""
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module.build_projector(model_feature_dim=8)
+        model_feats = torch.randn(2, 8, 4, 4)
+        enc_feats = torch.randn(2, 32)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
+
+    def test_alignment_loss_identical_features(self):
+        """Identical normalised features should yield loss close to -1."""
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=16)
+        # No projector – direct comparison
+        feats = torch.randn(4, 16)
+        loss = module.compute_alignment_loss(feats.clone(), feats.clone())
+        assert loss.item() < -0.9
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +268,7 @@ class TestSharedREPAPlaceholders:
 # ---------------------------------------------------------------------------
 
 class TestCUTTrainerLossSignature:
-    """CUT compute_G_loss accepts the new latent_target_encoder kwarg."""
+    """CUT compute_G_loss accepts the new latent_target_encoder and rep alignment kwargs."""
 
     def test_accepts_latent_kwargs(self):
         from src.cut_baseline.trainer import CUTTrainer
@@ -228,16 +276,28 @@ class TestCUTTrainerLossSignature:
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
 
+    def test_accepts_rep_alignment_kwargs(self):
+        from src.cut_baseline.trainer import CUTTrainer
+        sig = inspect.signature(CUTTrainer.compute_G_loss)
+        assert "rep_alignment_module" in sig.parameters
+        assert "lambda_rep_alignment" in sig.parameters
+
 
 # ---------------------------------------------------------------------------
 # DDBM trainer loss signature
 # ---------------------------------------------------------------------------
 
 class TestDDBMTrainerLossSignature:
-    """DDBM compute_training_loss accepts the new latent_target_encoder kwarg."""
+    """DDBM compute_training_loss accepts the new latent_target_encoder and rep alignment kwargs."""
 
     def test_accepts_latent_kwargs(self):
         from src.ddbm_baseline.trainer import DDBMTrainer
         sig = inspect.signature(DDBMTrainer.compute_training_loss)
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
+
+    def test_accepts_rep_alignment_kwargs(self):
+        from src.ddbm_baseline.trainer import DDBMTrainer
+        sig = inspect.signature(DDBMTrainer.compute_training_loss)
+        assert "rep_alignment_module" in sig.parameters
+        assert "lambda_rep_alignment" in sig.parameters
