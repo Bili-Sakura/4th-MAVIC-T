@@ -148,12 +148,9 @@ class Pix2PixTurboTrainer:
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss = loss + mavic_loss_weight * mavic_loss
 
-        # Optional latent-space L2 loss (RGB2IR ablation)
+        # Optional latent-space L2 loss
         if latent_target_encoder is not None:
-            # Encode the prediction into latent space (gradients flow back)
-            latent_pred = model.vae.encode(x_tgt_pred).latent_dist.mean
-            latent_pred = latent_pred * model.vae.config.scaling_factor
-            # Encode the target with the frozen pre-trained VAE (no gradients)
+            latent_pred = latent_target_encoder.encode_with_grad(x_tgt_pred)
             with torch.no_grad():
                 latent_tgt = latent_target_encoder.encode(x_tgt).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())

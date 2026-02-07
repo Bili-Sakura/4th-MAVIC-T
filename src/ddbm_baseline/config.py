@@ -115,6 +115,8 @@ def sar2eo_config(**overrides) -> TaskConfig:
         output_dir="./outputs/ddbm_sar2eo",
         train_batch_size=32,
         eval_batch_size=16,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
         rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
@@ -157,6 +159,8 @@ def sar2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/ddbm_sar2ir",
         train_batch_size=8,
         eval_batch_size=4,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
         rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
@@ -177,6 +181,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         output_dir="./outputs/ddbm_sar2rgb",
         train_batch_size=8,
         eval_batch_size=4,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
         rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )

@@ -51,6 +51,21 @@ class TestSharedImports:
         assert LatentTargetEncoder is not None
         assert callable(getattr(LatentTargetEncoder, "encode", None))
 
+    def test_latent_target_encode_with_grad(self):
+        assert callable(getattr(LatentTargetEncoder, "encode_with_grad", None))
+
+    def test_latent_target_adapt_channels(self):
+        """1-channel images are expanded to 3 channels for the VAE."""
+        t = torch.randn(2, 1, 8, 8)
+        out = LatentTargetEncoder._adapt_channels(t)
+        assert out.shape == (2, 3, 8, 8)
+
+    def test_latent_target_adapt_channels_3ch_passthrough(self):
+        """3-channel images pass through without modification."""
+        t = torch.randn(2, 3, 8, 8)
+        out = LatentTargetEncoder._adapt_channels(t)
+        assert out is t
+
     def test_backward_compat_turbo_utils(self):
         """Old import path still works via re-export."""
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment as SA
@@ -136,10 +151,13 @@ class TestCUTTaskConfigPaths:
         cfg = cut_sar2rgb()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
 
-    def test_sar_tasks_no_vae_path(self):
-        for fn in (cut_sar2eo, cut_sar2ir, cut_sar2rgb):
+    def test_all_tasks_have_vae_path(self):
+        """All CUT tasks should have latent_vae_path set for optional latent modeling."""
+        for fn in (cut_sar2eo, cut_sar2ir, cut_sar2rgb, cut_rgb2ir):
             cfg = fn()
-            assert cfg.latent_vae_path is None, f"{fn.__name__} should not set latent_vae_path"
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs", (
+                f"{fn.__name__} should set latent_vae_path"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -169,10 +187,13 @@ class TestDDBMTaskConfigPaths:
         cfg = ddbm_sar2rgb()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
 
-    def test_sar_tasks_no_vae_path(self):
-        for fn in (ddbm_sar2eo, ddbm_sar2ir, ddbm_sar2rgb):
+    def test_all_tasks_have_vae_path(self):
+        """All DDBM tasks should have latent_vae_path set for optional latent modeling."""
+        for fn in (ddbm_sar2eo, ddbm_sar2ir, ddbm_sar2rgb, ddbm_rgb2ir):
             cfg = fn()
-            assert cfg.latent_vae_path is None, f"{fn.__name__} should not set latent_vae_path"
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs", (
+                f"{fn.__name__} should set latent_vae_path"
+            )
 
 
 # ---------------------------------------------------------------------------
