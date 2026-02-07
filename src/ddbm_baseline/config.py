@@ -54,7 +54,7 @@ class TaskConfig:
     num_epochs: int = 100
     max_train_steps: Optional[int] = None
     gradient_accumulation_steps: int = 1
-    optimizer_type: str = "prodigy"  # "prodigy" | "adamw"
+    optimizer_type: str = "prodigy"  # "prodigy" | "adamw" | "muon"
     learning_rate: float = 1.0  # Prodigy adapts lr; set to 1.0 by default
     lr_scheduler: str = "constant"
     lr_warmup_steps: int = 500
