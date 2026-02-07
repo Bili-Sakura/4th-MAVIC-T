@@ -4,8 +4,8 @@ Covers:
 * New config fields (latent target, representation alignment)
 * Task-specific config defaults
 * LatentTargetEncoder API
-* Representation alignment placeholder modules
-* Trainer loss function with latent target encoder
+* Representation alignment modules (REPA)
+* Trainer loss function with latent target encoder and rep alignment
 """
 
 import pytest
@@ -80,39 +80,94 @@ class TestTaskConfigPaths:
 
 
 # ---------------------------------------------------------------------------
-# Representation alignment placeholders
+# Representation alignment modules (REPA)
 # ---------------------------------------------------------------------------
 
-class TestSARCLIPPlaceholder:
-    """SARCLIPAlignment raises NotImplementedError for placeholder methods."""
+class TestSARCLIPAlignment:
+    """SARCLIPAlignment has concrete implementation with lazy encoder loading."""
 
-    def test_extract_features_not_implemented(self):
+    def test_instantiation(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.extract_features(torch.randn(1, 3, 64, 64))
+        assert module.model_path == "./models/BiliSakura/SARCLIP"
+        assert module.encoder_dim == 1024
 
-    def test_compute_alignment_loss_not_implemented(self):
+    def test_build_projector(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.compute_alignment_loss(torch.randn(1, 64), torch.randn(1, 64))
+        proj = module.build_projector(model_feature_dim=3)
+        assert proj is not None
+        assert module.projector is proj
+        # Check it has trainable parameters
+        params = list(proj.parameters())
+        assert len(params) > 0
+
+    def test_compute_alignment_loss_with_projector(self):
+        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        module.build_projector(model_feature_dim=16)
+        model_feats = torch.randn(2, 16)
+        enc_feats = torch.randn(2, 64)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0  # scalar
+        assert loss.requires_grad  # trainable via projector
+
+    def test_compute_alignment_loss_spatial_features(self):
+        """4-D model features are global-avg-pooled then projected."""
+        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        module.build_projector(model_feature_dim=8)
+        model_feats = torch.randn(2, 8, 4, 4)  # spatial (B, C, H, W)
+        enc_feats = torch.randn(2, 64)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
+
+    def test_alignment_loss_range(self):
+        """Negative cosine similarity should be in [-1, 1]."""
+        from src.rep_alignment import SARCLIPAlignment
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module.build_projector(model_feature_dim=32)
+        feats = torch.randn(4, 32)
+        enc_feats = torch.randn(4, 32)
+        loss = module.compute_alignment_loss(feats, enc_feats)
+        assert -1.0 <= loss.item() <= 1.0
 
 
-class TestDINOv3SatPlaceholder:
-    """DINOv3SatAlignment raises NotImplementedError for placeholder methods."""
+class TestDINOv3SatAlignment:
+    """DINOv3SatAlignment has concrete implementation with lazy encoder loading."""
 
-    def test_extract_features_not_implemented(self):
+    def test_instantiation(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.extract_features(torch.randn(1, 3, 64, 64))
+        assert module.model_path == "./models/BiliSakura/DINOv3-sat"
+        assert module.encoder_dim == 1024
 
-    def test_compute_alignment_loss_not_implemented(self):
+    def test_build_projector(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.compute_alignment_loss(torch.randn(1, 64), torch.randn(1, 64))
+        proj = module.build_projector(model_feature_dim=3)
+        assert proj is not None
+        assert module.projector is proj
+
+    def test_compute_alignment_loss_with_projector(self):
+        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        module.build_projector(model_feature_dim=16)
+        model_feats = torch.randn(2, 16)
+        enc_feats = torch.randn(2, 64)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
+        assert loss.requires_grad
+
+    def test_compute_alignment_loss_spatial_features(self):
+        """4-D model features are global-avg-pooled then projected."""
+        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        module.build_projector(model_feature_dim=8)
+        model_feats = torch.randn(2, 8, 4, 4)
+        enc_feats = torch.randn(2, 64)
+        loss = module.compute_alignment_loss(model_feats, enc_feats)
+        assert loss.ndim == 0
 
 
 # ---------------------------------------------------------------------------
@@ -164,3 +219,11 @@ class TestTrainerLossSignature:
         sig = inspect.signature(Pix2PixTurboTrainer.compute_training_loss)
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
+
+    def test_accepts_rep_alignment_kwargs(self):
+        """compute_training_loss accepts rep_alignment_module and lambda."""
+        import inspect
+        from src.img2img_turbo.trainer import Pix2PixTurboTrainer
+        sig = inspect.signature(Pix2PixTurboTrainer.compute_training_loss)
+        assert "rep_alignment_module" in sig.parameters
+        assert "lambda_rep_alignment" in sig.parameters
