@@ -139,7 +139,7 @@ class TestCUTTaskConfigPaths:
     def test_sar_tasks_no_vae_path(self):
         for fn in (cut_sar2eo, cut_sar2ir, cut_sar2rgb):
             cfg = fn()
-            assert cfg.latent_vae_path is None
+            assert cfg.latent_vae_path is None, f"{fn.__name__} should not set latent_vae_path"
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ class TestDDBMTaskConfigPaths:
     def test_sar_tasks_no_vae_path(self):
         for fn in (ddbm_sar2eo, ddbm_sar2ir, ddbm_sar2rgb):
             cfg = fn()
-            assert cfg.latent_vae_path is None
+            assert cfg.latent_vae_path is None, f"{fn.__name__} should not set latent_vae_path"
 
 
 # ---------------------------------------------------------------------------
