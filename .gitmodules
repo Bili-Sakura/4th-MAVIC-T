@@ -21,3 +21,7 @@
 [submodule "libs/REPA"]
 	path = libs/REPA
 	url = https://github.com/sihyun-yu/REPA
+
+[submodule "libs/MaRS"]
+	path = libs/MaRS
+	url = https://github.com/WanderRainy/MaRS

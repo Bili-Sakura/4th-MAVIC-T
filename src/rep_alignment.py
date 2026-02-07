@@ -8,7 +8,17 @@ translation model's output features into the same embedding space.  A
 negative-cosine-similarity loss encourages the model to preserve the
 semantic content captured by the encoder.
 
-Two concrete strategies are provided:
+Four concrete strategies are provided:
+
+* **MaRS-RGB alignment** (default for RGB2IR) – A frozen MaRS-RGB SwinV2
+  image encoder extracts features from the input RGB image.  Loaded via
+  ``timm`` with ``swinv2_base_window8_256``.
+  Checkpoint: ``models/WanderRainy/MaRS-RGB``.
+
+* **MaRS-SAR alignment** (default for SAR2EO, SAR2IR, SAR2RGB) – A frozen
+  MaRS-SAR SwinV2 image encoder extracts features from the input SAR
+  image.  Loaded via ``timm`` with ``swinv2_base_window8_256``.
+  Checkpoint: ``models/WanderRainy/MaRS-SAR``.
 
 * **SARCLIP alignment** – for SAR2EO, SAR2IR, SAR2RGB tasks.  A frozen
   SARCLIP ViT-L/14 image encoder extracts features from the input SAR
@@ -198,6 +208,147 @@ class DINOv3SatAlignment(nn.Module):
         """Compute alignment loss using negative cosine similarity."""
         if model_features.ndim == 4:
             model_features = model_features.mean(dim=[2, 3])  # global average pool
+        if self.projector is not None:
+            model_features = self.projector(model_features)
+        z_model = F.normalize(model_features, dim=-1)
+        z_enc = F.normalize(encoder_features.detach(), dim=-1)
+        return -(z_model * z_enc).sum(dim=-1).mean()
+
+
+class MaRSRGBAlignment(nn.Module):
+    """Representation alignment using MaRS-RGB encoder (SwinV2 backbone).
+
+    Default encoder for the RGB2IR task.  Uses ``timm`` to load a
+    ``swinv2_base_window8_256`` model with pre-trained MaRS-RGB weights.
+    """
+
+    def __init__(
+        self,
+        model_path: str = "./models/WanderRainy/MaRS-RGB",
+        projector_dim: Optional[int] = None,
+        encoder_dim: Optional[int] = None,
+        timm_model_name: str = "swinv2_base_window8_256",
+        img_size: int = 512,
+    ) -> None:
+        super().__init__()
+        import timm as _timm
+
+        self.encoder = _timm.create_model(
+            timm_model_name,
+            pretrained=False,
+            features_only=True,
+            in_chans=3,
+            img_size=img_size,
+            checkpoint_path=model_path,
+        )
+        self.encoder.requires_grad_(False)
+        self.encoder.eval()
+
+        # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
+        self.encoder_dim = encoder_dim or 1024
+        self.projector_dim = projector_dim or (2 * self.encoder_dim)
+        self.projector: Optional[nn.Module] = None
+
+        logger.info(
+            "Loaded MaRS-RGB encoder from %s (encoder_dim=%d, projector_dim=%d)",
+            model_path, self.encoder_dim, self.projector_dim,
+        )
+
+    def build_projector(self, model_feature_dim: int) -> nn.Module:
+        """Build the trainable projection head."""
+        self.projector = build_projector(model_feature_dim, self.projector_dim, self.encoder_dim)
+        return self.projector
+
+    @torch.no_grad()
+    def extract_features(self, images: torch.Tensor) -> torch.Tensor:
+        """Extract MaRS-RGB features (last-stage, global-average-pooled)."""
+        x = adapt_channels(normalize_to_01(images))
+        x = x.to(next(self.encoder.parameters()).device)
+        feats = self.encoder(x)  # list of multi-scale feature maps
+        last_feat = feats[-1]  # deepest stage: (B, C, H, W)
+        return last_feat.mean(dim=[2, 3])  # GAP → (B, C)
+
+    def compute_alignment_loss(
+        self,
+        model_features: torch.Tensor,
+        encoder_features: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute alignment loss using negative cosine similarity."""
+        if model_features.ndim == 4:
+            model_features = model_features.mean(dim=[2, 3])
+        if self.projector is not None:
+            model_features = self.projector(model_features)
+        z_model = F.normalize(model_features, dim=-1)
+        z_enc = F.normalize(encoder_features.detach(), dim=-1)
+        return -(z_model * z_enc).sum(dim=-1).mean()
+
+
+class MaRSSARAlignment(nn.Module):
+    """Representation alignment using MaRS-SAR encoder (SwinV2 backbone).
+
+    Default encoder for SAR2EO, SAR2IR, and SAR2RGB tasks.  Uses ``timm``
+    to load a ``swinv2_base_window8_256`` model with pre-trained MaRS-SAR
+    weights.
+    """
+
+    def __init__(
+        self,
+        model_path: str = "./models/WanderRainy/MaRS-SAR",
+        projector_dim: Optional[int] = None,
+        encoder_dim: Optional[int] = None,
+        timm_model_name: str = "swinv2_base_window8_256",
+        img_size: int = 512,
+    ) -> None:
+        super().__init__()
+        import timm as _timm
+
+        self.encoder = _timm.create_model(
+            timm_model_name,
+            pretrained=False,
+            features_only=True,
+            in_chans=1,
+            img_size=img_size,
+            checkpoint_path=model_path,
+        )
+        self.encoder.requires_grad_(False)
+        self.encoder.eval()
+
+        # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
+        self.encoder_dim = encoder_dim or 1024
+        self.projector_dim = projector_dim or (2 * self.encoder_dim)
+        self.projector: Optional[nn.Module] = None
+
+        logger.info(
+            "Loaded MaRS-SAR encoder from %s (encoder_dim=%d, projector_dim=%d)",
+            model_path, self.encoder_dim, self.projector_dim,
+        )
+
+    def build_projector(self, model_feature_dim: int) -> nn.Module:
+        """Build the trainable projection head."""
+        self.projector = build_projector(model_feature_dim, self.projector_dim, self.encoder_dim)
+        return self.projector
+
+    @torch.no_grad()
+    def extract_features(self, images: torch.Tensor) -> torch.Tensor:
+        """Extract MaRS-SAR features (last-stage, global-average-pooled)."""
+        x = normalize_to_01(images)
+        # Keep 1-channel for SAR; do NOT expand to 3-ch
+        if x.shape[1] == 3:
+            logger.warning("MaRS-SAR encoder received 3-channel input; using first channel only")
+            x = x[:, :1]  # take first channel if RGB passed by mistake
+        x = x.to(next(self.encoder.parameters()).device)
+        feats = self.encoder(x)  # list of multi-scale feature maps
+        last_feat = feats[-1]  # deepest stage: (B, C, H, W)
+        return last_feat.mean(dim=[2, 3])  # GAP → (B, C)
+
+    def compute_alignment_loss(
+        self,
+        model_features: torch.Tensor,
+        encoder_features: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute alignment loss using negative cosine similarity."""
+        if model_features.ndim == 4:
+            model_features = model_features.mean(dim=[2, 3])
         if self.projector is not None:
             model_features = self.projector(model_features)
         z_model = F.normalize(model_features, dim=-1)
