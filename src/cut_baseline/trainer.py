@@ -246,6 +246,12 @@ class CUTTrainer:
     def train(self):
         """Run the full CUT training loop."""
         cfg = self.cfg
+        if cfg.checkpointing_steps is not None and cfg.save_model_epochs is not None:
+            logger.warning(
+                "Both checkpointing_steps and save_model_epochs are set; "
+                "defaulting to epoch-based checkpoints and disabling step-based checkpoints."
+            )
+            cfg.checkpointing_steps = None
 
         # Accelerator setup
         logging_dir = os.path.join(cfg.output_dir, "logs")
@@ -467,7 +473,11 @@ class CUTTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
-                    if global_step % cfg.checkpointing_steps == 0 and accelerator.is_main_process:
+                    if (
+                        cfg.checkpointing_steps is not None
+                        and global_step % cfg.checkpointing_steps == 0
+                        and accelerator.is_main_process
+                    ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
@@ -489,7 +499,11 @@ class CUTTrainer:
                 scheduler_D.step()
 
             # Save at epoch boundary
-            if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
+            if (
+                accelerator.is_main_process
+                and cfg.save_model_epochs is not None
+                and (epoch + 1) % cfg.save_model_epochs == 0
+            ):
                 unwrapped_G = accelerator.unwrap_model(netG)
                 unwrapped_D = accelerator.unwrap_model(netD)
                 epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
