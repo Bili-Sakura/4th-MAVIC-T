@@ -59,7 +59,7 @@ def create_optimizer(
         except ImportError:
             raise ImportError(
                 "prodigyopt is required for the Prodigy optimizer. "
-                "Install it with: pip install prodigyopt"
+                "Install it with: pip install git+https://github.com/konstmish/prodigy.git@v1.1.2"
             )
         return Prodigy(
             params,

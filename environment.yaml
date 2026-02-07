@@ -169,7 +169,7 @@ dependencies:
       - pillow==12.0.0
       - platformdirs==4.5.1
       - prodigy-plus-schedule-free==2.0.1
-      - prodigyopt==1.1.2
+      - prodigyopt @ git+https://github.com/konstmish/prodigy.git@v1.1.2
       - prompt-toolkit==3.0.52
       - propcache==0.4.1
       - protobuf==6.33.5
