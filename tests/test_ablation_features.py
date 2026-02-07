@@ -51,21 +51,21 @@ class TestTaskConfigPaths:
         cfg = rgb2ir_config()
         assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
 
-    def test_rgb2ir_has_dinov3sat_path(self):
+    def test_rgb2ir_has_sarclip_path(self):
         cfg = rgb2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/DINOv3-sat"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
-    def test_sar2eo_has_sarclip_path(self):
+    def test_sar2eo_has_dinov3sat_path(self):
         cfg = sar2eo_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
-    def test_sar2ir_has_sarclip_path(self):
+    def test_sar2ir_has_dinov3sat_path(self):
         cfg = sar2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
-    def test_sar2rgb_has_sarclip_path(self):
+    def test_sar2rgb_has_dinov3sat_path(self):
         cfg = sar2rgb_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
     def test_all_tasks_have_vae_path(self):
         """All tasks should have latent_vae_path set for optional latent modeling."""
@@ -83,36 +83,44 @@ class TestTaskConfigPaths:
 # Representation alignment placeholders
 # ---------------------------------------------------------------------------
 
-class TestSARCLIPPlaceholder:
-    """SARCLIPAlignment raises NotImplementedError for placeholder methods."""
+class TestSARCLIPImplementation:
+    """SARCLIPAlignment now has working implementations."""
 
-    def test_extract_features_not_implemented(self):
+    def test_extract_features_returns_tensor(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.extract_features(torch.randn(1, 3, 64, 64))
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
+        features = module.extract_features(torch.randn(1, 3, 64, 64))
+        assert isinstance(features, torch.Tensor)
+        assert features.ndim == 2
+        assert features.shape[0] == 1
 
-    def test_compute_alignment_loss_not_implemented(self):
+    def test_compute_alignment_loss_returns_scalar(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.compute_alignment_loss(torch.randn(1, 64), torch.randn(1, 64))
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
+        model_feat = torch.randn(1, 128)
+        enc_feat = torch.randn(1, module.encoder_dim)
+        loss = module.compute_alignment_loss(model_feat, enc_feat)
+        assert loss.ndim == 0
 
 
-class TestDINOv3SatPlaceholder:
-    """DINOv3SatAlignment raises NotImplementedError for placeholder methods."""
+class TestDINOv3SatImplementation:
+    """DINOv3SatAlignment now has working implementations."""
 
-    def test_extract_features_not_implemented(self):
+    def test_extract_features_returns_tensor(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.extract_features(torch.randn(1, 3, 64, 64))
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
+        features = module.extract_features(torch.randn(1, 3, 64, 64))
+        assert isinstance(features, torch.Tensor)
+        assert features.ndim == 2
+        assert features.shape[0] == 1
 
-    def test_compute_alignment_loss_not_implemented(self):
+    def test_compute_alignment_loss_returns_scalar(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        with pytest.raises(NotImplementedError, match="placeholder"):
-            module.compute_alignment_loss(torch.randn(1, 64), torch.randn(1, 64))
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
+        model_feat = torch.randn(1, 128)
+        enc_feat = torch.randn(1, module.encoder_dim)
+        loss = module.compute_alignment_loss(model_feat, enc_feat)
+        assert loss.ndim == 0
 
 
 # ---------------------------------------------------------------------------

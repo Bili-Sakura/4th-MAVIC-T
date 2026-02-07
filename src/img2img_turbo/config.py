@@ -113,8 +113,8 @@ def sar2eo_config(**overrides) -> TaskConfig:
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        # representation alignment via DINOv3-sat (SAR tasks)
+        rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -136,8 +136,8 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=1,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via DINOv3-sat
-        rep_alignment_model_path="./models/BiliSakura/DINOv3-sat",
+        # representation alignment via SARCLIP (RGB2IR task)
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -159,8 +159,8 @@ def sar2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        # representation alignment via DINOv3-sat (SAR tasks)
+        rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -182,8 +182,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        # representation alignment via DINOv3-sat (SAR tasks)
+        rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
