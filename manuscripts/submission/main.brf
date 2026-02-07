@@ -1,8 +1,5 @@
-\backcite {bowald3rdMultimodalAerial2025}{{1}{(document)}{Doc-Start}}
-\backcite {zhuUnpairedImageToImageTranslation2017}{{1}{1}{section.1}}
-\backcite {wangHighResolutionImageSynthesis2018}{{1}{1}{section.1}}
-\backcite {huGanbasedSAROptical2022}{{1}{1}{section.1}}
-\backcite {wangSARtoOpticalImageTranslation2022}{{1}{1}{section.1}}
-\backcite {qinConditionalDiffusionModel2024}{{1}{1}{section.1}}
-\backcite {qinEfficientEndtoEndDiffusion2025}{{1}{1}{section.1}}
-\backcite {wangAdaptiveDomainShift2026}{{1}{1}{section.1}}
+\backcite {bowald3rdMultimodalAerial2025}{{1}{1}{section.1}}
+\backcite {lowMultimodalAerialView2024}{{1}{1}{section.1}}
+\backcite {majumder2020deep}{{1}{1}{section.1}}
+\backcite {majumder2020deep}{{1}{2}{section.2}}
+\backcite {zhangColorfulImageColorization2016}{{1}{2}{section.2}}
