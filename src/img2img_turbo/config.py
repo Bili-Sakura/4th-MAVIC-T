@@ -53,13 +53,13 @@ class TaskConfig:
 
     # ---- logging / checkpointing ----
     log_with: str = "tensorboard"
-    save_model_epochs: int = 10
-    checkpointing_steps: int = 500
+    save_model_epochs: Optional[int] = 1
+    checkpointing_steps: Optional[int] = None
     checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
     # ---- hub ----
-    push_to_hub: bool = False
+    push_to_hub: bool = True
     hub_model_id: Optional[str] = None
 
     # ---- hardware ----

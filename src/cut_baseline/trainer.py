@@ -246,6 +246,15 @@ class CUTTrainer:
     def train(self):
         """Run the full CUT training loop."""
         cfg = self.cfg
+        checkpointing_steps = cfg.checkpointing_steps
+        save_model_epochs = cfg.save_model_epochs
+        if checkpointing_steps is not None and save_model_epochs is not None:
+            logger.warning(
+                "checkpointing_steps is set while save_model_epochs is enabled; "
+                "epoch checkpoints take priority and step checkpoints will be skipped. "
+                "Set save_model_epochs=None to enable step-based checkpointing."
+            )
+            checkpointing_steps = None
 
         # Accelerator setup
         logging_dir = os.path.join(cfg.output_dir, "logs")
@@ -467,7 +476,11 @@ class CUTTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
-                    if global_step % cfg.checkpointing_steps == 0 and accelerator.is_main_process:
+                    if (
+                        checkpointing_steps is not None
+                        and global_step % checkpointing_steps == 0
+                        and accelerator.is_main_process
+                    ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
@@ -489,7 +502,11 @@ class CUTTrainer:
                 scheduler_D.step()
 
             # Save at epoch boundary
-            if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
+            if (
+                accelerator.is_main_process
+                and save_model_epochs is not None
+                and (epoch + 1) % save_model_epochs == 0
+            ):
                 unwrapped_G = accelerator.unwrap_model(netG)
                 unwrapped_D = accelerator.unwrap_model(netD)
                 epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
