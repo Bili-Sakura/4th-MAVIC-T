@@ -6,7 +6,6 @@ module for backward compatibility.  New code should import directly from
 """
 
 from src.rep_alignment import (  # noqa: F401
-    RepresentationAlignmentBase,
     SARCLIPAlignment,
     DINOv3SatAlignment,
 )

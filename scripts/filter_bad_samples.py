@@ -38,6 +38,7 @@ from typing import List, Optional, Set, Tuple
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -252,14 +253,14 @@ def main() -> None:
     work = [(p, args.black_thresh, args.patch_size) for p in paths]
 
     if args.workers <= 1:
-        for w in work:
+        for w in tqdm(work, desc="Checking images", unit="image"):
             path, is_bad = _check_one(w)
             if is_bad:
                 bad_paths.append(path)
     else:
         with ProcessPoolExecutor(max_workers=args.workers) as pool:
             futures = {pool.submit(_check_one, w): w[0] for w in work}
-            for fut in as_completed(futures):
+            for fut in tqdm(as_completed(futures), total=len(work), desc="Checking images", unit="image"):
                 path, is_bad = fut.result()
                 if is_bad:
                     bad_paths.append(path)

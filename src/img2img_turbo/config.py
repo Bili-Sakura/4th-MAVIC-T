@@ -31,12 +31,12 @@ class TaskConfig:
     target_channels: int = 1
     model_channels: int = 3  # SD-Turbo VAE expects 3-ch RGB
     resolution: int = 512
-    use_augmented: bool = False
+    use_augmented: bool = True  # also load *_crop_aug training split
     use_horizontal_flip: bool = False
     use_vertical_flip: bool = False
 
     # ---- sample filtering ----
-    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+    exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"  # path to txt of bad image paths to skip
 
     # ---- model (Pix2Pix-Turbo) ----
     pretrained_model_name_or_path: str = "stabilityai/sd-turbo"
@@ -114,7 +114,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -137,7 +137,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via DINOv3-sat
-        rep_alignment_model_path="./models/BiliSakura/DINOv3-sat",
+        rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -160,7 +160,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -183,7 +183,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
         # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)

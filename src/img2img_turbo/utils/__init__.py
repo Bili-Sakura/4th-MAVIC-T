@@ -11,7 +11,6 @@ from .training_utils import build_transform, PairedDataset, UnpairedDataset
 from .image_prep import canny_from_pil
 from src.latent_target import LatentTargetEncoder
 from src.rep_alignment import (
-    RepresentationAlignmentBase,
     SARCLIPAlignment,
     DINOv3SatAlignment,
 )
@@ -29,7 +28,6 @@ __all__ = [
     # Latent target encoder
     "LatentTargetEncoder",
     # Representation alignment
-    "RepresentationAlignmentBase",
     "SARCLIPAlignment",
     "DINOv3SatAlignment",
 ]

@@ -139,19 +139,19 @@ class TestCUTTaskConfigPaths:
 
     def test_rgb2ir_has_dinov3sat_path(self):
         cfg = cut_rgb2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/DINOv3-sat"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
     def test_sar2eo_has_sarclip_path(self):
         cfg = cut_sar2eo()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2ir_has_sarclip_path(self):
         cfg = cut_sar2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2rgb_has_sarclip_path(self):
         cfg = cut_sar2rgb()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_all_tasks_have_vae_path(self):
         """All CUT tasks should have latent_vae_path set for optional latent modeling."""
@@ -175,19 +175,19 @@ class TestDDBMTaskConfigPaths:
 
     def test_rgb2ir_has_dinov3sat_path(self):
         cfg = ddbm_rgb2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/DINOv3-sat"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
     def test_sar2eo_has_sarclip_path(self):
         cfg = ddbm_sar2eo()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2ir_has_sarclip_path(self):
         cfg = ddbm_sar2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2rgb_has_sarclip_path(self):
         cfg = ddbm_sar2rgb()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_all_tasks_have_vae_path(self):
         """All DDBM tasks should have latent_vae_path set for optional latent modeling."""
@@ -206,18 +206,18 @@ class TestSharedREPAImplementation:
     """REPA modules are concrete and compute alignment losses."""
 
     def test_sarclip_instantiation(self):
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        assert module.model_path == "./models/BiliSakura/SARCLIP"
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
+        assert module.model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
         assert module.encoder_dim == 1024
 
     def test_sarclip_build_projector(self):
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=64)
         proj = module.build_projector(model_feature_dim=16)
         assert proj is not None
         assert len(list(proj.parameters())) > 0
 
     def test_sarclip_alignment_loss(self):
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=32)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(4, 16)
         enc_feats = torch.randn(4, 32)
@@ -226,18 +226,18 @@ class TestSharedREPAImplementation:
         assert loss.requires_grad
 
     def test_dinov3sat_instantiation(self):
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        assert module.model_path == "./models/BiliSakura/DINOv3-sat"
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
+        assert module.model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
         assert module.encoder_dim == 1024
 
     def test_dinov3sat_build_projector(self):
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=64)
         proj = module.build_projector(model_feature_dim=16)
         assert proj is not None
         assert len(list(proj.parameters())) > 0
 
     def test_dinov3sat_alignment_loss(self):
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=32)
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=32)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(4, 16)
         enc_feats = torch.randn(4, 32)
@@ -247,7 +247,7 @@ class TestSharedREPAImplementation:
 
     def test_alignment_loss_spatial_input(self):
         """4-D spatial model features are pooled before projection."""
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=32)
         module.build_projector(model_feature_dim=8)
         model_feats = torch.randn(2, 8, 4, 4)
         enc_feats = torch.randn(2, 32)
@@ -256,7 +256,7 @@ class TestSharedREPAImplementation:
 
     def test_alignment_loss_identical_features(self):
         """Identical normalised features should yield loss close to -1."""
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=16)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=16)
         # No projector – direct comparison
         feats = torch.randn(4, 16)
         loss = module.compute_alignment_loss(feats.clone(), feats.clone())

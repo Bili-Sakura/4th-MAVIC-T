@@ -53,19 +53,19 @@ class TestTaskConfigPaths:
 
     def test_rgb2ir_has_dinov3sat_path(self):
         cfg = rgb2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/DINOv3-sat"
+        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
 
     def test_sar2eo_has_sarclip_path(self):
         cfg = sar2eo_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2ir_has_sarclip_path(self):
         cfg = sar2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_sar2rgb_has_sarclip_path(self):
         cfg = sar2rgb_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
 
     def test_all_tasks_have_vae_path(self):
         """All tasks should have latent_vae_path set for optional latent modeling."""
@@ -88,13 +88,13 @@ class TestSARCLIPAlignment:
 
     def test_instantiation(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
-        assert module.model_path == "./models/BiliSakura/SARCLIP"
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
+        assert module.model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
         assert module.encoder_dim == 1024
 
     def test_build_projector(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP")
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
         proj = module.build_projector(model_feature_dim=3)
         assert proj is not None
         assert module.projector is proj
@@ -104,7 +104,7 @@ class TestSARCLIPAlignment:
 
     def test_compute_alignment_loss_with_projector(self):
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=64)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(2, 16)
         enc_feats = torch.randn(2, 64)
@@ -115,7 +115,7 @@ class TestSARCLIPAlignment:
     def test_compute_alignment_loss_spatial_features(self):
         """4-D model features are global-avg-pooled then projected."""
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=64)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=64)
         module.build_projector(model_feature_dim=8)
         model_feats = torch.randn(2, 8, 4, 4)  # spatial (B, C, H, W)
         enc_feats = torch.randn(2, 64)
@@ -125,7 +125,7 @@ class TestSARCLIPAlignment:
     def test_alignment_loss_range(self):
         """Negative cosine similarity should be in [-1, 1]."""
         from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
-        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
+        module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=32)
         module.build_projector(model_feature_dim=32)
         feats = torch.randn(4, 32)
         enc_feats = torch.randn(4, 32)
@@ -138,20 +138,20 @@ class TestDINOv3SatAlignment:
 
     def test_instantiation(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
-        assert module.model_path == "./models/BiliSakura/DINOv3-sat"
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
+        assert module.model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
         assert module.encoder_dim == 1024
 
     def test_build_projector(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat")
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
         proj = module.build_projector(model_feature_dim=3)
         assert proj is not None
         assert module.projector is proj
 
     def test_compute_alignment_loss_with_projector(self):
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=64)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(2, 16)
         enc_feats = torch.randn(2, 64)
@@ -162,7 +162,7 @@ class TestDINOv3SatAlignment:
     def test_compute_alignment_loss_spatial_features(self):
         """4-D model features are global-avg-pooled then projected."""
         from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
-        module = DINOv3SatAlignment("./models/BiliSakura/DINOv3-sat", encoder_dim=64)
+        module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=64)
         module.build_projector(model_feature_dim=8)
         model_feats = torch.randn(2, 8, 4, 4)
         enc_feats = torch.randn(2, 64)

@@ -8,13 +8,13 @@ All pre-trained models are stored under the `models/` directory with the followi
 
 ### 1. SARCLIP
 
-**Path:** `models/BiliSakura/SARCLIP`
+**Path:** `models/BiliSakura/SARCLIP-ViT-L-14`
 
 Vision-language model (ViT-L/14) fine-tuned for SAR (Synthetic Aperture Radar) imagery understanding. Used for SAR feature extraction and cross-modal representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks.
 
 ### 2. DINOv3-sat
 
-**Path:** `models/BiliSakura/DINOv3-sat`
+**Path:** `models/facebook/dinov3-vitl16-pretrain-sat493m`
 
 Self-supervised vision transformer (ViT-L) pre-trained on satellite imagery. Provides robust visual features for remote sensing tasks. Used for representation alignment in the RGB2IR task.
 
@@ -41,10 +41,10 @@ and works with any baseline (Pix2Pix-Turbo, CUT, DDBM).
 
 | Task | Encoder | Config field |
 |------|---------|-------------|
-| `sar2eo` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP"` |
-| `sar2ir` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP"` |
-| `sar2rgb` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP"` |
-| `rgb2ir` | DINOv3-sat | `rep_alignment_model_path="./models/BiliSakura/DINOv3-sat"` |
+| `sar2eo` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
+| `sar2ir` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
+| `sar2rgb` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
+| `rgb2ir` | DINOv3-sat | `rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m"` |
 
 Enable via `use_rep_alignment=True` in the task config.  The alignment loss
 weight is controlled by `lambda_rep_alignment` (default 1.0).
