@@ -51,21 +51,21 @@ class TestTaskConfigPaths:
         cfg = rgb2ir_config()
         assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
 
-    def test_rgb2ir_has_dinov3sat_path(self):
+    def test_rgb2ir_has_mars_rgb_path(self):
         cfg = rgb2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-RGB"
 
-    def test_sar2eo_has_sarclip_path(self):
+    def test_sar2eo_has_mars_sar_path(self):
         cfg = sar2eo_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
 
-    def test_sar2ir_has_sarclip_path(self):
+    def test_sar2ir_has_mars_sar_path(self):
         cfg = sar2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
 
-    def test_sar2rgb_has_sarclip_path(self):
+    def test_sar2rgb_has_mars_sar_path(self):
         cfg = sar2rgb_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
 
     def test_all_tasks_have_vae_path(self):
         """All tasks should have latent_vae_path set for optional latent modeling."""

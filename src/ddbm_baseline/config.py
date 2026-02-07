@@ -117,8 +117,8 @@ def sar2eo_config(**overrides) -> TaskConfig:
         eval_batch_size=16,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
+        # representation alignment via MaRS-SAR
+        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -139,8 +139,8 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via DINOv3-sat
-        rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m",
+        # representation alignment via MaRS-RGB
+        rep_alignment_model_path="./models/WanderRainy/MaRS-RGB",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -161,8 +161,8 @@ def sar2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
+        # representation alignment via MaRS-SAR
+        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -183,8 +183,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs",
-        # representation alignment via SARCLIP
-        rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14",
+        # representation alignment via MaRS-SAR
+        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
