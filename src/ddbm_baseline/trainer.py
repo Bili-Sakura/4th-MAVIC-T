@@ -286,8 +286,7 @@ class DDBMTrainer:
 
         # Optional latent-space L2 loss on the denoised prediction
         if latent_target_encoder is not None:
-            latent_pred = latent_target_encoder.vae.encode(denoised).latent_dist.mean
-            latent_pred = latent_pred * latent_target_encoder.scaling_factor
+            latent_pred = latent_target_encoder.encode_with_grad(denoised)
             with torch.no_grad():
                 latent_tgt = latent_target_encoder.encode(x0).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())

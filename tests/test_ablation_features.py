@@ -67,11 +67,11 @@ class TestTaskConfigPaths:
         cfg = sar2rgb_config()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/SARCLIP"
 
-    def test_sar_tasks_no_vae_path(self):
-        """SAR tasks should not have latent_vae_path set."""
-        for fn in (sar2eo_config, sar2ir_config, sar2rgb_config):
+    def test_all_tasks_have_vae_path(self):
+        """All tasks should have latent_vae_path set for optional latent modeling."""
+        for fn in (sar2eo_config, sar2ir_config, sar2rgb_config, rgb2ir_config):
             cfg = fn()
-            assert cfg.latent_vae_path is None
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
 
     def test_overrides_work(self):
         cfg = rgb2ir_config(use_latent_target=True, lambda_latent=0.5)
@@ -129,6 +129,25 @@ class TestLatentTargetEncoder:
     def test_has_encode_method(self):
         from src.img2img_turbo.utils.latent_target import LatentTargetEncoder
         assert callable(getattr(LatentTargetEncoder, "encode", None))
+
+    def test_has_encode_with_grad_method(self):
+        from src.latent_target import LatentTargetEncoder
+        assert callable(getattr(LatentTargetEncoder, "encode_with_grad", None))
+
+    def test_adapt_channels_expands_1ch(self):
+        from src.latent_target import LatentTargetEncoder
+        t = torch.randn(2, 1, 8, 8)
+        out = LatentTargetEncoder._adapt_channels(t)
+        assert out.shape == (2, 3, 8, 8)
+        assert torch.allclose(out[:, 0], out[:, 1])
+        assert torch.allclose(out[:, 0], out[:, 2])
+
+    def test_adapt_channels_passthrough_3ch(self):
+        from src.latent_target import LatentTargetEncoder
+        t = torch.randn(2, 3, 8, 8)
+        out = LatentTargetEncoder._adapt_channels(t)
+        assert out.shape == (2, 3, 8, 8)
+        assert out is t  # should be the same tensor, not a copy
 
 
 # ---------------------------------------------------------------------------
