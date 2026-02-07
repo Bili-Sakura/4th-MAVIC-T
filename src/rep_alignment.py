@@ -332,7 +332,7 @@ class DINOv3SatAlignment(RepresentationAlignmentBase):
             if candidates:
                 ckpt_path = candidates[0]
         if os.path.isfile(ckpt_path):
-            state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+            state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
             if "model" in state_dict:
                 state_dict = state_dict["model"]
             if "state_dict" in state_dict:
@@ -395,7 +395,15 @@ class DINOv3SatAlignment(RepresentationAlignmentBase):
         device = next(enc.parameters()).device
         features = enc(x.to(device))
         if isinstance(features, dict):
-            features = features.get("x_norm_clstoken", features.get("cls_token"))
+            if "x_norm_clstoken" in features:
+                features = features["x_norm_clstoken"]
+            elif "cls_token" in features:
+                features = features["cls_token"]
+            else:
+                raise KeyError(
+                    f"DINOv3-sat encoder returned dict with keys {list(features.keys())}; "
+                    "expected 'x_norm_clstoken' or 'cls_token'"
+                )
         if features.ndim == 3:
             features = features[:, 0]
         return features

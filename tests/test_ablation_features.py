@@ -124,7 +124,7 @@ class TestSARCLIPAlignment:
 
     def test_alignment_loss_range(self):
         """Negative cosine similarity should be in [-1, 1]."""
-        from src.rep_alignment import SARCLIPAlignment
+        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP", encoder_dim=32)
         module.build_projector(model_feature_dim=32)
         feats = torch.randn(4, 32)
