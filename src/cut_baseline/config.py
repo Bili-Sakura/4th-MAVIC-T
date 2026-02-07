@@ -71,7 +71,7 @@ class TaskConfig:
     n_epochs_decay: int = 0  # epochs to linearly decay lr to zero
     max_train_steps: Optional[int] = None
     gradient_accumulation_steps: int = 1
-    optimizer_type: str = "prodigy"  # "prodigy" | "adam"
+    optimizer_type: str = "prodigy"  # "prodigy" | "adam" | "muon"
     learning_rate: float = 1.0  # Prodigy adapts lr; set to 1.0 by default
     beta1: float = 0.5
     beta2: float = 0.999

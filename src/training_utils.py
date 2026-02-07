@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 import torch
+import torch.distributed as dist
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,28 @@ def _to_yaml_serializable(
 
 
 # ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _load_muon_optimizers():
+    """Load Muon optimizer classes, raising ImportError when unavailable."""
+    try:
+        import muon as muon_module
+    except ImportError as exc:
+        raise ImportError(
+            "Muon optimizer requires the Muon package (https://github.com/KellerJordan/Muon). "
+            "Install it with: pip install git+https://github.com/KellerJordan/Muon.git"
+        ) from exc
+    if not hasattr(muon_module, "Muon") or not hasattr(muon_module, "SingleDeviceMuon"):
+        raise ImportError(
+            "The installed 'muon' package does not expose Muon optimizers. "
+            "Install the optimizer build with: pip install git+https://github.com/KellerJordan/Muon.git"
+        )
+    return muon_module.Muon, muon_module.SingleDeviceMuon
+
+
+# ---------------------------------------------------------------------------
 # Optimizer factory
 # ---------------------------------------------------------------------------
 
@@ -74,7 +97,7 @@ def create_optimizer(
     params : iterable of ``torch.nn.Parameter``
         Model parameters to optimise.
     optimizer_type : str
-        ``"prodigy"`` (default) or ``"adamw"`` / ``"adam"``.
+        ``"prodigy"`` (default) or ``"adamw"`` / ``"adam"`` / ``"muon"``.
     lr : float
         Learning rate.  For Prodigy the recommended value is ``1.0``.
     weight_decay : float
@@ -101,9 +124,23 @@ def create_optimizer(
             weight_decay=weight_decay,
             betas=betas,
         )
-    if name == "adamw":
+    elif name == "muon":
+        Muon, SingleDeviceMuon = _load_muon_optimizers()
+        # Muon constructor asserts params is a list and sorts it by size, so materialize any generator.
+        params_list = list(params)
+        try:
+            use_distributed = dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1
+        except (RuntimeError, AttributeError) as exc:
+            logger.debug("Muon optimizer using single-device fallback: %s", exc)
+            use_distributed = False
+        # Muon paper recommends momentum around 0.95; fall back to that if betas is None.
+        momentum = betas[0] if betas else 0.95
+        if use_distributed:
+            return Muon(params_list, lr=lr, weight_decay=weight_decay, momentum=momentum)
+        return SingleDeviceMuon(params_list, lr=lr, weight_decay=weight_decay, momentum=momentum)
+    elif name == "adamw":
         return torch.optim.AdamW(params, lr=lr, weight_decay=weight_decay, betas=betas)
-    if name == "adam":
+    elif name == "adam":
         return torch.optim.Adam(params, lr=lr, weight_decay=weight_decay, betas=betas)
     raise ValueError(f"Unknown optimizer_type: {optimizer_type!r}")
 
