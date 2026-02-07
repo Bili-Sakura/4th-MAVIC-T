@@ -6,7 +6,7 @@ Use this short guide to get a baseline training run, export predictions, and mea
 
 - Create the provided conda environment:  
   `conda env create -f environment.yaml && conda activate rsgen`
-- Place the refined dataset at `datasets/BiliSakura/MACIV-T-2025-Structure-Refined` (see `docs/dataset.md` for layout). The validation/test inputs live under the same root.
+- Place the refined dataset at `datasets/BiliSakura/MACIV-T-2025-Structure-Refined` (folder name as shipped in the release; see `docs/dataset.md` for layout). The validation/test inputs live under the same root.
 
 ## 2. Train a model (Pix2Pix-Turbo example)
 
@@ -38,7 +38,7 @@ The script reads the evaluation inputs, runs the model, and saves PNGs under `--
 
 ## 4. Evaluate locally
 
-You can compute LPIPS/L1 (and FID when `torchvision` is available) directly while looping over a dataset split:
+For a quick sanity check, compute LPIPS/L1 (and FID when `torchvision` is available) on a slice of the training split (the only split with targets available locally):
 
 ```python
 import torch
@@ -50,8 +50,9 @@ from src.img2img_turbo.config import sar2ir_config
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 cfg = sar2ir_config()
+model_path = "./outputs/turbo_sar2ir/checkpoints/model_final.pkl"  # same as the inference example
 model = Pix2PixTurbo(
-    pretrained_path="./outputs/turbo_sar2ir/checkpoints/model_final.pkl",
+    pretrained_path=model_path,
     pretrained_model_name_or_path=cfg.pretrained_model_name_or_path,
 ).to(device).eval()
 dataset = MavicTTurboDataset(
