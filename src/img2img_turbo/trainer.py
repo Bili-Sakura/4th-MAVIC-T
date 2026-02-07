@@ -149,8 +149,9 @@ class Pix2PixTurboTrainer:
         save_model_epochs = cfg.save_model_epochs
         if checkpointing_steps is not None and save_model_epochs is not None:
             logger.warning(
-                "Both checkpointing_steps and save_model_epochs are set; "
-                "defaulting to epoch-based checkpoints and disabling step-based checkpoints."
+                "checkpointing_steps is set while save_model_epochs is enabled; "
+                "epoch checkpoints take priority and step checkpoints will be skipped. "
+                "Set save_model_epochs=None to enable step-based checkpointing."
             )
             checkpointing_steps = None
 
