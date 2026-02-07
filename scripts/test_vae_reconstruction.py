@@ -10,13 +10,15 @@ back to one channel for SAR/IR inputs, and reports MAE / PSNR / SSIM.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
-from diffusers import AutoencoderKL
+import torch.nn as nn
+from diffusers import AutoencoderKL, AutoencoderDC, AutoencoderKLFlux2, AutoencoderKLQwenImage
 from PIL import Image
 
 try:
@@ -30,6 +32,12 @@ from torchmetrics.functional.image import (
 
 DEFAULT_VAE_PATH = "./models/BiliSakura/VAEs"  # Repository default; override for other checkpoints.
 DEFAULT_EXTS = (".png", ".tif", ".tiff")
+_VAE_CLASSES = {
+    "AutoencoderKL": AutoencoderKL,
+    "AutoencoderDC": AutoencoderDC,
+    "AutoencoderKLFlux2": AutoencoderKLFlux2,
+    "AutoencoderKLQwenImage": AutoencoderKLQwenImage,
+}
 
 
 def _normalize_image_array(arr: np.ndarray) -> np.ndarray:
@@ -110,6 +118,25 @@ def compute_reconstruction_metrics(
     return {"mae": float(mae), "psnr": float(psnr), "ssim": float(ssim)}
 
 
+def _load_vae_from_path(vae_path: Path, device: torch.device) -> Tuple[torch.nn.Module, float, str]:
+    """Load a VAE checkpoint, detecting the correct class from ``config.json``."""
+    config_json = vae_path / "config.json"
+    vae_class = AutoencoderKL
+    scaling_factor = 1.0
+    class_name = "AutoencoderKL"
+
+    if config_json.exists():
+        with config_json.open() as fh:
+            cfg = json.load(fh)
+        class_name = cfg.get("_class_name", class_name)
+        scaling_factor = float(cfg.get("scaling_factor", scaling_factor))
+        vae_class = _VAE_CLASSES.get(class_name, AutoencoderKL)
+
+    model = vae_class.from_pretrained(str(vae_path)).to(device)
+    model.eval()
+    return model, scaling_factor, class_name
+
+
 def _collect_image_paths(root: Path, exts: Sequence[str]) -> List[Path]:
     """Return a sorted list of image paths under ``root``."""
     wanted = {ext.lower() for ext in exts}
@@ -140,9 +167,7 @@ def run(args: argparse.Namespace) -> None:
             f"VAE path not found: {vae_path}. Pass --vae-path to point to your checkpoint if different."
         )
 
-    vae = AutoencoderKL.from_pretrained(str(vae_path)).to(device)
-    vae.eval()
-    scaling_factor = float(getattr(vae.config, "scaling_factor", 1.0))
+    vae, scaling_factor, vae_class_name = _load_vae_from_path(vae_path, device)
 
     image_paths = _collect_image_paths(Path(args.input_dir), args.extensions)
     if args.max_images is not None:
@@ -160,9 +185,26 @@ def run(args: argparse.Namespace) -> None:
         vae_input = input_tensor * 2 - 1
 
         with torch.no_grad():
-            posterior = vae.encode(vae_input).latent_dist
-            latents = posterior.mean * scaling_factor
-            decoded = vae.decode(latents / scaling_factor).sample
+            enc_in = vae_input
+            if vae_class_name == "AutoencoderKLQwenImage" and enc_in.dim() == 4:
+                enc_in = enc_in.unsqueeze(2)
+            encoded = vae.encode(enc_in)
+            if hasattr(encoded, "latent_dist"):
+                latents = encoded.latent_dist.mean
+            elif hasattr(encoded, "latent"):
+                latents = encoded.latent
+            else:
+                latents = encoded
+            latents = latents * scaling_factor
+
+            if vae_class_name == "AutoencoderKLQwenImage" and latents.dim() == 4:
+                latents = latents.unsqueeze(2)
+            decoded = vae.decode(latents / scaling_factor)
+            if hasattr(decoded, "sample"):
+                decoded = decoded.sample
+            if vae_class_name == "AutoencoderKLQwenImage" and decoded.dim() == 5:
+                decoded = decoded.squeeze(2)
+            decoded = decoded[..., : input_tensor.shape[-2], : input_tensor.shape[-1]]
 
         recon = (decoded.clamp(-1, 1) + 1) / 2
         recon_for_metrics = reduce_reconstruction_channels(recon, orig_channels)
