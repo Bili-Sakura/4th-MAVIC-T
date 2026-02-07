@@ -172,13 +172,33 @@ class MavicTImageToImageDataset:
 
         task_dir = self.eval_root / split / task
         if not task_dir.is_dir():
-            raise FileNotFoundError(f"Missing task directory: {task_dir}")
+            # For sar2eo, it only exists in test split, not val split
+            if split == "val" and task == "sar2eo":
+                # Fall back to test split for sar2eo
+                task_dir = self.eval_root / "test" / task
+                if not task_dir.is_dir():
+                    raise FileNotFoundError(
+                        f"Missing task directory: {self.eval_root / split / task}. "
+                        f"Note: sar2eo only exists in test split, not val split."
+                    )
+            else:
+                raise FileNotFoundError(f"Missing task directory: {task_dir}")
+
+        # Check for input/ subdirectory (used in val splits)
+        input_dir = task_dir / "input"
+        if input_dir.is_dir():
+            search_dir = input_dir
+        else:
+            search_dir = task_dir
 
         files = sorted(
             f
-            for f in task_dir.iterdir()
+            for f in search_dir.iterdir()
             if f.is_file() and not _is_hidden(f) and f.suffix.lower() in IMAGE_EXTS
         )
+        if not files:
+            raise FileNotFoundError(f"No image files found in {search_dir}")
+
         records = []
         for f in files:
             input_path = f.resolve()

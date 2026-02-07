@@ -163,7 +163,11 @@ class DDBMTrainer:
     # ----- dataset -----------------------------------------------------------
 
     def build_datasets(self):
-        """Return ``(train_dataset, val_dataset)``."""
+        """Return ``(train_dataset, val_dataset)``.
+        
+        Currently val_dataset is set to None as we only use the train set.
+        Can be enabled later by splitting a validation set from the training data.
+        """
         train_ds = MavicTDDBMDataset(
             task=self.cfg.task_name,
             split="train",
@@ -173,13 +177,14 @@ class DDBMTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
         )
-        val_ds = MavicTDDBMDataset(
-            task=self.cfg.task_name,
-            split="val",
-            resolution=self.cfg.resolution,
-            model_channels=self.cfg.model_channels,
-            with_target=False,
-        )
+        # val_ds = MavicTDDBMDataset(
+        #     task=self.cfg.task_name,
+        #     split="val",
+        #     resolution=self.cfg.resolution,
+        #     model_channels=self.cfg.model_channels,
+        #     with_target=False,
+        # )
+        val_ds = None  # Disabled: we only work with train set for now
         return train_ds, val_ds
 
     # ----- model / scheduler -------------------------------------------------
@@ -342,12 +347,13 @@ class DDBMTrainer:
             num_workers=cfg.dataloader_num_workers,
             drop_last=True,
         )
-        val_dataloader = DataLoader(
-            val_dataset,
-            batch_size=cfg.eval_batch_size,
-            shuffle=False,
-            num_workers=cfg.dataloader_num_workers,
-        )
+        # val_dataloader is disabled - we only use train set for now
+        # val_dataloader = DataLoader(
+        #     val_dataset,
+        #     batch_size=cfg.eval_batch_size,
+        #     shuffle=False,
+        #     num_workers=cfg.dataloader_num_workers,
+        # ) if val_dataset is not None else None
 
         from diffusers.optimization import get_scheduler as get_lr_scheduler
         total_steps = cfg.max_train_steps if cfg.max_train_steps else len(train_dataloader) * cfg.num_epochs
