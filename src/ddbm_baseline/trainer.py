@@ -299,6 +299,11 @@ class DDBMTrainer:
     def train(self):
         """Run the full training loop."""
         cfg = self.cfg
+
+        # Auto-structure checkpoint directory with method/task subfolders
+        if cfg.task_name:
+            cfg.output_dir = os.path.join(cfg.output_dir, "ddbm", cfg.task_name)
+
         checkpointing_steps = cfg.checkpointing_steps
         save_model_epochs = cfg.save_model_epochs
         if checkpointing_steps is not None and save_model_epochs is not None:
@@ -509,7 +514,15 @@ class DDBMTrainer:
                 epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
                 extra_sd = {}
                 if cfg.use_ema and ema_model is not None:
-                    extra_sd["ema_unet"] = ema_model.state_dict()
+                    # Map EMA shadow_params (list) to named state dict so
+                    # _save_safetensors() can persist them correctly.
+                    model_param_names = list(unwrapped.state_dict().keys())
+                    shadow_params = ema_model.shadow_params
+                    ema_state_dict = {
+                        name: param.clone().detach()
+                        for name, param in zip(model_param_names, shadow_params)
+                    }
+                    extra_sd["ema_unet"] = ema_state_dict
                 save_checkpoint_diffusers(
                     epoch_dir,
                     unwrapped,
