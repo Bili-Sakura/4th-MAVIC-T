@@ -3,6 +3,13 @@
 Each task (sar2eo, rgb2ir, sar2ir, sar2rgb) defines its own config with
 resolution, channel layout, model architecture, and training hyper-parameters.
 Configs are plain dataclasses so per-task scripts can override any field.
+
+.. note::
+   **Low priority baseline.**  Preliminary experiments showed that the
+   Img2Image-Turbo (Pix2Pix-Turbo) method is less suitable for the MAVIC-T
+   satellite/thermal translation tasks compared to DDBM and CUT baselines.
+   This code is retained for reference and potential future revisiting, but
+   the DDBM and CUT baselines should be preferred for further development.
 """
 
 from __future__ import annotations

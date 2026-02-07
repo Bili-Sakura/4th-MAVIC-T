@@ -8,6 +8,12 @@ This module adapts the training logic from
 The trainer uses the Accelerate framework for distributed / mixed-precision
 training and follows the same structure as
 :class:`~src.ddbm_baseline.trainer.DDBMTrainer`.
+
+.. note::
+   **Low priority baseline.**  Preliminary experiments showed that the
+   Img2Image-Turbo approach is less suitable for the MAVIC-T
+   satellite/thermal translation tasks.  This code is retained for
+   reference but DDBM and CUT baselines should be preferred.
 """
 
 from __future__ import annotations
