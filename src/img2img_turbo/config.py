@@ -1,5 +1,12 @@
 """Task-specific configurations for Img2Image-Turbo (Pix2Pix-Turbo) training.
 
+.. note::
+   **Lower priority**: the Img2Image-Turbo / Pix2Pix-Turbo method has been
+   found less suitable for the MAVIC-T task compared to other baselines
+   (CUT, DDBM).  Its code is retained for reference and future
+   experimentation, but further implementation effort should focus on the
+   other baselines first.
+
 Each task (sar2eo, rgb2ir, sar2ir, sar2rgb) defines its own config with
 resolution, channel layout, model architecture, and training hyper-parameters.
 Configs are plain dataclasses so per-task scripts can override any field.
@@ -28,6 +35,9 @@ class TaskConfig:
     use_horizontal_flip: bool = False
     use_vertical_flip: bool = False
 
+    # ---- sample filtering ----
+    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+
     # ---- model (Pix2Pix-Turbo) ----
     pretrained_model_name_or_path: str = "stabilityai/sd-turbo"
     lora_rank_unet: int = 8
@@ -53,13 +63,13 @@ class TaskConfig:
 
     # ---- logging / checkpointing ----
     log_with: str = "tensorboard"
-    save_model_epochs: int = 10
-    checkpointing_steps: int = 500
+    save_model_epochs: Optional[int] = 1
+    checkpointing_steps: Optional[int] = None
     checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
     # ---- hub ----
-    push_to_hub: bool = False
+    push_to_hub: bool = True
     hub_model_id: Optional[str] = None
 
     # ---- hardware ----
@@ -73,6 +83,16 @@ class TaskConfig:
     mavic_lpips_weight: float = 1.0
     mavic_l1_weight: float = 1.0
     mavic_loss_weight: float = 0.1
+
+    # ---- latent modeling ablation ----
+    use_latent_target: bool = False
+    latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
+    lambda_latent: float = 1.0  # weight for latent-space L2 loss
+
+    # ---- representation alignment ----
+    use_rep_alignment: bool = False
+    rep_alignment_model_path: Optional[str] = None  # path to encoder checkpoint
+    lambda_rep_alignment: float = 1.0  # weight for alignment loss
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +111,10 @@ def sar2eo_config(**overrides) -> TaskConfig:
         output_dir="./outputs/turbo_sar2eo",
         train_batch_size=4,
         eval_batch_size=1,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -110,6 +134,10 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/turbo_rgb2ir",
         train_batch_size=4,
         eval_batch_size=1,
+        # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via DINOv3-sat
+        rep_alignment_model_path="./models/BiliSakura/DINOv3-sat",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -129,6 +157,10 @@ def sar2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/turbo_sar2ir",
         train_batch_size=4,
         eval_batch_size=1,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -148,6 +180,10 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         output_dir="./outputs/turbo_sar2rgb",
         train_batch_size=4,
         eval_batch_size=1,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)

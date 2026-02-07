@@ -13,6 +13,7 @@ It handles:
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
@@ -22,6 +23,8 @@ import torch
 import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset
 from PIL import Image
+
+from typing import Set
 
 # Ensure the project root is importable so we can import from ``src``.
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -57,6 +60,22 @@ def _load_image_as_tensor(path: str, channels: int, resolution: int) -> torch.Te
 
     tensor = torch.from_numpy(arr).permute(2, 0, 1)  # (C, H, W)
     return tensor
+
+
+def _load_exclude_set(exclude_file: Optional[str]) -> Set[str]:
+    """Load a set of absolute paths to exclude from training."""
+    if not exclude_file:
+        return set()
+    path = Path(exclude_file)
+    if not path.is_file():
+        return set()
+    out: Set[str] = set()
+    with path.open() as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                out.add(str(Path(line).resolve()))
+    return out
 
 
 class MavicTDDBMDataset(Dataset):
@@ -104,6 +123,7 @@ class MavicTDDBMDataset(Dataset):
         use_vertical_flip: bool = False,
         refined_root: Optional[str] = None,
         eval_root: Optional[str] = None,
+        exclude_file: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.task = task
@@ -136,6 +156,22 @@ class MavicTDDBMDataset(Dataset):
                 self._records.extend(list(ds_aug))
             except (ValueError, FileNotFoundError):
                 pass  # augmented variant may not exist for all tasks
+
+        # Filter out excluded samples
+        exclude = _load_exclude_set(exclude_file)
+        if exclude:
+            before = len(self._records)
+            self._records = [
+                r for r in self._records
+                if str(Path(r["input_path"]).resolve()) not in exclude
+                and (not with_target or str(Path(r["target_path"]).resolve()) not in exclude)
+            ]
+            after = len(self._records)
+            if before != after:
+                logging.getLogger(__name__).info(
+                    f"Excluded {before - after} samples via {exclude_file} "
+                    f"({after} remaining)"
+                )
 
     def __len__(self) -> int:
         return len(self._records)

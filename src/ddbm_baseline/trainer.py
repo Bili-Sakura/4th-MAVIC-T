@@ -176,6 +176,7 @@ class DDBMTrainer:
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
+            exclude_file=self.cfg.exclude_file,
         )
         # val_ds = MavicTDDBMDataset(
         #     task=self.cfg.task_name,
@@ -226,12 +227,16 @@ class DDBMTrainer:
 
     @staticmethod
     def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp",
-                              mavic_criterion=None, mavic_loss_weight=0.1):
+                              mavic_criterion=None, mavic_loss_weight=0.1,
+                              latent_target_encoder=None, lambda_latent=1.0):
         """Compute the DDBM denoising loss for one batch.
 
         When *mavic_criterion* is provided the loss is augmented with a
         differentiable LPIPS + L1 term computed on the denoised prediction,
         directly optimising toward the MAVIC-T evaluation metric.
+
+        When *latent_target_encoder* is provided an additional latent-space
+        L2 loss is computed between the denoised prediction and the target.
         """
         bsz = x0.shape[0]
         device = x0.device
@@ -279,6 +284,14 @@ class DDBMTrainer:
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss = loss + mavic_loss_weight * mavic_loss
 
+        # Optional latent-space L2 loss on the denoised prediction
+        if latent_target_encoder is not None:
+            latent_pred = latent_target_encoder.encode_with_grad(denoised)
+            with torch.no_grad():
+                latent_tgt = latent_target_encoder.encode(x0).detach()
+            loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
+            loss = loss + lambda_latent * loss_latent
+
         return loss
 
     # ----- main training loop ------------------------------------------------
@@ -286,6 +299,15 @@ class DDBMTrainer:
     def train(self):
         """Run the full training loop."""
         cfg = self.cfg
+        checkpointing_steps = cfg.checkpointing_steps
+        save_model_epochs = cfg.save_model_epochs
+        if checkpointing_steps is not None and save_model_epochs is not None:
+            logger.warning(
+                "checkpointing_steps is set while save_model_epochs is enabled; "
+                "epoch checkpoints take priority and step checkpoints will be skipped. "
+                "Set save_model_epochs=None to enable step-based checkpointing."
+            )
+            checkpointing_steps = None
 
         # Accelerator setup
         logging_dir = os.path.join(cfg.output_dir, "logs")
@@ -325,6 +347,23 @@ class DDBMTrainer:
             logger.info(f"[{cfg.task_name}] Using MAVIC metric loss "
                         f"(lpips_w={cfg.mavic_lpips_weight}, l1_w={cfg.mavic_l1_weight}, "
                         f"loss_w={cfg.mavic_loss_weight})")
+
+        # Latent target encoder (ablation)
+        latent_target_encoder = None
+        if cfg.use_latent_target and cfg.latent_vae_path:
+            from src.latent_target import LatentTargetEncoder
+            latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
+            logger.info(f"[{cfg.task_name}] Using latent target encoder "
+                        f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")
+
+        # Representation alignment (placeholder – will log but not activate
+        # until concrete implementations are provided)
+        if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
+            logger.info(
+                f"[{cfg.task_name}] Representation alignment configured "
+                f"(model={cfg.rep_alignment_model_path}, "
+                f"lambda={cfg.lambda_rep_alignment}) – placeholder, not yet active"
+            )
 
         ema_model = None
         if cfg.use_ema:
@@ -371,6 +410,8 @@ class DDBMTrainer:
             ema_model.to(accelerator.device)
         if mavic_criterion is not None:
             mavic_criterion = mavic_criterion.to(accelerator.device)
+        if latent_target_encoder is not None:
+            latent_target_encoder = latent_target_encoder.to(accelerator.device)
 
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
         if cfg.max_train_steps is None:
@@ -417,6 +458,8 @@ class DDBMTrainer:
                         model, scheduler, x0, x_T, pred_mode=cfg.pred_mode,
                         mavic_criterion=mavic_criterion,
                         mavic_loss_weight=cfg.mavic_loss_weight,
+                        latent_target_encoder=latent_target_encoder,
+                        lambda_latent=cfg.lambda_latent,
                     )
 
                     accelerator.backward(loss)
@@ -436,7 +479,11 @@ class DDBMTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
-                    if global_step % cfg.checkpointing_steps == 0 and accelerator.is_main_process:
+                    if (
+                        checkpointing_steps is not None
+                        and global_step % checkpointing_steps == 0
+                        and accelerator.is_main_process
+                    ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
@@ -453,7 +500,11 @@ class DDBMTrainer:
                     break
 
             # Save at epoch boundary
-            if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
+            if (
+                accelerator.is_main_process
+                and save_model_epochs is not None
+                and (epoch + 1) % save_model_epochs == 0
+            ):
                 unwrapped = accelerator.unwrap_model(model)
                 epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
                 extra_sd = {}

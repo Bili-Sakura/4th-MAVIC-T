@@ -28,6 +28,9 @@ class TaskConfig:
     use_horizontal_flip: bool = True
     use_vertical_flip: bool = False
 
+    # ---- sample filtering ----
+    exclude_file: Optional[str] = None  # path to txt of bad image paths to skip
+
     # ---- generator ----
     netG: str = "resnet_9blocks"  # resnet_9blocks | resnet_6blocks
     ngf: int = 64
@@ -76,13 +79,13 @@ class TaskConfig:
 
     # ---- logging / checkpointing ----
     log_with: str = "tensorboard"
-    save_model_epochs: int = 10
-    checkpointing_steps: int = 500
+    save_model_epochs: Optional[int] = 1
+    checkpointing_steps: Optional[int] = None
     checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
     # ---- hub ----
-    push_to_hub: bool = False
+    push_to_hub: bool = True
     hub_model_id: Optional[str] = None
 
     # ---- hardware ----
@@ -98,6 +101,16 @@ class TaskConfig:
 
     # ---- sampling (evaluation) ----
     num_inference_steps: int = 1  # CUT is single-pass (no iterative denoising)
+
+    # ---- latent modeling ablation ----
+    use_latent_target: bool = False
+    latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
+    lambda_latent: float = 1.0  # weight for latent-space L2 loss
+
+    # ---- representation alignment ----
+    use_rep_alignment: bool = False
+    rep_alignment_model_path: Optional[str] = None  # path to encoder checkpoint
+    lambda_rep_alignment: float = 1.0  # weight for alignment loss
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +128,10 @@ def sar2eo_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2eo",
         train_batch_size=4,
         eval_batch_size=16,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -133,6 +150,10 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_rgb2ir",
         train_batch_size=4,
         eval_batch_size=4,
+        # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via DINOv3-sat
+        rep_alignment_model_path="./models/BiliSakura/DINOv3-sat",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -151,6 +172,10 @@ def sar2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2ir",
         train_batch_size=4,
         eval_batch_size=4,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -169,6 +194,10 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2rgb",
         train_batch_size=4,
         eval_batch_size=4,
+        # latent modeling (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
