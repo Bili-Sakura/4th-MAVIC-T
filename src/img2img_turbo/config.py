@@ -37,10 +37,11 @@ class TaskConfig:
     output_dir: str = "./outputs/img2img_turbo"
     train_batch_size: int = 4
     eval_batch_size: int = 1
-    num_epochs: int = 10
-    max_train_steps: Optional[int] = 10_000
+    num_epochs: int = 100
+    max_train_steps: Optional[int] = None
     gradient_accumulation_steps: int = 1
-    learning_rate: float = 5e-6
+    optimizer_type: str = "prodigy"  # "prodigy" | "adamw"
+    learning_rate: float = 1.0  # Prodigy adapts lr; set to 1.0 by default
     lr_scheduler: str = "constant"
     lr_warmup_steps: int = 500
     weight_decay: float = 1e-2
@@ -52,12 +53,17 @@ class TaskConfig:
 
     # ---- logging / checkpointing ----
     log_with: str = "tensorboard"
+    save_model_epochs: int = 10
     checkpointing_steps: int = 500
-    checkpoints_total_limit: int = 5
+    checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
+    # ---- hub ----
+    push_to_hub: bool = False
+    hub_model_id: Optional[str] = None
+
     # ---- hardware ----
-    mixed_precision: str = "fp16"
+    mixed_precision: str = "bf16"
     dataloader_num_workers: int = 4
     seed: int = 42
     gradient_checkpointing: bool = False
@@ -99,7 +105,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         source_channels=3,
         target_channels=1,
         model_channels=3,
-        resolution=512,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/turbo_rgb2ir",
         train_batch_size=4,
@@ -118,7 +124,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=1,
         model_channels=3,
-        resolution=512,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/turbo_sar2ir",
         train_batch_size=4,
@@ -137,7 +143,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=3,
         model_channels=3,
-        resolution=512,
+        resolution=1024,
         use_augmented=True,
         output_dir="./outputs/turbo_sar2rgb",
         train_batch_size=4,

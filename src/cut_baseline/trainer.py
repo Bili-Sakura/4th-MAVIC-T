@@ -43,6 +43,11 @@ from .model import (
 )
 
 from src.metrics import MavicCriterion  # noqa: E402
+from src.training_utils import (  # noqa: E402
+    create_optimizer,
+    save_checkpoint_diffusers,
+    push_checkpoint_to_hub,
+)
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -288,8 +293,18 @@ class CUTTrainer:
                         f"loss_w={cfg.mavic_loss_weight})")
 
         # Optimisers (G and D share the same lr/beta but are separate)
-        optimizer_G = torch.optim.Adam(netG.parameters(), lr=cfg.learning_rate, betas=(cfg.beta1, cfg.beta2))
-        optimizer_D = torch.optim.Adam(netD.parameters(), lr=cfg.learning_rate, betas=(cfg.beta1, cfg.beta2))
+        optimizer_G = create_optimizer(
+            netG.parameters(),
+            optimizer_type=cfg.optimizer_type,
+            lr=cfg.learning_rate,
+            betas=(cfg.beta1, cfg.beta2),
+        )
+        optimizer_D = create_optimizer(
+            netD.parameters(),
+            optimizer_type=cfg.optimizer_type,
+            lr=cfg.learning_rate,
+            betas=(cfg.beta1, cfg.beta2),
+        )
 
         logger.info(f"[{cfg.task_name}] Loading dataset …")
         train_dataset, val_dataset = self.build_datasets()
@@ -395,7 +410,12 @@ class CUTTrainer:
                         fake_B_init = netG(real_A)
                         feat_init = netG(fake_B_init, nce_layers, encode_only=True)
                         netF(feat_init, cfg.num_patches, None)
-                    optimizer_F = torch.optim.Adam(netF.parameters(), lr=cfg.learning_rate, betas=(cfg.beta1, cfg.beta2))
+                    optimizer_F = create_optimizer(
+                        netF.parameters(),
+                        optimizer_type=cfg.optimizer_type,
+                        lr=cfg.learning_rate,
+                        betas=(cfg.beta1, cfg.beta2),
+                    )
 
                 with accelerator.accumulate(netG, netD):
                     # Forward G
@@ -466,10 +486,25 @@ class CUTTrainer:
             if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
                 unwrapped_G = accelerator.unwrap_model(netG)
                 unwrapped_D = accelerator.unwrap_model(netD)
-                torch.save(unwrapped_G.state_dict(), os.path.join(cfg.output_dir, f"netG_epoch_{epoch + 1}.pt"))
-                torch.save(unwrapped_D.state_dict(), os.path.join(cfg.output_dir, f"netD_epoch_{epoch + 1}.pt"))
-                torch.save(netF.state_dict(), os.path.join(cfg.output_dir, f"netF_epoch_{epoch + 1}.pt"))
+                epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
+                save_checkpoint_diffusers(
+                    epoch_dir,
+                    unwrapped_G,
+                    scheduler=None,
+                    model_name="unet",
+                    extra_state_dicts={
+                        "discriminator": unwrapped_D.state_dict(),
+                        "feature_network": netF.state_dict(),
+                    },
+                )
                 logger.info(f"Saved models at epoch {epoch + 1}")
+
+                if cfg.push_to_hub and cfg.hub_model_id:
+                    push_checkpoint_to_hub(
+                        epoch_dir,
+                        hub_model_id=cfg.hub_model_id,
+                        commit_message=f"epoch {epoch + 1}",
+                    )
 
         accelerator.end_training()
         logger.info(f"[{cfg.task_name}] CUT training complete!")
