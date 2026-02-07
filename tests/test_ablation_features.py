@@ -139,6 +139,8 @@ class TestLatentTargetEncoder:
         t = torch.randn(2, 1, 8, 8)
         out = LatentTargetEncoder._adapt_channels(t)
         assert out.shape == (2, 3, 8, 8)
+        assert torch.allclose(out[:, 0], out[:, 1])
+        assert torch.allclose(out[:, 0], out[:, 2])
 
     def test_adapt_channels_passthrough_3ch(self):
         from src.latent_target import LatentTargetEncoder

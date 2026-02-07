@@ -68,6 +68,7 @@ class LatentTargetEncoder(nn.Module):
         posterior = self.vae.encode(images).latent_dist
         return posterior.mean * self.scaling_factor
 
+    @torch.enable_grad()
     def encode_with_grad(self, images: torch.Tensor) -> torch.Tensor:
         """Encode images to latent means **with** gradient flow.
 

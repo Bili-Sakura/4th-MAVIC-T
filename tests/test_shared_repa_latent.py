@@ -59,6 +59,7 @@ class TestSharedImports:
         t = torch.randn(2, 1, 8, 8)
         out = LatentTargetEncoder._adapt_channels(t)
         assert out.shape == (2, 3, 8, 8)
+        assert torch.allclose(out[:, 0], out[:, 1])
 
     def test_latent_target_adapt_channels_3ch_passthrough(self):
         """3-channel images pass through without modification."""
