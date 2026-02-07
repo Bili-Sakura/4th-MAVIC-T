@@ -47,6 +47,7 @@ from src.metrics import MavicCriterion  # noqa: E402
 from src.training_utils import (  # noqa: E402
     create_optimizer,
     save_checkpoint_diffusers,
+    save_training_config,
     push_checkpoint_to_hub,
 )
 
@@ -317,6 +318,10 @@ class Pix2PixTurboTrainer:
             tracker_config = {k: str(v) for k, v in vars(cfg).items()}
             accelerator.init_trackers(f"turbo-{cfg.task_name}", config=tracker_config)
 
+        def save_checkpoint_config_for(path: str) -> None:
+            base_path = os.path.splitext(path)[0]
+            save_training_config(cfg, base_path)
+
         logger.info("***** Running training *****")
         logger.info(f"  Task             = {cfg.task_name}")
         logger.info(f"  Num examples     = {len(train_dataset)}")
@@ -389,8 +394,10 @@ class Pix2PixTurboTrainer:
                         and global_step % checkpointing_steps == 0
                         and accelerator.is_main_process
                     ):
-                        outf = os.path.join(cfg.output_dir, "checkpoints", f"model_{global_step}.pkl")
+                        checkpoints_dir = os.path.join(cfg.output_dir, "checkpoints")
+                        outf = os.path.join(checkpoints_dir, f"model_{global_step}.pkl")
                         accelerator.unwrap_model(model).save_model(outf)
+                        save_checkpoint_config_for(outf)
                         logger.info(f"Saved checkpoint to {outf}")
 
                         if cfg.checkpoints_total_limit is not None:
@@ -424,6 +431,7 @@ class Pix2PixTurboTrainer:
                                 if "lora" in k or "skip" in k},
                     },
                 )
+                save_training_config(cfg, epoch_dir)
                 logger.info(f"Saved diffusers-style checkpoint at epoch {epoch + 1}")
 
                 if cfg.push_to_hub and cfg.hub_model_id:
@@ -436,8 +444,10 @@ class Pix2PixTurboTrainer:
 
         # Save final model
         if accelerator.is_main_process:
-            outf = os.path.join(cfg.output_dir, "checkpoints", "model_final.pkl")
+            checkpoints_dir = os.path.join(cfg.output_dir, "checkpoints")
+            outf = os.path.join(checkpoints_dir, "model_final.pkl")
             accelerator.unwrap_model(model).save_model(outf)
+            save_checkpoint_config_for(outf)
             logger.info(f"Saved final model to {outf}")
 
         accelerator.end_training()

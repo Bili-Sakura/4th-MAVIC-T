@@ -33,6 +33,7 @@ from src.metrics import MavicCriterion  # noqa: E402
 from src.training_utils import (  # noqa: E402
     create_optimizer,
     save_checkpoint_diffusers,
+    save_training_config,
     push_checkpoint_to_hub,
 )
 
@@ -518,6 +519,7 @@ class DDBMTrainer:
                     ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
+                        save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
 
                         if cfg.checkpoints_total_limit is not None:
@@ -561,6 +563,7 @@ class DDBMTrainer:
                     model_name="unet",
                     extra_state_dicts=extra_sd if extra_sd else None,
                 )
+                save_training_config(cfg, epoch_dir)
                 logger.info(f"Saved model at epoch {epoch + 1}")
 
                 if cfg.push_to_hub and cfg.hub_model_id:
