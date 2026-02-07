@@ -176,6 +176,7 @@ class DDBMTrainer:
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
+            exclude_file=self.cfg.exclude_file,
         )
         # val_ds = MavicTDDBMDataset(
         #     task=self.cfg.task_name,
