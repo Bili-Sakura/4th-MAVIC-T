@@ -450,14 +450,16 @@ class DDBMTrainer:
             if accelerator.is_main_process and (epoch + 1) % cfg.save_model_epochs == 0:
                 unwrapped = accelerator.unwrap_model(model)
                 epoch_dir = os.path.join(cfg.output_dir, f"checkpoint-epoch-{epoch + 1}")
+                extra_sd = {}
+                if cfg.use_ema and ema_model is not None:
+                    extra_sd["ema_unet"] = ema_model.state_dict()
                 save_checkpoint_diffusers(
                     epoch_dir,
                     unwrapped,
                     scheduler=scheduler,
                     model_name="unet",
+                    extra_state_dicts=extra_sd if extra_sd else None,
                 )
-                if cfg.use_ema and ema_model is not None:
-                    torch.save(ema_model.state_dict(), os.path.join(cfg.output_dir, f"ema_model_epoch_{epoch + 1}.pt"))
                 logger.info(f"Saved model at epoch {epoch + 1}")
 
                 if cfg.push_to_hub and cfg.hub_model_id:
