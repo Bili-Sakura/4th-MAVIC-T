@@ -1,6 +1,9 @@
-"""Filter training images that are entirely black or contain only N/A (NoData) pixels.
+"""Filter training images that contain bad (black or N/A) patches.
 
 Satellite imagery often contains tiles where the sensor returned no useful data.
+An image is considered "bad" when it contains at least one 16×16 pixel patch
+that is entirely black (all values ≤ *black_thresh*) or entirely N/A (NaN).
+
 This script scans the refined training dataset and writes the absolute paths of
 such "bad" images to a text file so they can be excluded from training.
 
@@ -14,6 +17,9 @@ Usage::
 
     # Custom output and black-pixel threshold
     python scripts/filter_bad_samples.py --output filtered.txt --black_thresh 1e-6
+
+    # Custom patch size (default: 16)
+    python scripts/filter_bad_samples.py --patch_size 32
 
 The generated text file can then be passed to any baseline trainer via the
 ``--exclude_file`` flag to skip these samples during training.
@@ -54,8 +60,16 @@ IMAGE_EXTS = {".png", ".tif", ".tiff"}
 # Core check
 # ---------------------------------------------------------------------------
 
-def is_bad_image(path: str, black_thresh: float = 0.0) -> bool:
-    """Return ``True`` if the image at *path* is entirely black or all-NaN.
+def is_bad_image(
+    path: str,
+    black_thresh: float = 0.0,
+    patch_size: int = 16,
+) -> bool:
+    """Return ``True`` if the image contains at least one bad patch.
+
+    A *patch_size* × *patch_size* region is "bad" when every pixel in it is
+    either NaN or at/below *black_thresh*.  If any such patch exists, the
+    whole image is considered a bad sample.
 
     Parameters
     ----------
@@ -64,6 +78,9 @@ def is_bad_image(path: str, black_thresh: float = 0.0) -> bool:
     black_thresh : float
         Pixel values at or below this threshold are treated as "black".
         Defaults to ``0.0`` (strict all-zero check).
+    patch_size : int
+        Side length (in pixels) of the square patch to scan.
+        Defaults to ``16``.
     """
     try:
         img = Image.open(path)
@@ -72,22 +89,41 @@ def is_bad_image(path: str, black_thresh: float = 0.0) -> bool:
         # Unreadable / corrupt file counts as bad
         return True
 
-    # Check for all-NaN (possible in float TIFFs)
-    if np.isnan(arr).all():
-        return True
-
-    # Replace NaN with 0 for the max check
+    # Build a per-pixel boolean mask: True where the pixel is "bad"
+    # (NaN or at/below the black threshold).
+    nan_mask = np.isnan(arr)
     finite = np.nan_to_num(arr, nan=0.0)
-    if finite.max() <= black_thresh:
-        return True
+    black_mask = finite <= black_thresh
+
+    # A pixel is bad if it is NaN OR black/blank.
+    # For multi-channel images, a pixel is bad only if ALL channels are bad.
+    bad_pixel = nan_mask | black_mask  # per-element
+    if bad_pixel.ndim == 3:
+        bad_pixel = bad_pixel.all(axis=2)  # collapse channels → (H, W)
+
+    h, w = bad_pixel.shape
+
+    # If the image is smaller than patch_size in either dimension, treat the
+    # entire image as one patch.
+    if h < patch_size or w < patch_size:
+        if bad_pixel.all():
+            return True
+        return False
+
+    # Scan non-overlapping patches of size patch_size × patch_size.
+    for y in range(0, h - patch_size + 1, patch_size):
+        for x in range(0, w - patch_size + 1, patch_size):
+            patch = bad_pixel[y : y + patch_size, x : x + patch_size]
+            if patch.all():
+                return True
 
     return False
 
 
-def _check_one(args: Tuple[str, float]) -> Tuple[str, bool]:
+def _check_one(args: Tuple[str, float, int]) -> Tuple[str, bool]:
     """Worker function for multiprocessing."""
-    path, thresh = args
-    return path, is_bad_image(path, black_thresh=thresh)
+    path, thresh, patch_size = args
+    return path, is_bad_image(path, black_thresh=thresh, patch_size=patch_size)
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +183,7 @@ def collect_paths_from_dirs(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Filter bad (all-black / all-NA) training images from MAVIC-T."
+        description="Filter bad training images from MAVIC-T (images containing at least one all-black or all-NA patch)."
     )
     parser.add_argument(
         "--refined_root",
@@ -172,6 +208,12 @@ def main() -> None:
         type=float,
         default=0.0,
         help="Pixel-value threshold for black detection (default: 0.0, strict all-zero).",
+    )
+    parser.add_argument(
+        "--patch_size",
+        type=int,
+        default=16,
+        help="Side length of the square patch to scan (default: 16).",
     )
     parser.add_argument(
         "--workers",
@@ -207,7 +249,7 @@ def main() -> None:
     # Check images in parallel
     t0 = time.time()
     bad_paths: List[str] = []
-    work = [(p, args.black_thresh) for p in paths]
+    work = [(p, args.black_thresh, args.patch_size) for p in paths]
 
     if args.workers <= 1:
         for w in work:

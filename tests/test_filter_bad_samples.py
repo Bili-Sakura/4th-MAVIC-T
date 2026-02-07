@@ -38,12 +38,13 @@ class TestIsBadImage:
         assert is_bad_image(path) is False
         os.unlink(path)
 
-    def test_single_bright_pixel_is_good(self):
+    def test_single_bright_pixel_is_bad_with_black_patch(self):
+        """A 32×32 image with one bright pixel still contains all-black 16×16 patches."""
         from scripts.filter_bad_samples import is_bad_image
         arr = np.zeros((32, 32), dtype=np.uint8)
         arr[16, 16] = 1
         path = self._make_image(arr)
-        assert is_bad_image(path) is False
+        assert is_bad_image(path) is True
         os.unlink(path)
 
     def test_threshold(self):
@@ -65,6 +66,65 @@ class TestIsBadImage:
         arr = np.full((32, 32), np.nan, dtype=np.float32)
         path = self._make_image(arr, suffix=".tiff")
         assert is_bad_image(path) is True
+        os.unlink(path)
+
+    def test_one_black_patch_among_good_patches(self):
+        """A 32×32 image where one 16×16 quadrant is all-black is bad."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.random.randint(10, 256, (32, 32, 3), dtype=np.uint8)
+        arr[:16, :16, :] = 0  # top-left 16×16 patch is all-black
+        path = self._make_image(arr)
+        assert is_bad_image(path) is True
+        os.unlink(path)
+
+    def test_no_full_black_patch_is_good(self):
+        """Every 16×16 patch has at least one non-zero pixel → good."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.zeros((32, 32), dtype=np.uint8)
+        # Place one bright pixel in each of the four 16×16 patches.
+        arr[0, 0] = 1     # patch (0:16, 0:16)
+        arr[0, 16] = 1    # patch (0:16, 16:32)
+        arr[16, 0] = 1    # patch (16:32, 0:16)
+        arr[16, 16] = 1   # patch (16:32, 16:32)
+        path = self._make_image(arr)
+        assert is_bad_image(path) is False
+        os.unlink(path)
+
+    def test_nan_patch_in_float_image(self):
+        """A float image with one 16×16 all-NaN patch is bad."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.random.rand(32, 32).astype(np.float32) + 1.0
+        arr[16:32, 0:16] = np.nan  # bottom-left 16×16 patch is all-NaN
+        path = self._make_image(arr, suffix=".tiff")
+        assert is_bad_image(path) is True
+        os.unlink(path)
+
+    def test_custom_patch_size(self):
+        """Patch size can be configured; a smaller patch triggers detection."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.random.randint(10, 256, (32, 32), dtype=np.uint8)
+        arr[0:8, 0:8] = 0  # 8×8 black region
+        path = self._make_image(arr)
+        # With default 16×16 it should be good (8×8 is too small)
+        assert is_bad_image(path, patch_size=16) is False
+        # With 8×8 patch size it should be bad
+        assert is_bad_image(path, patch_size=8) is True
+        os.unlink(path)
+
+    def test_image_smaller_than_patch_all_black(self):
+        """An image smaller than patch_size that is all-black is bad."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.zeros((8, 8), dtype=np.uint8)
+        path = self._make_image(arr)
+        assert is_bad_image(path, patch_size=16) is True
+        os.unlink(path)
+
+    def test_image_smaller_than_patch_not_black(self):
+        """An image smaller than patch_size with non-zero pixels is good."""
+        from scripts.filter_bad_samples import is_bad_image
+        arr = np.ones((8, 8), dtype=np.uint8) * 128
+        path = self._make_image(arr)
+        assert is_bad_image(path, patch_size=16) is False
         os.unlink(path)
 
 
