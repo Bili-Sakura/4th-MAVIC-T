@@ -81,8 +81,15 @@ def create_optimizer(
 def _save_safetensors(state_dict: Dict[str, torch.Tensor], path: str) -> None:
     """Save a state dict in safetensors format."""
     from safetensors.torch import save_file
-    # Ensure all tensors are contiguous and on CPU
-    cpu_sd = {k: v.contiguous().cpu() for k, v in state_dict.items()}
+    # Ensure all tensors are contiguous and on CPU, filter out non-tensor values
+    cpu_sd = {
+        k: v.contiguous().cpu() 
+        for k, v in state_dict.items() 
+        if isinstance(v, torch.Tensor)
+    }
+    if not cpu_sd:
+        logger.warning(f"No tensor values found in state_dict for {path}, skipping save.")
+        return
     save_file(cpu_sd, path)
 
 
