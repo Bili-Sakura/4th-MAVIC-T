@@ -9,8 +9,8 @@ representation alignment placeholders – all ported from or extending
 from .vae_utils import vae_encoder_fwd, vae_decoder_fwd
 from .training_utils import build_transform, PairedDataset, UnpairedDataset
 from .image_prep import canny_from_pil
-from .latent_target import LatentTargetEncoder
-from .rep_alignment import (
+from src.latent_target import LatentTargetEncoder
+from src.rep_alignment import (
     RepresentationAlignmentBase,
     SARCLIPAlignment,
     DINOv3SatAlignment,

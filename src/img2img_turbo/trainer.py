@@ -1,5 +1,12 @@
 """Core Pix2Pix-Turbo trainer for MAVIC-T tasks.
 
+.. note::
+   **Lower priority**: the Img2Image-Turbo / Pix2Pix-Turbo method has been
+   found less suitable for the MAVIC-T task compared to other baselines
+   (CUT, DDBM).  Its code is retained for reference and future
+   experimentation, but further implementation effort should focus on the
+   other baselines first.
+
 This module adapts the training logic from
 ``vendor/Img2Image-Turbo/src/train_pix2pix_turbo.py`` into a reusable
 :class:`Pix2PixTurboTrainer` class driven by a
@@ -226,7 +233,7 @@ class Pix2PixTurboTrainer:
         # Latent target encoder (RGB2IR ablation)
         latent_target_encoder = None
         if cfg.use_latent_target and cfg.latent_vae_path:
-            from .utils.latent_target import LatentTargetEncoder
+            from src.latent_target import LatentTargetEncoder
             latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
             logger.info(f"[{cfg.task_name}] Using latent target encoder "
                         f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")

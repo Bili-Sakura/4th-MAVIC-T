@@ -1,5 +1,12 @@
 """Task-specific configurations for Img2Image-Turbo (Pix2Pix-Turbo) training.
 
+.. note::
+   **Lower priority**: the Img2Image-Turbo / Pix2Pix-Turbo method has been
+   found less suitable for the MAVIC-T task compared to other baselines
+   (CUT, DDBM).  Its code is retained for reference and future
+   experimentation, but further implementation effort should focus on the
+   other baselines first.
+
 Each task (sar2eo, rgb2ir, sar2ir, sar2rgb) defines its own config with
 resolution, channel layout, model architecture, and training hyper-parameters.
 Configs are plain dataclasses so per-task scripts can override any field.

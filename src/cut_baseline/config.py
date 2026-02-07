@@ -102,6 +102,16 @@ class TaskConfig:
     # ---- sampling (evaluation) ----
     num_inference_steps: int = 1  # CUT is single-pass (no iterative denoising)
 
+    # ---- latent modeling ablation ----
+    use_latent_target: bool = False
+    latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
+    lambda_latent: float = 1.0  # weight for latent-space L2 loss
+
+    # ---- representation alignment ----
+    use_rep_alignment: bool = False
+    rep_alignment_model_path: Optional[str] = None  # path to encoder checkpoint
+    lambda_rep_alignment: float = 1.0  # weight for alignment loss
+
 
 # ---------------------------------------------------------------------------
 # Pre-built configs for the four core tasks
@@ -118,6 +128,8 @@ def sar2eo_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2eo",
         train_batch_size=4,
         eval_batch_size=16,
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -136,6 +148,10 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_rgb2ir",
         train_batch_size=4,
         eval_batch_size=4,
+        # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
+        latent_vae_path="./models/BiliSakura/VAEs",
+        # representation alignment via DINOv3-sat
+        rep_alignment_model_path="./models/BiliSakura/DINOv3-sat",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -154,6 +170,8 @@ def sar2ir_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2ir",
         train_batch_size=4,
         eval_batch_size=4,
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -172,6 +190,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         output_dir="./outputs/cut_sar2rgb",
         train_batch_size=4,
         eval_batch_size=4,
+        # representation alignment via SARCLIP
+        rep_alignment_model_path="./models/BiliSakura/SARCLIP",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
