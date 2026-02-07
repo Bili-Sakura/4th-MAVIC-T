@@ -557,7 +557,8 @@ class CUTTrainer:
                     push_checkpoint_to_hub(
                         epoch_dir,
                         hub_model_id=cfg.hub_model_id,
-                        commit_message=f"epoch {epoch + 1}",
+                        commit_message=f"cut {cfg.task_name} epoch {epoch + 1}",
+                        path_in_repo=f"cut/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
                     )
 
         accelerator.end_training()
