@@ -46,9 +46,25 @@ def test_reduce_reconstruction_channels_averages_single_channel():
     assert torch.allclose(reduced, expected)
 
 
+def test_reduce_reconstruction_channels_two_channels():
+    recon = torch.stack(
+        [
+            torch.full((2, 2), 0.25),
+            torch.full((2, 2), 0.75),
+            torch.full((2, 2), 0.5),
+        ],
+        dim=0,
+    ).unsqueeze(0)
+
+    reduced = reduce_reconstruction_channels(recon, orig_channels=2)
+    assert reduced.shape == (1, 2, 2, 2)
+    assert torch.allclose(reduced[:, 0], recon[:, 0])
+    assert torch.allclose(reduced[:, 1], recon[:, 1])
+
+
 def test_compute_reconstruction_metrics_identical_images():
     img = torch.zeros(1, 1, 4, 4)
     metrics = compute_reconstruction_metrics(img, img)
     assert metrics["mae"] == pytest.approx(0.0)
-    assert math.isinf(metrics["psnr"]) or metrics["psnr"] > 50.0
+    assert math.isinf(metrics["psnr"])
     assert metrics["ssim"] == pytest.approx(1.0)

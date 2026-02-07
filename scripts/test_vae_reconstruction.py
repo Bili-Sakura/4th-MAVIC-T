@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick VAE reconstruction sanity check for SAR / IR / EO imagery.
+"""Quick VAE reconstruction sanity check for SAR/IR/EO imagery.
 
 The script loads a diffusers ``AutoencoderKL`` from ``./models`` (defaults to
 ``./models/BiliSakura/VAEs``), expands single-channel inputs to three channels
@@ -10,30 +10,34 @@ back to one channel for SAR/IR inputs, and reports MAE / PSNR / SSIM.
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 from diffusers import AutoencoderKL
 from PIL import Image
+
+try:
+    _RESAMPLING = Image.Resampling  # Pillow >= 9
+except AttributeError:  # pragma: no cover - fallback for older Pillow
+    _RESAMPLING = Image
 from torchmetrics.functional.image import (
     peak_signal_noise_ratio,
     structural_similarity_index_measure,
 )
 
-DEFAULT_VAE_PATH = "./models/BiliSakura/VAEs"
+DEFAULT_VAE_PATH = "./models/BiliSakura/VAEs"  # Repository default; override for other checkpoints.
 DEFAULT_EXTS = (".png", ".tif", ".tiff")
 
 
-def _normalise_image_array(arr: np.ndarray) -> np.ndarray:
-    """Normalise a H×W×C image array to [0, 1] float32."""
+def _normalize_image_array(arr: np.ndarray) -> np.ndarray:
+    """Normalize a H×W×C image array to [0, 1] float32."""
     arr = arr.astype(np.float32)
-    if arr.max() > 1.0:
-        if arr.dtype == np.float32 and arr.max() > 255.0:
-            arr = arr / 65535.0
-        else:
-            arr = arr / 255.0
+    arr_max = arr.max()
+    if arr_max > 1.0:
+        arr = arr / (65535.0 if arr_max > 255.0 else 255.0)
     return arr
 
 
@@ -50,17 +54,21 @@ def load_image_to_three_channels(
         Number of channels in the source image before expansion.
     """
     img = Image.open(path)
-    if resolution:
-        img = img.resize((resolution, resolution), Image.BILINEAR)
+    if resolution <= 0:
+        raise ValueError("resolution must be positive when provided")
+    img = img.resize((resolution, resolution), _RESAMPLING.BILINEAR)
     arr = np.array(img, dtype=np.float32)
-    arr = _normalise_image_array(arr)
+    arr = _normalize_image_array(arr)
 
     if arr.ndim == 2:
         arr = arr[:, :, np.newaxis]
     orig_channels = arr.shape[2]
 
-    if orig_channels < 3:
+    if orig_channels == 1:
         arr = np.repeat(arr, 3, axis=2)
+    elif orig_channels == 2:
+        # Keep both channels and duplicate the first to reach three channels: [c0, c1, c0].
+        arr = np.concatenate([arr, arr[:, :, :1]], axis=2)
     elif orig_channels > 3:
         arr = arr[:, :, :3]
 
@@ -72,7 +80,8 @@ def reduce_reconstruction_channels(recon: torch.Tensor, orig_channels: int) -> t
     """Convert a 3-channel reconstruction back to the original channel layout."""
     if orig_channels == 1:
         return recon.mean(dim=1, keepdim=True)
-    return recon[:, :3]
+    desired_channels = min(orig_channels, recon.shape[1])
+    return recon[:, :desired_channels]
 
 
 def compute_reconstruction_metrics(
@@ -82,10 +91,16 @@ def compute_reconstruction_metrics(
     recon = recon.clamp(0, 1)
     target = target.clamp(0, 1)
     _, _, h, w = recon.shape
-    kernel = min(h, w, 11)
-    if kernel % 2 == 0:
-        kernel = max(1, kernel - 1)
-    use_gaussian = min(h, w) >= 11
+    min_side = min(h, w)
+    # SSIM expects an odd kernel; cap at 11 to match the torchmetrics default while
+    # staying robust for small inputs.
+    if min_side < 3:
+        kernel = 1
+    else:
+        kernel = min(min_side, 11)
+        if kernel % 2 == 0:
+            kernel = kernel - 1
+    use_gaussian = min_side >= 11
 
     mae = torch.mean(torch.abs(recon - target)).item()
     psnr = peak_signal_noise_ratio(recon, target, data_range=1.0).item()
@@ -95,7 +110,7 @@ def compute_reconstruction_metrics(
     return {"mae": float(mae), "psnr": float(psnr), "ssim": float(ssim)}
 
 
-def _iter_image_paths(root: Path, exts: Sequence[str]) -> List[Path]:
+def _collect_image_paths(root: Path, exts: Sequence[str]) -> List[Path]:
     """Return a sorted list of image paths under ``root``."""
     wanted = {ext.lower() for ext in exts}
     return sorted(
@@ -121,13 +136,15 @@ def run(args: argparse.Namespace) -> None:
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     vae_path = Path(args.vae_path)
     if not vae_path.exists():
-        raise FileNotFoundError(f"VAE path not found: {vae_path}")
+        raise FileNotFoundError(
+            f"VAE path not found: {vae_path}. Pass --vae-path to point to your checkpoint if different."
+        )
 
     vae = AutoencoderKL.from_pretrained(str(vae_path)).to(device)
     vae.eval()
     scaling_factor = float(getattr(vae.config, "scaling_factor", 1.0))
 
-    image_paths = _iter_image_paths(Path(args.input_dir), args.extensions)
+    image_paths = _collect_image_paths(Path(args.input_dir), args.extensions)
     if args.max_images is not None:
         image_paths = image_paths[: args.max_images]
     if not image_paths:
@@ -149,9 +166,7 @@ def run(args: argparse.Namespace) -> None:
 
         recon = (decoded.clamp(-1, 1) + 1) / 2
         recon_for_metrics = reduce_reconstruction_channels(recon, orig_channels)
-        target_for_metrics = (
-            input_tensor[:, :1] if orig_channels == 1 else input_tensor[:, :3]
-        )
+        target_for_metrics = input_tensor[:, : recon_for_metrics.shape[1]]
 
         metrics = compute_reconstruction_metrics(recon_for_metrics, target_for_metrics)
         results.append(metrics)
@@ -165,9 +180,22 @@ def run(args: argparse.Namespace) -> None:
             _save_reconstruction(path, recon_for_metrics, orig_channels, Path(args.output_dir))
 
     # Summary
-    mean_mae = float(np.mean([m["mae"] for m in results]))
-    mean_psnr = float(np.mean([m["psnr"] for m in results]))
-    mean_ssim = float(np.mean([m["ssim"] for m in results]))
+    mae_values = [m["mae"] for m in results]
+    ssim_values = [m["ssim"] for m in results]
+    mse_values = []
+    for m in results:
+        psnr_val = m["psnr"]
+        if math.isfinite(psnr_val):
+            mse_values.append(10 ** (-psnr_val / 10.0))
+        else:
+            mse_values.append(0.0)
+
+    mean_mae = np.mean(mae_values)
+    mean_ssim = np.mean(ssim_values)
+    avg_mse = np.mean(mse_values)
+    # PSNR = 10 * log10(MAX^2 / MSE) with MAX=1.0 for normalized images.
+    eps = 1e-12
+    mean_psnr = float("inf") if avg_mse <= eps else 10 * math.log10(1.0 / max(avg_mse, eps))
     print(
         f"\nAveraged over {len(results)} image(s): "
         f"MAE={mean_mae:.4f}, PSNR={mean_psnr:.2f}, SSIM={mean_ssim:.4f}"
@@ -221,7 +249,7 @@ def build_argparser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Iterable[str] | None = None) -> None:
+def main(argv: Optional[Iterable[str]] = None) -> None:
     parser = build_argparser()
     args = parser.parse_args(args=argv)
     run(args)
