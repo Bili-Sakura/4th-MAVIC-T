@@ -161,8 +161,9 @@ class CUTTrainer:
         nce_layers, lambda_GAN, lambda_NCE,
         nce_idt, num_patches,
         mavic_criterion=None, mavic_loss_weight=0.1,
+        latent_target_encoder=None, lambda_latent=1.0,
     ):
-        """Compute generator loss (GAN + NCE + optional identity NCE + optional MAVIC).
+        """Compute generator loss (GAN + NCE + optional identity NCE + optional MAVIC + optional latent).
 
         Returns
         -------
@@ -212,6 +213,15 @@ class CUTTrainer:
             target_01 = target_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss_G = loss_G + mavic_loss_weight * mavic_loss
+
+        # Optional latent-space L2 loss
+        if latent_target_encoder is not None:
+            latent_pred = latent_target_encoder.vae.encode(fake_B).latent_dist.mean
+            latent_pred = latent_pred * latent_target_encoder.scaling_factor
+            with torch.no_grad():
+                latent_tgt = latent_target_encoder.encode(real_B).detach()
+            loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
+            loss_G = loss_G + lambda_latent * loss_latent
 
         return loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y
 
@@ -307,6 +317,23 @@ class CUTTrainer:
                         f"(lpips_w={cfg.mavic_lpips_weight}, l1_w={cfg.mavic_l1_weight}, "
                         f"loss_w={cfg.mavic_loss_weight})")
 
+        # Latent target encoder (ablation)
+        latent_target_encoder = None
+        if cfg.use_latent_target and cfg.latent_vae_path:
+            from src.latent_target import LatentTargetEncoder
+            latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
+            logger.info(f"[{cfg.task_name}] Using latent target encoder "
+                        f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")
+
+        # Representation alignment (placeholder – will log but not activate
+        # until concrete implementations are provided)
+        if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
+            logger.info(
+                f"[{cfg.task_name}] Representation alignment configured "
+                f"(model={cfg.rep_alignment_model_path}, "
+                f"lambda={cfg.lambda_rep_alignment}) – placeholder, not yet active"
+            )
+
         # Optimisers (G and D share the same lr/beta but are separate)
         optimizer_G = create_optimizer(
             netG.parameters(),
@@ -371,6 +398,8 @@ class CUTTrainer:
             crit.to(accelerator.device)
         if mavic_criterion is not None:
             mavic_criterion = mavic_criterion.to(accelerator.device)
+        if latent_target_encoder is not None:
+            latent_target_encoder = latent_target_encoder.to(accelerator.device)
 
         if accelerator.is_main_process:
             tracker_config = {k: str(v) for k, v in vars(cfg).items()}
@@ -454,6 +483,8 @@ class CUTTrainer:
                         num_patches=cfg.num_patches,
                         mavic_criterion=mavic_criterion,
                         mavic_loss_weight=cfg.mavic_loss_weight,
+                        latent_target_encoder=latent_target_encoder,
+                        lambda_latent=cfg.lambda_latent,
                     )
                     accelerator.backward(loss_G)
                     optimizer_G.step()

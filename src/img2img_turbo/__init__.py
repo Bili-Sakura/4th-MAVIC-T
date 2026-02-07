@@ -1,5 +1,12 @@
 """Img2Image-Turbo (Pix2Pix-Turbo / CycleGAN-Turbo) for MAVIC-T image-to-image translation tasks.
 
+.. note::
+   **Lower priority**: the Img2Image-Turbo / Pix2Pix-Turbo method has been
+   found less suitable for the MAVIC-T task compared to other baselines
+   (CUT, DDBM).  Its code is retained for reference and future
+   experimentation, but further implementation effort should focus on the
+   other baselines first.
+
 Organised in a ``diffusers``-compatible layout:
 
 - **models**      – ``Pix2PixTurbo``, ``CycleGANTurbo``, VAE helpers, initialisation
