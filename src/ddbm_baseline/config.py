@@ -48,7 +48,7 @@ class TaskConfig:
     beta_min: float = 0.1
 
     # ---- training ----
-    output_dir: str = "./outputs/ddbm"
+    output_dir: str = "./ckpt"
     train_batch_size: int = 8
     eval_batch_size: int = 4
     num_epochs: int = 100
@@ -112,7 +112,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=256,
-        output_dir="./outputs/ddbm_sar2eo",
+        output_dir="./ckpt",
         train_batch_size=32,
         eval_batch_size=16,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
@@ -134,7 +134,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
         resolution=1024,
         use_augmented=True,
-        output_dir="./outputs/ddbm_rgb2ir",
+        output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
@@ -156,7 +156,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         model_channels=1,
         resolution=1024,
         use_augmented=True,
-        output_dir="./outputs/ddbm_sar2ir",
+        output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
@@ -178,7 +178,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
         resolution=1024,
         use_augmented=True,
-        output_dir="./outputs/ddbm_sar2rgb",
+        output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
