@@ -17,3 +17,7 @@
 [submodule "libs/DDBM"]
 	path = libs/DDBM
 	url = https://github.com/Bili-Sakura/DDBM
+
+[submodule "libs/REPA"]
+	path = libs/REPA
+	url = https://github.com/sihyun-yu/REPA
