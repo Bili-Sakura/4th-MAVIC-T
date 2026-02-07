@@ -14,12 +14,46 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 import torch
+import yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _to_yaml_serializable(
+    obj: Any,
+    visited: Optional[Dict[int, Any]] = None,
+    stack: Optional[set[int]] = None,
+) -> Any:
+    if visited is None:
+        visited = {}
+    if stack is None:
+        stack = set()
+    obj_id = id(obj)
+    if obj_id in stack:
+        return str(obj)
+    if obj_id in visited:
+        return visited[obj_id]
+    stack.add(obj_id)
+    if isinstance(obj, dict):
+        result = {k: _to_yaml_serializable(v, visited, stack) for k, v in obj.items()}
+    elif is_dataclass(obj):
+        result = _to_yaml_serializable(asdict(obj), visited, stack)
+    elif isinstance(obj, list):
+        result = [_to_yaml_serializable(v, visited, stack) for v in obj]
+    elif isinstance(obj, tuple):
+        result = tuple(_to_yaml_serializable(v, visited, stack) for v in obj)
+    elif isinstance(obj, (str, int, float, bool)) or obj is None:
+        result = obj
+    else:
+        result = str(obj)
+    stack.discard(obj_id)
+    visited[obj_id] = result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +111,41 @@ def create_optimizer(
 # ---------------------------------------------------------------------------
 # Diffusers-style checkpoint saving (safetensors)
 # ---------------------------------------------------------------------------
+
+
+def save_training_config(cfg: Any, save_dir: str, *, filename: str = "config.yaml") -> None:
+    """Persist the training configuration to a YAML file inside *save_dir*.
+
+    The file is named ``config.yaml`` by default but can be overridden via the
+    *filename* parameter. Circular references are mitigated by tracking visited
+    objects during serialization. This helper is intended for single-threaded
+    use; concurrent callers writing to the same destination should coordinate
+    with locks to avoid file-system race conditions.
+    """
+
+    os.makedirs(save_dir, exist_ok=True)
+    if is_dataclass(cfg):
+        data = asdict(cfg)
+    elif isinstance(cfg, dict):
+        data = cfg
+    else:
+        try:
+            # Skip private attributes when serializing arbitrary objects.
+            data = {k: v for k, v in vars(cfg).items() if not k.startswith("_")}
+        except TypeError as exc:
+            # Objects without a __dict__ (e.g. using __slots__) fall back to a
+            # string representation to ensure persistence still succeeds.
+            logger.warning(
+                "Falling back to string representation when saving config of type %s (vars() failed: %s).",
+                type(cfg).__name__,
+                exc,
+            )
+            data = {"raw_config": str(cfg)}
+    data = _to_yaml_serializable(data)
+    config_path = Path(save_dir) / filename
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+
 
 def _save_safetensors(state_dict: Dict[str, torch.Tensor], path: str) -> None:
     """Save a state dict in safetensors format."""
