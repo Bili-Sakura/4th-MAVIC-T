@@ -300,7 +300,9 @@ class DDBMTrainer:
         """Run the full training loop."""
         cfg = self.cfg
 
-        # Auto-structure checkpoint directory with method/task subfolders
+        # Auto-structure checkpoint directory with method/task subfolders.
+        # Intentionally mutates cfg.output_dir so all downstream save paths
+        # (logging, checkpointing, epoch saves) use the structured directory.
         if cfg.task_name:
             cfg.output_dir = os.path.join(cfg.output_dir, "ddbm", cfg.task_name)
 
@@ -518,6 +520,10 @@ class DDBMTrainer:
                     # _save_safetensors() can persist them correctly.
                     model_param_names = list(unwrapped.state_dict().keys())
                     shadow_params = ema_model.shadow_params
+                    assert len(model_param_names) == len(shadow_params), (
+                        f"EMA shadow_params length ({len(shadow_params)}) != "
+                        f"model state_dict keys ({len(model_param_names)})"
+                    )
                     ema_state_dict = {
                         name: param.clone().detach()
                         for name, param in zip(model_param_names, shadow_params)
