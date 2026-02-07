@@ -6,7 +6,7 @@ Use this short guide to get a baseline training run, export predictions, and mea
 
 - Create the provided conda environment:  
   `conda env create -f environment.yaml && conda activate rsgen`
-- Place the refined dataset at `datasets/BiliSakura/MACIV-T-2025-Structure-Refined` (folder name as shipped in the release; see `docs/dataset.md` for layout). The validation/test inputs live under the same root.
+- Place the refined dataset at `datasets/BiliSakura/MACIV-T-2025-Structure-Refined` (the upstream release spells it **MACIV** even though the challenge name is MAVIC; see `docs/dataset.md` for layout). The validation/test inputs live under the same root.
 
 ## 2. Train a model (Pix2Pix-Turbo example)
 
