@@ -334,6 +334,7 @@ class MaRSSARAlignment(nn.Module):
         x = normalize_to_01(images)
         # Keep 1-channel for SAR; do NOT expand to 3-ch
         if x.shape[1] == 3:
+            logger.warning("MaRS-SAR encoder received 3-channel input; using first channel only")
             x = x[:, :1]  # take first channel if RGB passed by mistake
         x = x.to(next(self.encoder.parameters()).device)
         feats = self.encoder(x)  # list of multi-scale feature maps
