@@ -116,6 +116,62 @@ class DDIBTrainer:
             rescale_timesteps=self.cfg.rescale_timesteps,
         )
 
+    # ----- validation --------------------------------------------------------
+
+    @torch.no_grad()
+    def log_validation(self, source_model, target_model, scheduler, val_dataloader, accelerator, global_step):
+        """Run inference on the validation set and log FID + metrics."""
+        from src.pipelines.ddib import DDIBPipeline
+        from src.utils.metrics import MetricCalculator
+
+        logger.info("Running validation at step %d …", global_step)
+        cfg = self.cfg
+        src_unwrapped = accelerator.unwrap_model(source_model)
+        tgt_unwrapped = accelerator.unwrap_model(target_model)
+        src_training = src_unwrapped.training
+        tgt_training = tgt_unwrapped.training
+        src_unwrapped.eval()
+        tgt_unwrapped.eval()
+
+        pipeline = DDIBPipeline(
+            source_unet=src_unwrapped,
+            target_unet=tgt_unwrapped,
+            scheduler=scheduler,
+        )
+        pipeline = pipeline.to(accelerator.device)
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
+
+        for batch in val_dataloader:
+            target, source = batch
+            source = source.to(accelerator.device) * 2 - 1
+            target = target.to(accelerator.device)
+
+            result = pipeline(
+                source_image=source,
+                num_inference_steps=cfg.num_inference_steps,
+                clip_denoised=True,
+                output_type="pt",
+            )
+            generated = (result.images + 1) * 0.5
+            generated = generated.clamp(0, 1)
+            metric_calc.update(generated, target)
+
+        results = metric_calc.compute()
+        logs = {"val/lpips": results.lpips, "val/l1": results.l1}
+        if results.fid is not None:
+            logs["val/fid"] = results.fid
+        if results.score is not None:
+            logs["val/task_score"] = results.score
+        accelerator.log(logs, step=global_step)
+        logger.info("Validation step %d: %s", global_step, results)
+
+        if src_training:
+            src_unwrapped.train()
+        if tgt_training:
+            tgt_unwrapped.train()
+        return results
+
     # ----- single-domain training loop ---------------------------------------
 
     def _train_single_domain(
@@ -411,6 +467,34 @@ class DDIBTrainer:
             rep_alignment_module=rep_alignment_module,
             lambda_rep_alignment=cfg.lambda_rep_alignment,
         )
+
+        # Post-training validation (requires both models)
+        if (
+            accelerator.is_main_process
+            and (cfg.validation_epochs is not None or cfg.validation_steps is not None)
+        ):
+            from examples.ddbm.dataset_wrapper import MavicTDDBMDataset
+            try:
+                val_ds = MavicTDDBMDataset(
+                    task=cfg.task_name,
+                    split="val",
+                    resolution=cfg.resolution,
+                    model_channels=cfg.source_channels,
+                    with_target=True,
+                )
+                val_dataloader = DataLoader(
+                    val_ds,
+                    batch_size=cfg.eval_batch_size,
+                    shuffle=False,
+                    num_workers=cfg.dataloader_num_workers,
+                )
+                global_step = cfg.max_train_steps or (cfg.num_epochs * len(source_dataset))
+                self.log_validation(
+                    source_model, target_model, scheduler,
+                    val_dataloader, accelerator, global_step,
+                )
+            except (ValueError, FileNotFoundError, RuntimeError):
+                logger.warning("Val split unavailable for %s – skipping validation", cfg.task_name)
 
         # --- Save combined DDIBPipeline checkpoint ---
         if accelerator.is_main_process:
