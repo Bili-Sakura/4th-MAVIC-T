@@ -105,9 +105,7 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPi
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
-        unet = DDBMUNet.from_pretrained(pretrained_path, subfolder="unet")
-        scheduler = DDBMScheduler.from_pretrained(pretrained_path, subfolder="scheduler")
-        pipeline = DDBMPipeline(unet=unet, scheduler=scheduler)
+        pipeline = DDBMPipeline.from_pretrained(pretrained_path)
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)

@@ -568,7 +568,8 @@ class CUTTrainer:
                     epoch_dir,
                     unwrapped_G,
                     scheduler=None,
-                    model_name="unet",
+                    model_name="generator",
+                    pipeline_class_name="CUTPipeline",
                     extra_state_dicts={
                         "discriminator": unwrapped_D.state_dict(),
                         "feature_network": netF.state_dict(),

@@ -167,3 +167,101 @@ class TestCUTFromPretrained:
         from src.cut_baseline.pipelines import CUTPipeline
 
         assert issubclass(CUTPipeline, DiffusionPipeline)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline.from_pretrained() one-liner tests
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineFromPretrained:
+    """Verify that ``Pipeline.from_pretrained(path)`` works for all baselines."""
+
+    def test_ddbm_pipeline_from_pretrained(self):
+        from src.ddbm_baseline.models import DDBMUNet
+        from src.ddbm_baseline.schedulers import DDBMScheduler
+        from src.ddbm_baseline.pipelines import DDBMPipeline
+
+        model = DDBMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = DDBMScheduler(sigma_min=0.002, sigma_max=80.0, sigma_data=0.5)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=scheduler, model_name="unet",
+                pipeline_class_name="DDBMPipeline",
+            )
+            pipe = DDBMPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
+
+    def test_bibbdm_pipeline_from_pretrained(self):
+        from src.bibbdm_baseline.models import BiBBDMUNet
+        from src.bibbdm_baseline.schedulers import BiBBDMScheduler
+        from src.bibbdm_baseline.pipelines import BiBBDMPipeline
+
+        model = BiBBDMUNet(image_size=32, in_channels=1, out_channels=2, model_channels=_MIN_CHANNELS)
+        scheduler = BiBBDMScheduler(num_timesteps=1000, objective="dlns")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=scheduler, model_name="unet",
+                pipeline_class_name="BiBBDMPipeline",
+            )
+            pipe = BiBBDMPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+
+    def test_i2sb_pipeline_from_pretrained(self):
+        from src.i2sb_baseline.models import I2SBUNet
+        from src.i2sb_baseline.schedulers import I2SBScheduler
+        from src.i2sb_baseline.pipelines import I2SBPipeline
+
+        model = I2SBUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = I2SBScheduler(interval=100, beta_max=0.3)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=scheduler, model_name="unet",
+                pipeline_class_name="I2SBPipeline",
+            )
+            pipe = I2SBPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+
+    def test_cut_pipeline_from_pretrained(self):
+        from src.cut_baseline.models import CUTGenerator
+        from src.cut_baseline.pipelines import CUTPipeline
+
+        model = CUTGenerator(input_nc=1, output_nc=1, ngf=32, n_blocks=2)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=None, model_name="generator",
+                pipeline_class_name="CUTPipeline",
+            )
+            pipe = CUTPipeline.from_pretrained(tmpdir)
+
+        assert pipe.generator is not None
+        _assert_state_dicts_equal(model.state_dict(), pipe.generator.state_dict())
+
+    def test_ddib_pipeline_from_pretrained(self):
+        from src.ddib_baseline.models import DDIBUNet
+        from src.ddib_baseline.schedulers import DDIBScheduler
+        from src.ddib_baseline.pipelines import DDIBPipeline
+
+        source = DDIBUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        target = DDIBUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = DDIBScheduler(num_train_timesteps=1000, noise_schedule="linear")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orig = DDIBPipeline(source_unet=source, target_unet=target, scheduler=scheduler)
+            orig.save_pretrained(tmpdir)
+            pipe = DDIBPipeline.from_pretrained(tmpdir)
+
+        assert pipe.source_unet is not None
+        assert pipe.target_unet is not None
+        assert pipe.scheduler is not None

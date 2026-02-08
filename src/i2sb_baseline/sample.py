@@ -93,9 +93,7 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> I2SBPi
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
-        unet = I2SBUNet.from_pretrained(pretrained_path, subfolder="unet")
-        scheduler = I2SBScheduler.from_pretrained(pretrained_path, subfolder="scheduler")
-        pipeline = I2SBPipeline(unet=unet, scheduler=scheduler)
+        pipeline = I2SBPipeline.from_pretrained(pretrained_path)
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)

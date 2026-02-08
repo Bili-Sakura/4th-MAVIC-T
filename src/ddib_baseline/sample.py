@@ -7,7 +7,15 @@ DDIB translates images by:
   2. Decoding the latent to the target domain via DDIM forward sampling
      with the target-domain diffusion model.
 
-Usage (pretrained directories — recommended)::
+Usage (combined pipeline checkpoint — recommended)::
+
+    python -m src.ddib_baseline.sample \
+        --task sar2ir \
+        --pretrained_model_name_or_path ./ckpt/ddib/sar2ir/pipeline \
+        --split test \
+        --output_dir ./samples/ddib_sar2ir
+
+Usage (separate model checkpoints)::
 
     python -m src.ddib_baseline.sample \
         --task sar2ir \
@@ -16,19 +24,9 @@ Usage (pretrained directories — recommended)::
         --split test \
         --output_dir ./samples/ddib_sar2ir
 
-Usage (legacy single-file checkpoints)::
-
-    python -m src.ddib_baseline.sample \
-        --task sar2ir \
-        --source_pretrained_path ./ckpt/ddib_source/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
-        --target_pretrained_path ./ckpt/ddib_target/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
-        --split test \
-        --output_dir ./samples/ddib_sar2ir
-
-When a directory is provided the script loads UNet and scheduler via
-``from_pretrained`` following the HuggingFace *diffusers* convention.
-Legacy ``.pt`` / ``.safetensors`` single-file checkpoints are still
-supported for backward compatibility.
+When ``--pretrained_model_name_or_path`` points to a combined pipeline
+directory (containing ``source_unet/``, ``target_unet/``, ``scheduler/``),
+the script loads the entire pipeline via ``DDIBPipeline.from_pretrained``.
 """
 
 from __future__ import annotations
@@ -79,15 +77,21 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Translate images using trained DDIB models.")
     parser.add_argument("--task", type=str, required=True, choices=list(_TASK_CONFIG_MAP.keys()))
     parser.add_argument(
+        "--pretrained_model_name_or_path",
+        type=str,
+        default=None,
+        help="Path to a combined DDIBPipeline directory (contains source_unet/, target_unet/, scheduler/).",
+    )
+    parser.add_argument(
         "--source_pretrained_path",
         type=str,
-        required=True,
+        default=None,
         help="Path to the source-domain pretrained directory or legacy .pt/.safetensors file.",
     )
     parser.add_argument(
         "--target_pretrained_path",
         type=str,
-        required=True,
+        default=None,
         help="Path to the target-domain pretrained directory or legacy .pt/.safetensors file.",
     )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
@@ -141,31 +145,42 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load models
-    source_model = _load_unet(args.source_pretrained_path, cfg, cfg.source_channels)
-    source_model = source_model.to(args.device).eval()
+    # Load pipeline
+    if args.pretrained_model_name_or_path:
+        # ---- combined pipeline directory ----
+        logger.info("Loading DDIBPipeline from: %s", args.pretrained_model_name_or_path)
+        pipeline = DDIBPipeline.from_pretrained(args.pretrained_model_name_or_path)
+        pipeline = pipeline.to(args.device)
+    elif args.source_pretrained_path and args.target_pretrained_path:
+        # ---- separate source/target paths ----
+        source_model = _load_unet(args.source_pretrained_path, cfg, cfg.source_channels)
+        source_model = source_model.to(args.device).eval()
 
-    target_model = _load_unet(args.target_pretrained_path, cfg, cfg.target_channels)
-    target_model = target_model.to(args.device).eval()
+        target_model = _load_unet(args.target_pretrained_path, cfg, cfg.target_channels)
+        target_model = target_model.to(args.device).eval()
 
-    # Build scheduler + pipeline
-    # Prefer loading scheduler from a pretrained directory if available
-    source_path = Path(args.source_pretrained_path)
-    if source_path.is_dir() and (source_path / "scheduler").is_dir():
-        scheduler = DDIBScheduler.from_pretrained(args.source_pretrained_path, subfolder="scheduler")
-    else:
-        scheduler = DDIBScheduler(
-            num_train_timesteps=cfg.diffusion_steps,
-            noise_schedule=cfg.noise_schedule,
-            learn_sigma=cfg.learn_sigma,
-            predict_xstart=cfg.predict_xstart,
-            rescale_timesteps=cfg.rescale_timesteps,
+        # Prefer loading scheduler from a pretrained directory if available
+        source_path = Path(args.source_pretrained_path)
+        if source_path.is_dir() and (source_path / "scheduler").is_dir():
+            scheduler = DDIBScheduler.from_pretrained(args.source_pretrained_path, subfolder="scheduler")
+        else:
+            scheduler = DDIBScheduler(
+                num_train_timesteps=cfg.diffusion_steps,
+                noise_schedule=cfg.noise_schedule,
+                learn_sigma=cfg.learn_sigma,
+                predict_xstart=cfg.predict_xstart,
+                rescale_timesteps=cfg.rescale_timesteps,
+            )
+        pipeline = DDIBPipeline(
+            source_unet=source_model,
+            target_unet=target_model,
+            scheduler=scheduler,
         )
-    pipeline = DDIBPipeline(
-        source_unet=source_model,
-        target_unet=target_model,
-        scheduler=scheduler,
-    )
+    else:
+        raise ValueError(
+            "Provide either --pretrained_model_name_or_path for a combined pipeline "
+            "or both --source_pretrained_path and --target_pretrained_path."
+        )
 
     # Load evaluation data (source side only)
     dataset = MavicTDDBMDataset(

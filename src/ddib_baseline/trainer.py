@@ -366,4 +366,15 @@ class DDIBTrainer:
         self._train_single_domain(
             "target", target_model, scheduler, target_dataset, accelerator,
         )
+
+        # --- Save combined DDIBPipeline checkpoint ---
+        if accelerator.is_main_process:
+            from .pipelines import DDIBPipeline
+            combined_dir = os.path.join(cfg.output_dir, "pipeline")
+            pipeline = DDIBPipeline(
+                source_unet=source_model, target_unet=target_model, scheduler=scheduler,
+            )
+            pipeline.save_pretrained(combined_dir)
+            logger.info(f"Saved combined DDIBPipeline to {combined_dir}")
+
         logger.info(f"[{cfg.task_name}] DDIB training complete (both domains)!")

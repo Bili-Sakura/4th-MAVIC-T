@@ -87,9 +87,8 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> CUTPip
 
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
-        logger.info("Loading generator from pretrained directory: %s", path)
-        netG = CUTGenerator.from_pretrained(pretrained_path, subfolder="unet")
-        pipeline = CUTPipeline(generator=netG)
+        logger.info("Loading pipeline from pretrained directory: %s", path)
+        pipeline = CUTPipeline.from_pretrained(pretrained_path)
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading generator from legacy checkpoint: %s", path)

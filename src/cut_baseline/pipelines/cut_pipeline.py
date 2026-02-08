@@ -5,8 +5,6 @@ generator, following the diffusers-style pipeline pattern established
 in :mod:`src.ddbm_baseline.pipelines`.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
@@ -16,6 +14,8 @@ from PIL import Image
 
 from diffusers import DiffusionPipeline
 from diffusers.utils import BaseOutput
+
+from ..models import CUTGenerator
 
 
 @dataclass
@@ -53,16 +53,14 @@ class CUTPipeline(DiffusionPipeline):
     -------
     ::
 
-        from src.cut_baseline.models import CUTGenerator
         from src.cut_baseline.pipelines import CUTPipeline
 
-        # From a pretrained directory (recommended):
-        generator = CUTGenerator.from_pretrained("./ckpt/cut/sar2ir/checkpoint-epoch-400", subfolder="unet")
-        pipeline = CUTPipeline(generator=generator)
+        # One-liner loading from a pretrained directory (recommended):
+        pipeline = CUTPipeline.from_pretrained("./ckpt/cut/sar2ir/checkpoint-epoch-400")
         output = pipeline(source_image=my_tensor)
     """
 
-    def __init__(self, generator: torch.nn.Module) -> None:
+    def __init__(self, generator: CUTGenerator) -> None:
         super().__init__()
         self.register_modules(generator=generator)
 

@@ -17,6 +17,7 @@ from diffusers import DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from ..schedulers.bibbdm_scheduler import BiBBDMScheduler
+from ..models import BiBBDMUNet
 
 
 @dataclass
@@ -46,7 +47,7 @@ class BiBBDMPipeline(DiffusionPipeline):
         The Brownian Bridge noise scheduler.
     """
 
-    def __init__(self, unet, scheduler: BiBBDMScheduler) -> None:
+    def __init__(self, unet: BiBBDMUNet, scheduler: BiBBDMScheduler) -> None:
         super().__init__()
         self.register_modules(unet=unet, scheduler=scheduler)
 

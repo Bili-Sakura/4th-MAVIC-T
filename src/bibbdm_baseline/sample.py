@@ -93,9 +93,7 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str, num_infer
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
-        unet = BiBBDMUNet.from_pretrained(pretrained_path, subfolder="unet")
-        scheduler = BiBBDMScheduler.from_pretrained(pretrained_path, subfolder="scheduler")
-        pipeline = BiBBDMPipeline(unet=unet, scheduler=scheduler)
+        pipeline = BiBBDMPipeline.from_pretrained(pretrained_path)
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)

@@ -205,6 +205,7 @@ def save_checkpoint_diffusers(
     scheduler: Optional[Any] = None,
     *,
     model_name: str = "unet",
+    pipeline_class_name: Optional[str] = None,
     extra_state_dicts: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
     model_index: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -234,6 +235,9 @@ def save_checkpoint_diffusers(
         A diffusers-compatible scheduler with a ``save_config`` method.
     model_name : str
         Sub-directory name for the main model (default ``"unet"``).
+    pipeline_class_name : str, optional
+        Name of the pipeline class to write in ``model_index.json``
+        (e.g. ``"DDBMPipeline"``).  Defaults to the model class name.
     extra_state_dicts : dict, optional
         Additional ``{folder_name: state_dict}`` to save alongside the main
         model (e.g. ``{"vae": vae.state_dict()}``).
@@ -282,8 +286,9 @@ def save_checkpoint_diffusers(
 
     # ---- model_index.json ----
     if model_index is None:
+        cls_name = pipeline_class_name if pipeline_class_name else type(model).__name__
         model_index = {
-            "_class_name": type(model).__name__,
+            "_class_name": cls_name,
             "_diffusers_version": "0.36.0",
             model_name: [type(model).__module__, type(model).__name__],
         }

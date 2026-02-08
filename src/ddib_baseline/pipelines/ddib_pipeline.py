@@ -22,6 +22,7 @@ from diffusers import DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from ..schedulers.ddib_scheduler import DDIBScheduler
+from ..models import DDIBUNet
 
 
 @dataclass
@@ -56,8 +57,8 @@ class DDIBPipeline(DiffusionPipeline):
 
     def __init__(
         self,
-        source_unet: torch.nn.Module,
-        target_unet: torch.nn.Module,
+        source_unet: DDIBUNet,
+        target_unet: DDIBUNet,
         scheduler: DDIBScheduler,
     ):
         super().__init__()

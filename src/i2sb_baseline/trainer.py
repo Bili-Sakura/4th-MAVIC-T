@@ -436,6 +436,7 @@ class I2SBTrainer:
                     unwrapped,
                     scheduler=scheduler,
                     model_name="unet",
+                    pipeline_class_name="I2SBPipeline",
                     extra_state_dicts=extra_sd if extra_sd else None,
                 )
                 save_training_config(cfg, epoch_dir)
