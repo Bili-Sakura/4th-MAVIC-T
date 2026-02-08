@@ -34,7 +34,7 @@ Following DDBM, the raw model output is post-processed through bridge scalings $
     D_\theta(z_t, t, x) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot z_t,\, t,\, x) + c_{\text{skip}}(t) \cdot z_t\,,
     \label{eq:denoiser}
 \end{equation}
-where $F_\theta$ is the raw UNet output and the scalings are computed from the VP parameters $\beta_d$ and $\beta_{\min}$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + 10^{-44})$ before being passed to the model's sinusoidal embedding layer.
+where $F_\theta$ is the raw UNet output and the scalings are computed from the VP parameters $\beta_d$ and $\beta_{\min}$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + \varepsilon)$ (with $\varepsilon = 10^{-44}$ for numerical stability) before being passed to the model's sinusoidal embedding layer.
 }
 
 
@@ -48,7 +48,7 @@ The primary training objective is a weighted mean squared error between the deno
     \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(x,y),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(z_t, t, x) - y \|_2^2 \right],
     \label{eq:denoising_loss}
 \end{equation}
-where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting that counterbalances the signal-to-noise ratio at each diffusion step, and $z_t$ is the noisy sample obtained from the forward bridge process (Eq.~\ref{eq:bridge_forward}). The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$: $\sigma = (\sigma_{\max}^{-1/\rho} + u \cdot (\sigma_{\min}^{-1/\rho} - \sigma_{\max}^{-1/\rho}))^{\rho}$, $u \sim \mathcal{U}(0,1)$, which concentrates samples at lower noise levels where fine detail is learned.
+where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting derived from the combined variance $A(t) = a_t^2 \sigma_{\text{data,end}}^2 + b_t^2 \sigma_{\text{data}}^2 + c^2 c_t$ (with $a_t, b_t, c_t$ being VP schedule coefficients), and $z_t$ is the noisy sample obtained from the forward bridge process (Eq.~\ref{eq:bridge_forward}). The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$: $\sigma = (\sigma_{\max}^{-1/\rho} + u \cdot (\sigma_{\min}^{-1/\rho} - \sigma_{\max}^{-1/\rho}))^{\rho}$, $u \sim \mathcal{U}(0,1)$, which concentrates samples at lower noise levels where fine detail is learned.
 }
 
 {\color{gray}

@@ -28,7 +28,7 @@ Our DDBM UNet uses a base channel count of 128 with channel multipliers $(1,1,2,
 
 {\color{gray}
 \paragraph{Training}
-All models are trained using the Prodigy optimizer with an initial learning rate of 1.0 (Prodigy adapts the learning rate automatically) and a constant learning rate schedule with 500 warmup steps. We use bfloat16 mixed precision throughout. For SAR$\rightarrow$EO, we use a batch size of 32; for the three $1024\times1024$ tasks, we use a batch size of 8. EMA with decay 0.9999 is applied with warmup. Gradient norms are clipped to 1.0. Training runs for 100 epochs, and we save checkpoints after every epoch, retaining the best-performing one. All experiments are conducted on NVIDIA GPUs using the HuggingFace Accelerate library for multi-GPU support.
+All models are trained using the Prodigy optimizer with an initial learning rate of 1.0 (Prodigy adapts the learning rate automatically) and a constant learning rate schedule with 500 warmup steps. We use bfloat16 mixed precision throughout. For SAR$\rightarrow$EO, we use a batch size of 32; for the three $1024\times1024$ tasks, we use a batch size of 8. EMA with decay 0.9999 is applied with warmup. Gradient norms are clipped to 1.0. Training runs for 100 epochs, and we save checkpoints after every epoch, retaining the best-performing one. All experiments are conducted on NVIDIA GPUs using the Hugging Face Accelerate library for multi-GPU support.
 }
 
 {\color{gray}

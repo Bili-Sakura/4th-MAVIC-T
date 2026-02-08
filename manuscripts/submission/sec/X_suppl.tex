@@ -8,7 +8,7 @@
 
 {\color{gray}
 \paragraph{Optimizer Details}
-We use the Prodigy optimizer for all experiments. Prodigy is an adaptive learning rate optimizer that automatically tunes the step size, which removes the need for extensive learning rate search. We set the nominal learning rate to 1.0 (as recommended for Prodigy) and use a constant schedule with 500 warmup steps. Gradient norms are clipped to 1.0, and we use bfloat16 mixed precision via the HuggingFace Accelerate library. For the CUT baseline, we use Adam with $\beta_1 = 0.5, \beta_2 = 0.999$ and separate optimizers for the generator and discriminator, following the CUT convention.
+We use the Prodigy optimizer for all experiments. Prodigy is an adaptive learning rate optimizer that automatically tunes the step size, which removes the need for extensive learning rate search. We set the nominal learning rate to 1.0 (as recommended for Prodigy) and use a constant schedule with 500 warmup steps. Gradient norms are clipped to 1.0, and we use bfloat16 mixed precision via the Hugging Face Accelerate library. For the CUT baseline, we use Adam with $\beta_1 = 0.5, \beta_2 = 0.999$ and separate optimizers for the generator and discriminator, following the CUT convention.
 }
 
 {\color{gray}
@@ -18,12 +18,12 @@ We apply Exponential Moving Average (EMA) to the model parameters with a decay r
 
 {\color{gray}
 \paragraph{Checkpoint Management}
-Models are saved in the HuggingFace Diffusers format, which stores the UNet weights as safetensors, the scheduler configuration as JSON, and a \texttt{model\_index.json} that records the pipeline class name (\texttt{DDBMPipeline}). This allows one-line model loading via \texttt{Pipeline.from\_pretrained(path).to('cuda')} for inference. Checkpoints are optionally pushed to the HuggingFace Hub for reproducibility.
+Models are saved in the Hugging Face Diffusers format, which stores the UNet weights as safetensors, the scheduler configuration as JSON, and a \texttt{model\_index.json} that records the pipeline class name (\texttt{DDBMPipeline}). This allows one-line model loading via \texttt{Pipeline.from\_pretrained(path).to('cuda')} for inference. Checkpoints are optionally pushed to the Hugging Face Hub for reproducibility.
 }
 
 {\color{gray}
 \paragraph{Multi-GPU Training}
-Training is distributed across multiple GPUs using HuggingFace Accelerate. The process group timeout is set to 7200 seconds to accommodate potential synchronization delays. Gradient accumulation steps can be configured per-task, though we use 1 by default. Launch is via \texttt{accelerate launch -m src.ddbm\_baseline.train\_\{task\}}.
+Training is distributed across multiple GPUs using Hugging Face Accelerate. The process group timeout is set to 7200 seconds to accommodate potential synchronization delays. Gradient accumulation steps can be configured per-task, though we use 1 by default. Launch is via \texttt{accelerate launch -m src.ddbm\_baseline.train\_\{task\}}.
 }
 
 
