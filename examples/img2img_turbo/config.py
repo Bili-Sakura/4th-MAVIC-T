@@ -68,6 +68,10 @@ class TaskConfig:
     checkpoints_total_limit: int = 1
     resume_from_checkpoint: Optional[str] = None
 
+    # ---- validation ----
+    validation_epochs: Optional[int] = None  # run validation every N epochs
+    validation_steps: Optional[int] = None   # run validation every N steps
+
     # ---- hub ----
     push_to_hub: bool = True
     hub_model_id: Optional[str] = None

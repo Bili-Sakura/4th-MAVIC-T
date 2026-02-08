@@ -166,8 +166,9 @@ class DDBMTrainer:
     def build_datasets(self):
         """Return ``(train_dataset, val_dataset)``.
         
-        Currently val_dataset is set to None as we only use the train set.
-        Can be enabled later by splitting a validation set from the training data.
+        The val dataset is loaded when ``validation_epochs`` or
+        ``validation_steps`` is set.  If the val split is unavailable for
+        the current task the dataset is silently set to *None*.
         """
         train_ds = MavicTDDBMDataset(
             task=self.cfg.task_name,
@@ -179,14 +180,18 @@ class DDBMTrainer:
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
         )
-        # val_ds = MavicTDDBMDataset(
-        #     task=self.cfg.task_name,
-        #     split="val",
-        #     resolution=self.cfg.resolution,
-        #     model_channels=self.cfg.model_channels,
-        #     with_target=False,
-        # )
-        val_ds = None  # Disabled: we only work with train set for now
+        val_ds = None
+        if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
+            try:
+                val_ds = MavicTDDBMDataset(
+                    task=self.cfg.task_name,
+                    split="val",
+                    resolution=self.cfg.resolution,
+                    model_channels=self.cfg.model_channels,
+                    with_target=False,
+                )
+            except (ValueError, FileNotFoundError, RuntimeError):
+                logger.warning("Val split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model / scheduler -------------------------------------------------
@@ -308,6 +313,57 @@ class DDBMTrainer:
 
         return loss
 
+    # ----- validation --------------------------------------------------------
+
+    @torch.no_grad()
+    def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step):
+        """Run inference on the validation set and log FID.
+
+        The official val set has no ground-truth targets, so only the
+        no-reference FID (generated vs. source) is reported.
+        """
+        from src.pipelines.ddbm import DDBMPipeline
+        from src.utils.metrics import MetricCalculator
+
+        logger.info("Running validation at step %d …", global_step)
+        cfg = self.cfg
+        was_training = model.training
+        unwrapped = accelerator.unwrap_model(model)
+        unwrapped.eval()
+
+        pipeline = DDBMPipeline(unet=unwrapped, scheduler=scheduler)
+        pipeline = pipeline.to(accelerator.device)
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
+
+        for batch in val_dataloader:
+            _zeros, source = batch
+            source_01 = source.to(accelerator.device)        # [0,1] for metrics
+            source_inp = source_01 * 2 - 1                   # [0,1] → [-1,1]
+
+            result = pipeline(
+                source_image=source_inp,
+                num_inference_steps=cfg.num_inference_steps,
+                guidance=cfg.guidance,
+                churn_step_ratio=cfg.churn_step_ratio,
+                output_type="pt",
+            )
+            generated = (result.images + 1) * 0.5  # [-1,1] → [0,1]
+            generated = generated.clamp(0, 1)
+            metric_calc.update(generated, source_01)
+
+        results = metric_calc.compute()
+        logs = {}
+        if results.fid is not None:
+            logs["val/fid"] = results.fid
+        accelerator.log(logs, step=global_step)
+        logger.info("Validation step %d: FID=%s", global_step,
+                     results.fid if results.fid is not None else "N/A")
+
+        if was_training:
+            unwrapped.train()
+        return results
+
     # ----- main training loop ------------------------------------------------
 
     def train(self):
@@ -418,13 +474,12 @@ class DDBMTrainer:
             num_workers=cfg.dataloader_num_workers,
             drop_last=True,
         )
-        # val_dataloader is disabled - we only use train set for now
-        # val_dataloader = DataLoader(
-        #     val_dataset,
-        #     batch_size=cfg.eval_batch_size,
-        #     shuffle=False,
-        #     num_workers=cfg.dataloader_num_workers,
-        # ) if val_dataset is not None else None
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=cfg.eval_batch_size,
+            shuffle=False,
+            num_workers=cfg.dataloader_num_workers,
+        ) if val_dataset is not None else None
 
         from diffusers.optimization import get_scheduler as get_lr_scheduler
         total_steps = cfg.max_train_steps if cfg.max_train_steps else len(train_dataloader) * cfg.num_epochs
@@ -515,6 +570,15 @@ class DDBMTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
+                    # Step-based validation
+                    if (
+                        val_dataloader is not None
+                        and cfg.validation_steps is not None
+                        and global_step % cfg.validation_steps == 0
+                        and accelerator.is_main_process
+                    ):
+                        self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+
                     if (
                         checkpointing_steps is not None
                         and global_step % checkpointing_steps == 0
@@ -535,6 +599,15 @@ class DDBMTrainer:
 
                 if global_step >= cfg.max_train_steps:
                     break
+
+            # Epoch-based validation
+            if (
+                val_dataloader is not None
+                and cfg.validation_epochs is not None
+                and (epoch + 1) % cfg.validation_epochs == 0
+                and accelerator.is_main_process
+            ):
+                self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
 
             # Save at epoch boundary
             if (
