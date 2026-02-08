@@ -161,12 +161,12 @@ class DDIBTrainer:
             from diffusers.training_utils import EMAModel
             ema_model = EMAModel(model.parameters(), decay=cfg.ema_decay, use_ema_warmup=True, model_cls=type(model))
 
+        train_params = list(model.parameters())
+        if rep_alignment_module is not None and rep_alignment_module.projector is not None:
+            train_params += list(rep_alignment_module.projector.parameters())
+
         optimizer = create_optimizer(
-            list(model.parameters()) + (
-                list(rep_alignment_module.projector.parameters())
-                if rep_alignment_module is not None and rep_alignment_module.projector is not None
-                else []
-            ),
+            train_params,
             optimizer_type=cfg.optimizer_type,
             lr=cfg.learning_rate,
             weight_decay=cfg.weight_decay,
