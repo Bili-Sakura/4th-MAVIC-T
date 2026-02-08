@@ -220,6 +220,10 @@ def save_checkpoint_diffusers(
             scheduler/
                 scheduler_config.json
 
+    When the *model* is a :class:`~diffusers.ModelMixin` instance its
+    ``save_pretrained`` method is used, producing a ``config.json`` that
+    is compatible with ``from_pretrained``.
+
     Parameters
     ----------
     save_dir : str
@@ -241,17 +245,20 @@ def save_checkpoint_diffusers(
 
     # ---- main model ----
     model_dir = os.path.join(save_dir, model_name)
-    os.makedirs(model_dir, exist_ok=True)
-    _save_safetensors(model.state_dict(), os.path.join(model_dir, "diffusion_pytorch_model.safetensors"))
-
-    # Write a minimal config.json for the model sub-folder
-    model_config: Dict[str, Any] = {}
-    if hasattr(model, "config") and hasattr(model.config, "to_dict"):
-        model_config = model.config.to_dict()
-    elif hasattr(model, "config") and isinstance(model.config, dict):
-        model_config = model.config
-    with open(os.path.join(model_dir, "config.json"), "w") as f:
-        json.dump(model_config, f, indent=2, default=str)
+    if hasattr(model, "save_pretrained"):
+        # ModelMixin path – writes config.json + safetensors in one call
+        model.save_pretrained(model_dir)
+    else:
+        os.makedirs(model_dir, exist_ok=True)
+        _save_safetensors(model.state_dict(), os.path.join(model_dir, "diffusion_pytorch_model.safetensors"))
+        # Write a minimal config.json for the model sub-folder
+        model_config: Dict[str, Any] = {}
+        if hasattr(model, "config") and hasattr(model.config, "to_dict"):
+            model_config = model.config.to_dict()
+        elif hasattr(model, "config") and isinstance(model.config, dict):
+            model_config = model.config
+        with open(os.path.join(model_dir, "config.json"), "w") as f:
+            json.dump(model_config, f, indent=2, default=str)
 
     # ---- scheduler ----
     if scheduler is not None:
