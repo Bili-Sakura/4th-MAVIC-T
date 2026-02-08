@@ -14,23 +14,18 @@ import inspect
 import pytest
 import torch
 
-from src.bibbdm_baseline import (
-    BiBBDMScheduler,
-    BiBBDMSchedulerOutput,
-    BiBBDMPipeline,
-    BiBBDMPipelineOutput,
-    BiBBDMUNet,
-    create_model,
-)
-from src.bibbdm_baseline.config import (
+from src.schedulers import BiBBDMScheduler, BiBBDMSchedulerOutput
+from src.pipelines.bibbdm import BiBBDMPipeline, BiBBDMPipelineOutput
+from src.models.unet_bibbdm import BiBBDMUNet, create_model
+from examples.bibbdm.config import (
     TaskConfig,
     sar2eo_config,
     rgb2ir_config,
     sar2ir_config,
     sar2rgb_config,
 )
-from src.bibbdm_baseline.schedulers.bibbdm_scheduler import _extract
-from src.bibbdm_baseline.models.bibbdm_unet import _out_channels_for_objective
+from src.schedulers.scheduling_bibbdm import _extract
+from src.models.unet_bibbdm import _out_channels_for_objective
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +268,7 @@ class TestTrainerSignature:
     """BiBBDM trainer accepts the expected keyword arguments."""
 
     def test_compute_training_loss_accepts_kwargs(self):
-        from src.bibbdm_baseline.trainer import BiBBDMTrainer
+        from examples.bibbdm.trainer import BiBBDMTrainer
         sig = inspect.signature(BiBBDMTrainer.compute_training_loss)
         expected_params = [
             "model", "scheduler", "target", "source",

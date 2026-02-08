@@ -36,9 +36,9 @@ COMMON_ARGS=(
 )
 
 if [ "${NGPU}" -gt 1 ]; then
-  accelerate launch --num_processes "${NGPU}" -m src.ddbm_baseline.train_rgb2ir \
+  accelerate launch --num_processes "${NGPU}" -m examples.ddbm.train_rgb2ir \
     "${COMMON_ARGS[@]}"
 else
-  python -m src.ddbm_baseline.train_rgb2ir \
+  python -m examples.ddbm.train_rgb2ir \
     "${COMMON_ARGS[@]}"
 fi

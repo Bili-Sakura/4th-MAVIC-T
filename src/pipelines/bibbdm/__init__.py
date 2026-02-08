@@ -1,0 +1,2 @@
+from .pipeline_bibbdm import BiBBDMPipeline, BiBBDMPipelineOutput
+from .pipeline_bibbdm_latent import BiBBDMLatentPipeline, BiBBDMLatentPipelineOutput

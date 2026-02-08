@@ -7,8 +7,8 @@ import pytest
 import torch
 from safetensors.torch import load_file
 
-from src.ddbm_baseline.config import TaskConfig as DdbmConfig
-from src.training_utils import _save_safetensors
+from examples.ddbm.config import TaskConfig as DdbmConfig
+from src.utils.training_utils import _save_safetensors
 
 
 class _FakeEMAModel:

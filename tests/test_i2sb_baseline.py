@@ -7,16 +7,16 @@ and pipeline end-to-end (with synthetic tensors — no real checkpoints needed).
 import pytest
 import torch
 
-from src.i2sb_baseline.config import (
+from examples.i2sb.config import (
     TaskConfig,
     sar2eo_config,
     rgb2ir_config,
     sar2ir_config,
     sar2rgb_config,
 )
-from src.i2sb_baseline.models import I2SBUNet, create_model
-from src.i2sb_baseline.schedulers import I2SBScheduler, I2SBSchedulerOutput
-from src.i2sb_baseline.pipelines import I2SBPipeline, I2SBPipelineOutput
+from src.models.unet_i2sb import I2SBUNet, create_model
+from src.schedulers import I2SBScheduler, I2SBSchedulerOutput
+from src.pipelines.i2sb import I2SBPipeline, I2SBPipelineOutput
 
 
 # ---------------------------------------------------------------------------
@@ -223,27 +223,27 @@ class TestTrainerSignature:
         pytest.importorskip("datasets", reason="datasets package required")
 
     def test_trainer_instantiation(self):
-        from src.i2sb_baseline.trainer import I2SBTrainer
+        from examples.i2sb.trainer import I2SBTrainer
         cfg = sar2eo_config()
         trainer = I2SBTrainer(cfg)
         assert trainer.cfg is cfg
 
     def test_build_model(self):
-        from src.i2sb_baseline.trainer import I2SBTrainer
+        from examples.i2sb.trainer import I2SBTrainer
         cfg = sar2eo_config(resolution=32, num_channels=32, attention_resolutions="")
         trainer = I2SBTrainer(cfg)
         model = trainer.build_model()
         assert isinstance(model, I2SBUNet)
 
     def test_build_scheduler(self):
-        from src.i2sb_baseline.trainer import I2SBTrainer
+        from examples.i2sb.trainer import I2SBTrainer
         cfg = sar2eo_config()
         trainer = I2SBTrainer(cfg)
         scheduler = trainer.build_scheduler()
         assert isinstance(scheduler, I2SBScheduler)
 
     def test_compute_training_loss(self):
-        from src.i2sb_baseline.trainer import I2SBTrainer
+        from examples.i2sb.trainer import I2SBTrainer
         model = create_model(
             image_size=32,
             in_channels=1,

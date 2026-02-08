@@ -11,7 +11,7 @@ Covers:
 import pytest
 import torch
 
-from src.img2img_turbo.config import (
+from examples.img2img_turbo.config import (
     TaskConfig,
     rgb2ir_config,
     sar2eo_config,
@@ -87,13 +87,13 @@ class TestSARCLIPAlignment:
     """SARCLIPAlignment has concrete implementation with lazy encoder loading."""
 
     def test_instantiation(self):
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        from src.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
         assert module.model_path == "./models/BiliSakura/SARCLIP-ViT-L-14"
         assert module.encoder_dim == 1024
 
     def test_build_projector(self):
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        from src.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14")
         proj = module.build_projector(model_feature_dim=3)
         assert proj is not None
@@ -103,7 +103,7 @@ class TestSARCLIPAlignment:
         assert len(params) > 0
 
     def test_compute_alignment_loss_with_projector(self):
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        from src.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=64)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(2, 16)
@@ -114,7 +114,7 @@ class TestSARCLIPAlignment:
 
     def test_compute_alignment_loss_spatial_features(self):
         """4-D model features are global-avg-pooled then projected."""
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        from src.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=64)
         module.build_projector(model_feature_dim=8)
         model_feats = torch.randn(2, 8, 4, 4)  # spatial (B, C, H, W)
@@ -124,7 +124,7 @@ class TestSARCLIPAlignment:
 
     def test_alignment_loss_range(self):
         """Negative cosine similarity should be in [-1, 1]."""
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment
+        from src.utils.rep_alignment import SARCLIPAlignment
         module = SARCLIPAlignment("./models/BiliSakura/SARCLIP-ViT-L-14", encoder_dim=32)
         module.build_projector(model_feature_dim=32)
         feats = torch.randn(4, 32)
@@ -137,20 +137,20 @@ class TestDINOv3SatAlignment:
     """DINOv3SatAlignment has concrete implementation with lazy encoder loading."""
 
     def test_instantiation(self):
-        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        from src.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
         assert module.model_path == "./models/facebook/dinov3-vitl16-pretrain-sat493m"
         assert module.encoder_dim == 1024
 
     def test_build_projector(self):
-        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        from src.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m")
         proj = module.build_projector(model_feature_dim=3)
         assert proj is not None
         assert module.projector is proj
 
     def test_compute_alignment_loss_with_projector(self):
-        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        from src.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=64)
         module.build_projector(model_feature_dim=16)
         model_feats = torch.randn(2, 16)
@@ -161,7 +161,7 @@ class TestDINOv3SatAlignment:
 
     def test_compute_alignment_loss_spatial_features(self):
         """4-D model features are global-avg-pooled then projected."""
-        from src.img2img_turbo.utils.rep_alignment import DINOv3SatAlignment
+        from src.utils.rep_alignment import DINOv3SatAlignment
         module = DINOv3SatAlignment("./models/facebook/dinov3-vitl16-pretrain-sat493m", encoder_dim=64)
         module.build_projector(model_feature_dim=8)
         model_feats = torch.randn(2, 8, 4, 4)
@@ -178,19 +178,19 @@ class TestLatentTargetEncoder:
     """LatentTargetEncoder can be imported and has the expected interface."""
 
     def test_import(self):
-        from src.img2img_turbo.utils.latent_target import LatentTargetEncoder
+        from src.utils.latent_target import LatentTargetEncoder
         assert LatentTargetEncoder is not None
 
     def test_has_encode_method(self):
-        from src.img2img_turbo.utils.latent_target import LatentTargetEncoder
+        from src.utils.latent_target import LatentTargetEncoder
         assert callable(getattr(LatentTargetEncoder, "encode", None))
 
     def test_has_encode_with_grad_method(self):
-        from src.latent_target import LatentTargetEncoder
+        from src.utils.latent_target import LatentTargetEncoder
         assert callable(getattr(LatentTargetEncoder, "encode_with_grad", None))
 
     def test_adapt_channels_expands_1ch(self):
-        from src.latent_target import LatentTargetEncoder
+        from src.utils.latent_target import LatentTargetEncoder
         t = torch.randn(2, 1, 8, 8)
         out = LatentTargetEncoder._adapt_channels(t)
         assert out.shape == (2, 3, 8, 8)
@@ -198,7 +198,7 @@ class TestLatentTargetEncoder:
         assert torch.allclose(out[:, 0], out[:, 2])
 
     def test_adapt_channels_passthrough_3ch(self):
-        from src.latent_target import LatentTargetEncoder
+        from src.utils.latent_target import LatentTargetEncoder
         t = torch.randn(2, 3, 8, 8)
         out = LatentTargetEncoder._adapt_channels(t)
         assert out.shape == (2, 3, 8, 8)
@@ -215,7 +215,7 @@ class TestTrainerLossSignature:
     def test_accepts_latent_target_encoder_none(self):
         """Passing latent_target_encoder=None should not break the call."""
         import inspect
-        from src.img2img_turbo.trainer import Pix2PixTurboTrainer
+        from examples.img2img_turbo.trainer import Pix2PixTurboTrainer
         sig = inspect.signature(Pix2PixTurboTrainer.compute_training_loss)
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
@@ -223,7 +223,7 @@ class TestTrainerLossSignature:
     def test_accepts_rep_alignment_kwargs(self):
         """compute_training_loss accepts rep_alignment_module and lambda."""
         import inspect
-        from src.img2img_turbo.trainer import Pix2PixTurboTrainer
+        from examples.img2img_turbo.trainer import Pix2PixTurboTrainer
         sig = inspect.signature(Pix2PixTurboTrainer.compute_training_loss)
         assert "rep_alignment_module" in sig.parameters
         assert "lambda_rep_alignment" in sig.parameters

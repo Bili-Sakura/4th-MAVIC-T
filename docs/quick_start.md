@@ -12,24 +12,24 @@ Use this short guide to get a baseline training run, export predictions, and mea
 
 ## 2. Train a model (Pix2Pix-Turbo example)
 
-Each task has a dedicated launcher under `src/img2img_turbo/`:
+Each task has a dedicated launcher under `examples/img2img_turbo/`:
 
 ```bash
 # Single GPU sar2ir training
-python -m src.img2img_turbo.train_sar2ir --output_dir ./outputs/turbo_sar2ir --train_batch_size 2
+python -m examples.img2img_turbo.train_sar2ir --output_dir ./outputs/turbo_sar2ir --train_batch_size 2
 
 # Multi-GPU (accelerate)
-accelerate launch -m src.img2img_turbo.train_sar2ir --train_batch_size 4
+accelerate launch -m examples.img2img_turbo.train_sar2ir --train_batch_size 4
 ```
 
-Every config field can be overridden on the command line (see `src/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
+Every config field can be overridden on the command line (see `examples/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
 
 ## 3. Run inference
 
 After training, generate predictions for the val/test inputs:
 
 ```bash
-python -m src.img2img_turbo.sample \
+python -m examples.img2img_turbo.sample \
   --task sar2ir \
   --model_path ./outputs/turbo_sar2ir/checkpoints/model_final.pkl \
   --split test \
@@ -45,10 +45,10 @@ For a quick sanity check, compute LPIPS/L1 (and FID when `torchvision` is availa
 ```python
 import torch
 from torch.utils.data import DataLoader
-from src.metrics import MetricCalculator
-from src.img2img_turbo.dataset_wrapper import MavicTTurboDataset
-from src.img2img_turbo.models import Pix2PixTurbo
-from src.img2img_turbo.config import sar2ir_config
+from src.utils.metrics import MetricCalculator
+from examples.img2img_turbo.dataset_wrapper import MavicTTurboDataset
+from src.models import Pix2PixTurbo
+from examples.img2img_turbo.config import sar2ir_config
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 cfg = sar2ir_config()
@@ -104,21 +104,21 @@ Pass the exclude list to any baseline trainer with `--exclude_file`. Combine it 
 
 ```bash
 # Pix2Pix-Turbo: 1-epoch fine-tune on clean sar2ir data
-python -m src.img2img_turbo.train_sar2ir \
+python -m examples.img2img_turbo.train_sar2ir \
   --exclude_file ./bad_samples.txt \
   --resume_from_checkpoint ./outputs/turbo_sar2ir/checkpoints/model_final.pkl \
   --num_epochs 1 \
   --output_dir ./outputs/turbo_sar2ir_curated
 
 # CUT baseline: 1-epoch fine-tune on clean sar2ir data
-python -m src.cut_baseline.train_sar2ir \
+python -m examples.cut.train_sar2ir \
   --exclude_file ./bad_samples.txt \
   --resume_from_checkpoint latest \
   --n_epochs 1 \
   --output_dir ./outputs/cut_sar2ir_curated
 
 # DDBM baseline: 1-epoch fine-tune on clean sar2ir data
-python -m src.ddbm_baseline.train_sar2ir \
+python -m examples.ddbm.train_sar2ir \
   --exclude_file ./bad_samples.txt \
   --resume_from_checkpoint latest \
   --num_epochs 1 \

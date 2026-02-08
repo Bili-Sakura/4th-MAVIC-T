@@ -112,7 +112,7 @@ def _try_exact_unet_params(config, is_conditional=True):
     available.
     """
     try:
-        from src.ddbm_baseline.models.unet import create_model
+        from src.models.unet_ddbm import create_model
         m = create_model(
             image_size=int(config.resolution),
             in_channels=int(config.model_channels),
@@ -202,7 +202,7 @@ def estimate_unet_parameters(config, is_conditional=True):
 def _try_exact_cut_params(config):
     """Attempt to count exact CUT parameters by instantiation."""
     try:
-        from src.cut_baseline.models.cut_model import CUTGenerator, PatchGANDiscriminator
+        from src.models.cut_model import CUTGenerator, PatchGANDiscriminator
         g = CUTGenerator(
             input_nc=int(config.source_channels),
             output_nc=int(config.target_channels),
@@ -272,11 +272,11 @@ def main():
     results = {}
     
     baselines = {
-        'DDBM': 'ddbm_baseline',
-        'BiBBDM': 'bibbdm_baseline',
-        'I2SB': 'i2sb_baseline',
-        'DDIB': 'ddib_baseline',
-        'CUT': 'cut_baseline',
+        'DDBM': 'ddbm',
+        'BiBBDM': 'bibbdm',
+        'I2SB': 'i2sb',
+        'DDIB': 'ddib',
+        'CUT': 'cut',
         'Img2Img-Turbo': 'img2img_turbo',
     }
     
@@ -290,7 +290,7 @@ def main():
         
         results[baseline_name] = {}
         
-        config_file = src_dir / baseline_dir / 'config.py'
+        config_file = project_root / 'examples' / baseline_dir / 'config.py'
         if not config_file.exists():
             print(f"Config file not found: {config_file}")
             continue
