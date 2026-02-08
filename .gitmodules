@@ -25,3 +25,7 @@
 [submodule "libs/MaRS"]
 	path = libs/MaRS
 	url = https://github.com/WanderRainy/MaRS
+
+[submodule "libs/ddib"]
+	path = libs/ddib
+	url = https://github.com/suxuann/ddib
