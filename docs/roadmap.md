@@ -183,13 +183,93 @@ bash scripts/train_stage4d_unified_1024.sh
 
 ---
 
+## Representation Alignment (REPA)
+
+All four training stages now use **REPA** (REPresentation Alignment) by
+default.  A frozen pre-trained encoder extracts features from the source
+image, while a trainable projection head maps the translation model's
+output features into the same embedding space.  A negative-cosine-similarity
+loss encourages the model to preserve the semantic content captured by the
+encoder.
+
+| Task | Default encoder |
+|------|-----------------|
+| SAR → EO | MaRS-SAR (SwinV2) |
+| SAR → IR | MaRS-SAR (SwinV2) |
+| SAR → RGB | MaRS-SAR (SwinV2) |
+| RGB → IR | MaRS-RGB (SwinV2) |
+
+REPA is enabled via `--use_rep_alignment true` in every training script.
+The encoder checkpoint path is pre-configured in each task's
+`TaskConfig` preset.
+
+---
+
 ## Summary
 
 | Stage | Space | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
 |-------|-------|--------|---------------------------|----------|
-| 1 | Latent (frozen VAE) | small | medium | Fast baseline |
-| 2 | Latent (frozen VAE) | medium | large | Scale model |
-| 3 | Pixel | medium | large | Drop VAE bottleneck |
-| 4b | Latent (RS-VAE) | large (unified, 256px) | large (unified, 256px crop) | Base foundation model — flagship SAR→EO |
-| 4c | Latent (RS-VAE) | — | large (unified, 512px crop) | Fine-tune — flagship for 3 tasks |
-| 4d | Latent (RS-VAE) | — | large (unified, 1024px) | Optional full-resolution fine-tune |
+| 1 | Latent (frozen VAE) | small | medium | Fast baseline + REPA |
+| 2 | Latent (frozen VAE) | medium | large | Scale model + REPA |
+| 3 | Pixel | medium | large | Drop VAE bottleneck + REPA |
+| 4b | Latent (RS-VAE) | large (unified, 256px) | large (unified, 256px crop) | Base foundation model + REPA |
+| 4c | Latent (RS-VAE) | — | large (unified, 512px crop) | Fine-tune + REPA |
+| 4d | Latent (RS-VAE) | — | large (unified, 1024px) | Optional full-resolution fine-tune + REPA |
+
+---
+
+## Planned Ablation Studies
+
+The following ablation studies are planned for future work.  Each study
+isolates one axis of the design space to quantify its impact on translation
+quality.
+
+### 1. Full Baselines
+
+Compare all six baseline methods (DDBM, BiBBDM, I2SB, DDIB, CUT,
+Img2Img-Turbo) under identical settings for every task to establish a
+comprehensive performance table.
+
+### 2. Full Model Scaling
+
+Sweep across four model-size tiers (small / medium / large / huge as
+defined in `configs/model_scaling_variants.yaml`) and measure the
+quality-vs-compute trade-off for the primary DDBM baseline on all tasks.
+
+### 3. Latent Modelling vs. Pixel Modelling
+
+Compare latent-space modelling (Stages 1–2 with frozen VAE) against
+pixel-space modelling (Stage 3) at matched model capacity, to quantify the
+effect of the VAE bottleneck on reconstruction fidelity and training
+efficiency.
+
+### 4. Advanced REPA Variants
+
+Evaluate improved representation alignment techniques beyond the baseline
+negative-cosine-similarity REPA loss:
+
+* **REG** (Representation-Enhanced Generation) — *placeholder*
+* **Multi-scale REPA** — *placeholder*
+* **Contrastive REPA** — *placeholder*
+
+> ⚠️ Implementation details will be added once the baseline REPA results
+> are available.
+
+### 5. Dataset Pruning / Distillation
+
+Investigate data-efficiency strategies:
+
+* **Dataset pruning** – remove redundant or low-quality training pairs and
+  measure the effect on final translation quality.
+* **Dataset distillation** – synthesise a compact training set that
+  preserves the performance of the full dataset.
+
+> ⚠️ *Placeholder — experimental design to be finalised.*
+
+### 6. Model Distillation for Acceleration
+
+Compress the large teacher model (Stage 2 or Stage 4) into a smaller,
+faster student model via knowledge distillation to reduce inference cost
+while retaining quality.
+
+> ⚠️ *Placeholder — experimental design to be finalised.*

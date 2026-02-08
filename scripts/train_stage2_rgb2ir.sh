@@ -24,6 +24,9 @@ CHANNEL_MULT="1,2,4,4"
 USE_LATENT_TARGET=true
 LATENT_VAE_PATH="./models/BiliSakura/VAEs"  # FLUX2-VAE or SD21-VAE
 
+# --- Representation alignment (REPA) ---
+USE_REP_ALIGNMENT=true
+
 OUTPUT_DIR="./ckpt/stage2_rgb2ir"
 
 COMMON_ARGS=(
@@ -33,6 +36,7 @@ COMMON_ARGS=(
   --channel_mult "${CHANNEL_MULT}"
   --use_latent_target "${USE_LATENT_TARGET}"
   --latent_vae_path "${LATENT_VAE_PATH}"
+  --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --output_dir "${OUTPUT_DIR}"
 )
 
