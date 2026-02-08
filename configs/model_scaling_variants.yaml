@@ -508,7 +508,7 @@ img2img_turbo:
 # Override the relevant fields in your per-task config function.  Example
 # for DDBM sar2eo with the "large" variant:
 #
-#   from src.ddbm_baseline.config import sar2eo_config
+#   from examples.ddbm.config import sar2eo_config
 #   cfg = sar2eo_config(
 #       num_channels=256,
 #       num_res_blocks=2,
