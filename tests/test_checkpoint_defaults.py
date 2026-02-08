@@ -7,6 +7,11 @@ from src.img2img_turbo.config import TaskConfig as TurboConfig
 
 
 @pytest.mark.parametrize("cfg_cls", [TurboConfig, DdbmConfig, CutConfig, I2sbConfig])
+from src.ddib_baseline.config import TaskConfig as DdibConfig
+from src.img2img_turbo.config import TaskConfig as TurboConfig
+
+
+@pytest.mark.parametrize("cfg_cls", [TurboConfig, DdbmConfig, CutConfig, DdibConfig])
 def test_default_checkpoint_settings(cfg_cls):
     cfg = cfg_cls()
     assert cfg.save_model_epochs == 1
