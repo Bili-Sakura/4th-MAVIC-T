@@ -2,8 +2,8 @@ import types
 
 import torch
 
-import src.training_utils as training_utils
-from src.training_utils import create_optimizer
+import src.utils.training_utils as training_utils
+from src.utils.training_utils import create_optimizer
 
 
 def test_create_optimizer_muon_single_device():

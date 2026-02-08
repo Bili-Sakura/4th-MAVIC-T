@@ -12,7 +12,7 @@ Use this short guide to get a baseline training run, export predictions, and mea
 
 ## 2. Train a model (Pix2Pix-Turbo example)
 
-Each task has a dedicated launcher under `src/img2img_turbo/`:
+Each task has a dedicated launcher under `examples/img2img_turbo/`:
 
 ```bash
 # Single GPU sar2ir training
@@ -22,7 +22,7 @@ python -m src.img2img_turbo.train_sar2ir --output_dir ./outputs/turbo_sar2ir --t
 accelerate launch -m src.img2img_turbo.train_sar2ir --train_batch_size 4
 ```
 
-Every config field can be overridden on the command line (see `src/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
+Every config field can be overridden on the command line (see `examples/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
 
 ## 3. Run inference
 

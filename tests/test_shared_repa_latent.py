@@ -13,22 +13,22 @@ import inspect
 import pytest
 import torch
 
-from src.rep_alignment import (
+from src.utils.rep_alignment import (
     SARCLIPAlignment,
     DINOv3SatAlignment,
     MaRSRGBAlignment,
     MaRSSARAlignment,
 )
-from src.latent_target import LatentTargetEncoder
+from src.utils.latent_target import LatentTargetEncoder
 
-from src.cut_baseline.config import (
+from examples.cut.config import (
     TaskConfig as CutConfig,
     sar2eo_config as cut_sar2eo,
     rgb2ir_config as cut_rgb2ir,
     sar2ir_config as cut_sar2ir,
     sar2rgb_config as cut_sar2rgb,
 )
-from src.ddbm_baseline.config import (
+from examples.ddbm.config import (
     TaskConfig as DdbmConfig,
     sar2eo_config as ddbm_sar2eo,
     rgb2ir_config as ddbm_rgb2ir,
@@ -72,8 +72,8 @@ class TestSharedImports:
 
     def test_backward_compat_turbo_utils(self):
         """Old import path still works via re-export."""
-        from src.img2img_turbo.utils.rep_alignment import SARCLIPAlignment as SA
-        from src.img2img_turbo.utils.latent_target import LatentTargetEncoder as LTE
+        from src.utils.rep_alignment import SARCLIPAlignment as SA
+        from src.utils.latent_target import LatentTargetEncoder as LTE
         assert SA is SARCLIPAlignment
         assert LTE is LatentTargetEncoder
 
@@ -273,13 +273,13 @@ class TestCUTTrainerLossSignature:
     """CUT compute_G_loss accepts the new latent_target_encoder and rep alignment kwargs."""
 
     def test_accepts_latent_kwargs(self):
-        from src.cut_baseline.trainer import CUTTrainer
+        from examples.cut.trainer import CUTTrainer
         sig = inspect.signature(CUTTrainer.compute_G_loss)
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
 
     def test_accepts_rep_alignment_kwargs(self):
-        from src.cut_baseline.trainer import CUTTrainer
+        from examples.cut.trainer import CUTTrainer
         sig = inspect.signature(CUTTrainer.compute_G_loss)
         assert "rep_alignment_module" in sig.parameters
         assert "lambda_rep_alignment" in sig.parameters
@@ -293,13 +293,13 @@ class TestDDBMTrainerLossSignature:
     """DDBM compute_training_loss accepts the new latent_target_encoder and rep alignment kwargs."""
 
     def test_accepts_latent_kwargs(self):
-        from src.ddbm_baseline.trainer import DDBMTrainer
+        from examples.ddbm.trainer import DDBMTrainer
         sig = inspect.signature(DDBMTrainer.compute_training_loss)
         assert "latent_target_encoder" in sig.parameters
         assert "lambda_latent" in sig.parameters
 
     def test_accepts_rep_alignment_kwargs(self):
-        from src.ddbm_baseline.trainer import DDBMTrainer
+        from examples.ddbm.trainer import DDBMTrainer
         sig = inspect.signature(DDBMTrainer.compute_training_loss)
         assert "rep_alignment_module" in sig.parameters
         assert "lambda_rep_alignment" in sig.parameters
@@ -313,14 +313,14 @@ class TestDDIBConfigDefaults:
     """DDIB config has REPA fields with correct defaults."""
 
     def test_rep_alignment_defaults(self):
-        from src.ddib_baseline.config import TaskConfig as DdibConfig
+        from examples.ddib.config import TaskConfig as DdibConfig
         cfg = DdibConfig()
         assert cfg.use_rep_alignment is False
         assert cfg.rep_alignment_model_path is None
         assert cfg.lambda_rep_alignment == 1.0
 
     def test_overrides_work(self):
-        from src.ddib_baseline.config import rgb2ir_config as ddib_rgb2ir
+        from examples.ddib.config import rgb2ir_config as ddib_rgb2ir
         cfg = ddib_rgb2ir(use_rep_alignment=True, lambda_rep_alignment=0.5)
         assert cfg.use_rep_alignment is True
         assert cfg.lambda_rep_alignment == 0.5
@@ -334,22 +334,22 @@ class TestDDIBTaskConfigPaths:
     """DDIB pre-built task configs set the expected model paths."""
 
     def test_rgb2ir_has_mars_rgb_path(self):
-        from src.ddib_baseline.config import rgb2ir_config as ddib_rgb2ir
+        from examples.ddib.config import rgb2ir_config as ddib_rgb2ir
         cfg = ddib_rgb2ir()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-RGB"
 
     def test_sar2eo_has_mars_sar_path(self):
-        from src.ddib_baseline.config import sar2eo_config as ddib_sar2eo
+        from examples.ddib.config import sar2eo_config as ddib_sar2eo
         cfg = ddib_sar2eo()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
 
     def test_sar2ir_has_mars_sar_path(self):
-        from src.ddib_baseline.config import sar2ir_config as ddib_sar2ir
+        from examples.ddib.config import sar2ir_config as ddib_sar2ir
         cfg = ddib_sar2ir()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
 
     def test_sar2rgb_has_mars_sar_path(self):
-        from src.ddib_baseline.config import sar2rgb_config as ddib_sar2rgb
+        from examples.ddib.config import sar2rgb_config as ddib_sar2rgb
         cfg = ddib_sar2rgb()
         assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
 
@@ -362,7 +362,7 @@ class TestDDIBTrainerSignature:
     """DDIB _train_single_domain accepts rep_alignment kwargs."""
 
     def test_accepts_rep_alignment_kwargs(self):
-        from src.ddib_baseline.trainer import DDIBTrainer
+        from examples.ddib.trainer import DDIBTrainer
         sig = inspect.signature(DDIBTrainer._train_single_domain)
         assert "rep_alignment_module" in sig.parameters
         assert "lambda_rep_alignment" in sig.parameters
@@ -376,6 +376,6 @@ class TestDDIBSchedulerReturnPredXstart:
     """DDIB scheduler compute_training_loss supports return_pred_xstart."""
 
     def test_returns_tuple_when_requested(self):
-        from src.ddib_baseline.schedulers import DDIBScheduler
+        from src.schedulers import DDIBScheduler
         sig = inspect.signature(DDIBScheduler.compute_training_loss)
         assert "return_pred_xstart" in sig.parameters

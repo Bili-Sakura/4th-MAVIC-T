@@ -51,14 +51,14 @@ def _make_mock_vae(latent_channels=4, scaling_factor=0.18215):
 
 class TestDDBMLatentPipeline:
     def test_is_diffusion_pipeline_subclass(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         assert issubclass(DDBMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.ddbm_baseline.models import DDBMUNet
-        from src.ddbm_baseline.schedulers import DDBMScheduler
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.models.unet_ddbm import DDBMUNet
+        from src.schedulers import DDBMScheduler
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         unet = DDBMUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
         scheduler = DDBMScheduler(sigma_min=0.002, sigma_max=80.0, sigma_data=0.5)
@@ -71,34 +71,34 @@ class TestDDBMLatentPipeline:
         assert pipe.vae is not None
 
     def test_has_encode_decode(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         assert hasattr(DDBMLatentPipeline, "_encode")
         assert hasattr(DDBMLatentPipeline, "_decode")
 
     def test_adapt_channels_noop_for_3ch(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         img = torch.randn(2, 3, 8, 8)
         out = DDBMLatentPipeline._adapt_channels(img)
         assert out.shape == (2, 3, 8, 8)
 
     def test_adapt_channels_repeats_1ch(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         img = torch.randn(2, 1, 8, 8)
         out = DDBMLatentPipeline._adapt_channels(img)
         assert out.shape == (2, 3, 8, 8)
 
     def test_restore_channels_averages_to_1ch(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         img = torch.randn(2, 3, 8, 8)
         out = DDBMLatentPipeline._restore_channels(img, 1)
         assert out.shape == (2, 1, 8, 8)
 
     def test_restore_channels_noop_for_3ch(self):
-        from src.ddbm_baseline.pipelines import DDBMLatentPipeline
+        from src.pipelines.ddbm import DDBMLatentPipeline
 
         img = torch.randn(2, 3, 8, 8)
         out = DDBMLatentPipeline._restore_channels(img, 3)
@@ -112,14 +112,14 @@ class TestDDBMLatentPipeline:
 
 class TestBiBBDMLatentPipeline:
     def test_is_diffusion_pipeline_subclass(self):
-        from src.bibbdm_baseline.pipelines import BiBBDMLatentPipeline
+        from src.pipelines.bibbdm import BiBBDMLatentPipeline
 
         assert issubclass(BiBBDMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.bibbdm_baseline.models import BiBBDMUNet
-        from src.bibbdm_baseline.schedulers import BiBBDMScheduler
-        from src.bibbdm_baseline.pipelines import BiBBDMLatentPipeline
+        from src.models.unet_bibbdm import BiBBDMUNet
+        from src.schedulers import BiBBDMScheduler
+        from src.pipelines.bibbdm import BiBBDMLatentPipeline
 
         unet = BiBBDMUNet(image_size=32, in_channels=_MIN_CHANNELS, out_channels=2 * _MIN_CHANNELS, model_channels=_MIN_CHANNELS)
         scheduler = BiBBDMScheduler(num_timesteps=1000, objective="dlns")
@@ -139,14 +139,14 @@ class TestBiBBDMLatentPipeline:
 
 class TestI2SBLatentPipeline:
     def test_is_diffusion_pipeline_subclass(self):
-        from src.i2sb_baseline.pipelines import I2SBLatentPipeline
+        from src.pipelines.i2sb import I2SBLatentPipeline
 
         assert issubclass(I2SBLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.i2sb_baseline.models import I2SBUNet
-        from src.i2sb_baseline.schedulers import I2SBScheduler
-        from src.i2sb_baseline.pipelines import I2SBLatentPipeline
+        from src.models.unet_i2sb import I2SBUNet
+        from src.schedulers import I2SBScheduler
+        from src.pipelines.i2sb import I2SBLatentPipeline
 
         unet = I2SBUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
         scheduler = I2SBScheduler(interval=100, beta_max=0.3)
@@ -166,14 +166,14 @@ class TestI2SBLatentPipeline:
 
 class TestDDIBLatentPipeline:
     def test_is_diffusion_pipeline_subclass(self):
-        from src.ddib_baseline.pipelines import DDIBLatentPipeline
+        from src.pipelines.ddib import DDIBLatentPipeline
 
         assert issubclass(DDIBLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.ddib_baseline.models import DDIBUNet
-        from src.ddib_baseline.schedulers import DDIBScheduler
-        from src.ddib_baseline.pipelines import DDIBLatentPipeline
+        from src.models.unet_ddib import DDIBUNet
+        from src.schedulers import DDIBScheduler
+        from src.pipelines.ddib import DDIBLatentPipeline
 
         source = DDIBUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
         target = DDIBUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
@@ -200,13 +200,13 @@ class TestDDIBLatentPipeline:
 
 class TestCUTLatentPipeline:
     def test_is_diffusion_pipeline_subclass(self):
-        from src.cut_baseline.pipelines import CUTLatentPipeline
+        from src.pipelines.cut import CUTLatentPipeline
 
         assert issubclass(CUTLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.cut_baseline.models import CUTGenerator
-        from src.cut_baseline.pipelines import CUTLatentPipeline
+        from src.models.cut_model import CUTGenerator
+        from src.pipelines.cut import CUTLatentPipeline
 
         generator = CUTGenerator(input_nc=_MIN_CHANNELS, output_nc=_MIN_CHANNELS, ngf=32, n_blocks=2)
         vae = _make_mock_vae()
@@ -225,7 +225,7 @@ class TestCUTLatentPipeline:
 class TestImg2ImgTurboNoLatent:
     def test_no_latent_pipeline_exported(self):
         try:
-            from src.img2img_turbo import pipelines
+            from src import pipelines
         except ImportError:
             pytest.skip("img2img_turbo dependencies not installed")
 

@@ -144,7 +144,7 @@ class TestLoadExcludeSet:
         import importlib
         spec = importlib.util.spec_from_file_location(
             "dataset_wrapper",
-            str(Path(__file__).resolve().parent.parent / "src" / "img2img_turbo" / "dataset_wrapper.py"),
+            str(Path(__file__).resolve().parent.parent / "examples" / "img2img_turbo" / "dataset_wrapper.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)

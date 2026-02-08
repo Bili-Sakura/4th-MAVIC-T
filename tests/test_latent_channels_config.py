@@ -7,17 +7,17 @@ pre-built task configs inherit the default.
 
 import pytest
 
-from src.ddbm_baseline.config import TaskConfig as DdbmConfig
-from src.ddbm_baseline.config import sar2eo_config as ddbm_sar2eo
-from src.bibbdm_baseline.config import TaskConfig as BibbdmConfig
-from src.bibbdm_baseline.config import sar2eo_config as bibbdm_sar2eo
-from src.i2sb_baseline.config import TaskConfig as I2sbConfig
-from src.i2sb_baseline.config import sar2eo_config as i2sb_sar2eo
-from src.ddib_baseline.config import TaskConfig as DdibConfig
-from src.ddib_baseline.config import sar2eo_config as ddib_sar2eo
-from src.cut_baseline.config import TaskConfig as CutConfig
-from src.cut_baseline.config import sar2eo_config as cut_sar2eo
-from src.img2img_turbo.config import TaskConfig as TurboConfig
+from examples.ddbm.config import TaskConfig as DdbmConfig
+from examples.ddbm.config import sar2eo_config as ddbm_sar2eo
+from examples.bibbdm.config import TaskConfig as BibbdmConfig
+from examples.bibbdm.config import sar2eo_config as bibbdm_sar2eo
+from examples.i2sb.config import TaskConfig as I2sbConfig
+from examples.i2sb.config import sar2eo_config as i2sb_sar2eo
+from examples.ddib.config import TaskConfig as DdibConfig
+from examples.ddib.config import sar2eo_config as ddib_sar2eo
+from examples.cut.config import TaskConfig as CutConfig
+from examples.cut.config import sar2eo_config as cut_sar2eo
+from examples.img2img_turbo.config import TaskConfig as TurboConfig
 
 
 # ---------------------------------------------------------------------------

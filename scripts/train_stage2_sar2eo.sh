@@ -38,9 +38,9 @@ COMMON_ARGS=(
 )
 
 if [ "${NGPU}" -gt 1 ]; then
-  accelerate launch --num_processes "${NGPU}" -m src.ddbm_baseline.train_sar2eo \
+  accelerate launch --num_processes "${NGPU}" -m examples.ddbm.train_sar2eo \
     "${COMMON_ARGS[@]}"
 else
-  python -m src.ddbm_baseline.train_sar2eo \
+  python -m examples.ddbm.train_sar2eo \
     "${COMMON_ARGS[@]}"
 fi
