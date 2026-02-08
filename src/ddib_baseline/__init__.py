@@ -17,6 +17,7 @@ from .schedulers import DDIBScheduler, DDIBSchedulerOutput
 
 # Pipelines
 from .pipelines import DDIBPipeline, DDIBPipelineOutput
+from .pipelines import DDIBLatentPipeline, DDIBLatentPipelineOutput
 
 # Models
 from .models import DDIBUNet, create_model
@@ -28,6 +29,8 @@ __all__ = [
     # Pipelines
     "DDIBPipeline",
     "DDIBPipelineOutput",
+    "DDIBLatentPipeline",
+    "DDIBLatentPipelineOutput",
     # Models
     "DDIBUNet",
     "create_model",

@@ -2,5 +2,11 @@
 # Licensed under the MIT License (the "License");
 
 from .ddib_pipeline import DDIBPipeline, DDIBPipelineOutput
+from .ddib_latent_pipeline import DDIBLatentPipeline, DDIBLatentPipelineOutput
 
-__all__ = ["DDIBPipeline", "DDIBPipelineOutput"]
+__all__ = [
+    "DDIBPipeline",
+    "DDIBPipelineOutput",
+    "DDIBLatentPipeline",
+    "DDIBLatentPipelineOutput",
+]
