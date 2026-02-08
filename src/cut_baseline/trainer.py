@@ -101,9 +101,10 @@ class CUTTrainer:
 
     def build_generator(self):
         """Create the CUT generator."""
+        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
         return create_generator(
-            input_nc=self.cfg.model_channels,
-            output_nc=self.cfg.model_channels,
+            input_nc=in_ch,
+            output_nc=in_ch,
             ngf=self.cfg.ngf,
             netG=self.cfg.netG,
             norm_type=self.cfg.normG,
@@ -116,8 +117,9 @@ class CUTTrainer:
 
     def build_discriminator(self):
         """Create the CUT PatchGAN discriminator."""
+        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
         return create_discriminator(
-            input_nc=self.cfg.model_channels,
+            input_nc=in_ch,
             ndf=self.cfg.ndf,
             netD=self.cfg.netD,
             n_layers_D=self.cfg.n_layers_D,

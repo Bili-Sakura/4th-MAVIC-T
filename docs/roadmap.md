@@ -27,11 +27,11 @@ even without retraining on remote-sensing data.
 
 ## Latent-Space UNet Channel Note
 
-> **⚠️ TODO** — When modelling in latent space the UNet `in_channels` and
-> `out_channels` should match the VAE latent dimension (32) rather than the
-> pixel channel count (1 or 3). This mismatch is **intentionally left
-> unfixed** in the current config/code and will be updated in a follow-up
-> patch.
+> **✅ Resolved** — When modelling in latent space (`use_latent_target=True`)
+> the UNet `in_channels` and `out_channels` now use the `latent_channels`
+> config field (default 32, matching the VAE latent dimension) instead of the
+> pixel channel count (1 or 3). Each baseline trainer's `build_model` checks
+> `use_latent_target` and selects the appropriate channel count automatically.
 
 ---
 
