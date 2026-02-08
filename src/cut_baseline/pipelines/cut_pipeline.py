@@ -41,7 +41,8 @@ class CUTPipeline(DiffusionPipeline):
 
     Inherits from :class:`~diffusers.DiffusionPipeline` so that checkpoints
     can be loaded via ``from_pretrained`` following the HuggingFace
-    *diffusers* convention.
+    *diffusers* convention.  Device management (``to()``) and module
+    registration are provided by the parent class.
 
     Parameters
     ----------
