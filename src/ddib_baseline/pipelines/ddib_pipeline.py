@@ -157,9 +157,11 @@ class DDIBPipeline(DiffusionPipeline):
         if isinstance(image, list) and isinstance(image[0], Image.Image):
             images = []
             for img in image:
-                img = img.convert("RGB")
                 img_array = np.array(img).astype(np.float32) / 255.0
-                img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
+                if img_array.ndim == 2:
+                    img_tensor = torch.from_numpy(img_array).unsqueeze(0)
+                else:
+                    img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
                 images.append(img_tensor)
             image = torch.stack(images)
 

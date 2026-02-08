@@ -36,7 +36,6 @@ from .config import TaskConfig
 from .dataset_wrapper import MavicTDDIBDataset
 from .models import create_model
 
-from src.metrics import MavicCriterion  # noqa: E402
 from src.training_utils import (  # noqa: E402
     create_optimizer,
     save_checkpoint_diffusers,
@@ -360,11 +359,11 @@ class DDIBTrainer:
             "source", source_model, scheduler, source_dataset, accelerator,
         )
 
+
         # --- Phase 2: Train target-domain model ---
         logger.info(f"[{cfg.task_name}] === Phase 2: Training target-domain model ===")
         target_model = self.build_model(in_channels=cfg.target_channels)
         self._train_single_domain(
             "target", target_model, scheduler, target_dataset, accelerator,
         )
-
         logger.info(f"[{cfg.task_name}] DDIB training complete (both domains)!")
