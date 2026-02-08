@@ -3,15 +3,185 @@
 \maketitlesupplementary
 
 
-\section{Rationale}
-\label{sec:rationale}
-% 
-Having the supplementary compiled together with the main paper means that:
-% 
-\begin{itemize}
-\item The supplementary can back-reference sections of the main paper, for example, we can refer to \cref{sec:intro};
-\item The main paper can forward reference sub-sections within the supplementary explicitly (e.g. referring to a particular experiment); 
-\item When submitted to arXiv, the supplementary will already included at the end of the paper.
-\end{itemize}
-% 
-To split the supplementary pages from the main paper, you can use \href{https://support.apple.com/en-ca/guide/preview/prvw11793/mac#:~:text=Delete%20a%20page%20from%20a,or%20choose%20Edit%20%3E%20Delete).}{Preview (on macOS)}, \href{https://www.adobe.com/acrobat/how-to/delete-pages-from-pdf.html#:~:text=Choose%20%E2%80%9CTools%E2%80%9D%20%3E%20%E2%80%9COrganize,or%20pages%20from%20the%20file.}{Adobe Acrobat} (on all OSs), as well as \href{https://superuser.com/questions/517986/is-it-possible-to-delete-some-pages-of-a-pdf-document}{command line tools}.
+\section{Additional Implementation Details}
+\label{sec:suppl_impl}
+
+{\color{gray}
+\paragraph{Optimizer Details}
+We use the Prodigy optimizer for all experiments. Prodigy is an adaptive learning rate optimizer that automatically tunes the step size, which removes the need for extensive learning rate search. We set the nominal learning rate to 1.0 (as recommended for Prodigy) and use a constant schedule with 500 warmup steps. Gradient norms are clipped to 1.0, and we use bfloat16 mixed precision via the Hugging Face Accelerate library. For the CUT baseline, we use Adam with $\beta_1 = 0.5, \beta_2 = 0.999$ and separate optimizers for the generator and discriminator, following the CUT convention.
+}
+
+{\color{gray}
+\paragraph{EMA Configuration}
+We apply Exponential Moving Average (EMA) to the model parameters with a decay rate of 0.9999 and warmup enabled. The EMA shadow parameters are saved alongside the model checkpoint. At inference time, we use the EMA weights, which generally produce smoother and more stable outputs than the raw model weights.
+}
+
+{\color{gray}
+\paragraph{Checkpoint Management}
+Models are saved in the Hugging Face Diffusers format, which stores the UNet weights as safetensors, the scheduler configuration as JSON, and a \texttt{model\_index.json} that records the pipeline class name (\texttt{DDBMPipeline}). This allows one-line model loading via \texttt{Pipeline.from\_pretrained(path).to('cuda')} for inference. Checkpoints are optionally pushed to the Hugging Face Hub for reproducibility.
+}
+
+{\color{gray}
+\paragraph{Multi-GPU Training}
+Training is distributed across multiple GPUs using Hugging Face Accelerate. The process group timeout is set to 7200 seconds to accommodate potential synchronization delays. Gradient accumulation steps can be configured per-task, though we use 1 by default. Launch is via \texttt{accelerate launch -m src.ddbm\_baseline.train\_\{task\}}.
+}
+
+
+\section{Baseline Architecture Details}
+\label{sec:suppl_baselines}
+
+{\color{gray}
+\paragraph{CUT Architecture}
+The CUT generator uses a ResNet-9 architecture with 64 base filters (\texttt{ngf=64}), instance normalization, and no dropout. The encoder consists of a $7\times7$ convolution followed by two stride-2 downsampling convolutions, then 9 residual blocks, and finally two transposed convolutions for upsampling. The discriminator is a PatchGAN with 3 convolutional layers (\texttt{n\_layers\_D=3}) and 64 base filters. The NCE feature network (\texttt{PatchSampleMLP}) projects features from 5 intermediate encoder layers (indices 0, 4, 8, 12, 16) to a 256-dimensional embedding space using per-layer 2-layer MLPs. The GAN loss uses LSGAN (least-squares) formulation. The total generator loss is $\mathcal{L}_G = \lambda_{\text{GAN}} \cdot \mathcal{L}_{\text{GAN}} + \lambda_{\text{NCE}} \cdot \mathcal{L}_{\text{NCE}}$ with $\lambda_{\text{GAN}} = \lambda_{\text{NCE}} = 1.0$. An identity NCE loss is also included, and the NCE terms are averaged as $\mathcal{L}_{\text{NCE, both}} = 0.5 \cdot (\mathcal{L}_{\text{NCE}} + \mathcal{L}_{\text{NCE, idt}})$.
+}
+
+{\color{gray}
+\paragraph{BiBBDM Architecture}
+BiBBDM uses the same UNet2DModel backbone as DDBM with 128 base channels and the concat conditioning mode. The key difference is the noise schedule: BiBBDM uses a Brownian Bridge schedule where the mean $m_t$ linearly interpolates from $m_0 = 0.001$ to $m_T = 0.999$, and the variance is $\text{var}_t = 2 \cdot s \cdot m_t \cdot (1 - m_t)$ with scale $s = 2.0$. The default ``dlns'' objective predicts both the endpoint reconstruction and noise jointly, requiring the output channels to be doubled to $2C$. The loss is a combination of objective reconstruction loss (L1 by default) and optional endpoint losses weighted by separate $\lambda$ terms. Stochasticity is controlled by $\eta = 1.0$.
+}
+
+{\color{gray}
+\paragraph{I2SB Architecture}
+I2SB also uses the same UNet backbone with concat conditioning. It differs in its noise schedule: a symmetric linear beta schedule where $\beta_t = (\sqrt{\beta_{\text{start}}} + t \cdot (\sqrt{\beta_{\text{end}}} - \sqrt{\beta_{\text{start}}}))^2$ for the first half of the interval, mirrored for the second half, with $\beta_{\max} = 0.3$. This creates a symmetric noise process where noise increases from both endpoints and peaks at the midpoint. The training objective is noise prediction: given $z_t$, the model predicts the noise label $\ell = (z_t - y) / \sigma_{\text{fwd}}(t)$, normalized by the forward cumulative standard deviation. Loss is MSE between predicted and true noise. Inference uses 100 function evaluations (NFE).
+}
+
+{\color{gray}
+\paragraph{DDIB Architecture}
+DDIB trains two separate unconditional UNet models---one for the source domain and one for the target domain. Unlike the bridge methods, the UNets do not receive condition images; each operates independently with standard input channels ($C$ instead of $2C$). If \texttt{learn\_sigma=True}, the output channels are doubled to predict both mean and variance. Translation works by: (1) encoding the source image into a shared latent space via DDIM inversion with the source model, then (2) decoding from that latent using the target model with DDIM forward sampling. Both operations use 250 DDIM steps with $\eta = 0$ (deterministic). The noise schedule is a standard linear Gaussian diffusion with $\beta_{\text{start}} = 0.0001 \cdot s$ and $\beta_{\text{end}} = 0.02 \cdot s$ where $s = 1000 / T$.
+}
+
+{\color{gray}
+\paragraph{Pix2Pix-Turbo Architecture}
+Pix2Pix-Turbo is based on Stable Diffusion Turbo, fine-tuned with LoRA adapters. The UNet (UNet2DConditionModel) uses LoRA rank 8, targeting 13 module types including attention layers (\texttt{to\_q}, \texttt{to\_k}, \texttt{to\_v}, \texttt{to\_out}), convolutions (\texttt{conv1}, \texttt{conv2}, \texttt{conv\_shortcut}, \texttt{conv\_out}), and feed-forward layers. The VAE (\texttt{AutoencoderKL}) uses LoRA rank 4. A key architectural modification is the addition of skip connections between the VAE encoder and decoder: four $1\times1$ convolution layers (\texttt{skip\_conv\_1} through \texttt{skip\_conv\_4}) map encoder intermediate features to the decoder, with a learnable blending factor $\gamma$ (initialized to 1). This preserves fine spatial details from the source image. A frozen CLIP text encoder provides prompt embeddings (e.g., ``convert SAR image to electro-optical image''), computed once and reused. Inference performs a single denoising step at $t=999$.
+}
+
+
+\section{Dataset Processing Details}
+\label{sec:suppl_dataset}
+
+{\color{gray}
+\paragraph{Data Sources}
+The MAVIC-T dataset is a composite of three geospatial data sources: (1) UNICORN, (2) USGS EROS High Resolution Orthoimagery (HRO) with submeter resolution, and (3) the UMBRA open data program for satellite SAR. Each source undergoes preprocessing to ensure georectification and alignment, stored as GeoTIFFs with spatial referencing. A standardized chipping process divides the preprocessed data into spatially aligned 200m$\times$200m image stacks indexed by their WGS-84 top-left coordinates. The training data spans multiple geographic regions including UC Davis, Manhattan, Bingham, and Centerfield.
+}
+
+{\color{gray}
+\paragraph{Crop Augmentation}
+For the three $1024\times1024$ tasks (SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR), we create crop-augmented training variants by randomly cropping and resizing regions from the original training images. These augmented splits (e.g., \texttt{sar2rgb\_crop\_aug}) are concatenated with the original training set when the \texttt{use\_augmented} flag is enabled, effectively increasing the training data volume and spatial diversity.
+}
+
+{\color{gray}
+\paragraph{Quality Filtering}
+We apply a quality filter to exclude corrupted, misaligned, or low-quality training samples. A manifest file (\texttt{bad\_samples.txt}) lists the paths of problematic images, which are skipped during data loading. This filtering is applied uniformly across all baselines and ablation experiments.
+}
+
+
+\section{Per-Task Configuration Summary}
+\label{sec:suppl_config}
+
+\begin{table}[h]
+\centering
+\caption{{\color{gray}Per-task DDBM configuration summary.}}
+\label{tab:task_config}
+{\color{gray}
+\begin{tabular}{lcccc}
+\toprule
+Parameter & SAR$\rightarrow$EO & SAR$\rightarrow$RGB & SAR$\rightarrow$IR & RGB$\rightarrow$IR \\
+\midrule
+Source channels     & 1   & 1   & 1   & 3   \\
+Target channels     & 1   & 3   & 1   & 1   \\
+Model channels      & 1   & 3   & 1   & 3   \\
+Resolution          & 256 & 1024 & 1024 & 1024 \\
+Batch size          & 32  & 8   & 8   & 8   \\
+Crop augmentation   & No  & Yes & Yes & Yes \\
+REPA encoder        & MaRS-SAR & MaRS-SAR & MaRS-SAR & MaRS-RGB \\
+Inference steps     & 40  & 40  & 40  & 40  \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+{\color{gray}
+\cref{tab:task_config} summarizes the per-task configuration for our DDBM method. All tasks share the same UNet backbone architecture (128 base channels, channel multipliers auto-detected from resolution), Prodigy optimizer (lr=1.0), EMA decay (0.9999), VP noise schedule ($\sigma_{\min}=0.002$, $\sigma_{\max}=1.0$, $\beta_d=2.0$, $\beta_{\min}=0.1$), and training duration (100 epochs). The primary differences are the operating channel count, spatial resolution, batch size, and the choice of representation alignment encoder (MaRS-SAR for SAR-input tasks, MaRS-RGB for RGB$\rightarrow$IR).
+}
+
+
+\section{Additional Ablation Results}
+\label{sec:suppl_ablation}
+
+\begin{table*}[t]
+\centering
+\caption{{\color{gray}Extended ablation study across all four tasks. Each row adds one component to the DDBM baseline.}}
+\label{tab:extended_ablation}
+{\color{gray}
+\begin{tabular}{l | cccc | cccc | cccc | cccc}
+\toprule
+\multirow{2}{*}{Configuration} & \multicolumn{4}{c|}{SAR$\rightarrow$EO} & \multicolumn{4}{c|}{SAR$\rightarrow$RGB} & \multicolumn{4}{c|}{SAR$\rightarrow$IR} & \multicolumn{4}{c}{RGB$\rightarrow$IR} \\
+ & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score \\
+\midrule
+Denoise only       & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
++ MAVIC loss       & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
++ REPA             & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
++ Latent loss      & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+Full (all three)   & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}
+
+{\color{gray}
+\cref{tab:extended_ablation} extends the ablation study from the main paper to all four translation tasks. \TODO{Fill in extended ablation numbers.} This allows us to assess whether the ablation components have consistent effects across different modality pairs and resolutions, or whether certain components are more beneficial for specific tasks.
+}
+
+{\color{gray}
+\paragraph{Inference Speed Comparison}
+\cref{tab:inference_speed} reports the inference time per image for each method. CUT and Pix2Pix-Turbo are the fastest due to their single-pass nature. Among the iterative methods, DDBM with 40 steps offers a favorable speed-quality trade-off, while DDIB requires 250 DDIM steps per direction (500 total), making it the slowest.
+}
+
+\begin{table}[h]
+\centering
+\caption{{\color{gray}Inference speed comparison (seconds per image).}}
+\label{tab:inference_speed}
+{\color{gray}
+\begin{tabular}{lcc}
+\toprule
+Method & Steps (NFE) & Time (s) \\
+\midrule
+CUT             & 1                 & -- \\
+Pix2Pix-Turbo   & 1                 & -- \\
+DDBM (Ours)     & 40 ($\sim$80 NFE) & -- \\
+BiBBDM          & 100               & -- \\
+I2SB            & 100               & -- \\
+DDIB            & 250$\times$2      & -- \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+\section{Additional Qualitative Results}
+\label{sec:suppl_qualitative}
+
+\begin{figure*}[t]
+    \centering
+    \fbox{\rule{0pt}{3in} \rule{0.95\textwidth}{0pt}}
+    \caption{{\color{gray}Additional qualitative results for the SAR$\rightarrow$EO task. Left to right: source SAR image, CUT, BiBBDM, I2SB, DDIB, DDBM (Ours), ground truth. \TODO{Add visual comparison grid.}}}
+    \label{fig:suppl_sar2eo}
+\end{figure*}
+
+\begin{figure*}[t]
+    \centering
+    \fbox{\rule{0pt}{3in} \rule{0.95\textwidth}{0pt}}
+    \caption{{\color{gray}Additional qualitative results for the SAR$\rightarrow$RGB task. \TODO{Add visual comparison grid.}}}
+    \label{fig:suppl_sar2rgb}
+\end{figure*}
+
+\begin{figure*}[t]
+    \centering
+    \fbox{\rule{0pt}{3in} \rule{0.95\textwidth}{0pt}}
+    \caption{{\color{gray}Additional qualitative results for the RGB$\rightarrow$IR task. \TODO{Add visual comparison grid.}}}
+    \label{fig:suppl_rgb2ir}
+\end{figure*}
+
+{\color{gray}
+\cref{fig:suppl_sar2eo,fig:suppl_sar2rgb,fig:suppl_rgb2ir} provide additional qualitative results for three of the four translation tasks. \TODO{Add qualitative analysis.} These visualizations complement the main paper's qualitative comparison by showing a wider variety of scenes and input conditions, including challenging cases with complex urban structures, varying illumination, and dense vegetation.
+}

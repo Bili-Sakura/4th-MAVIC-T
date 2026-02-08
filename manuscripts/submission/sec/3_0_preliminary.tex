@@ -1,0 +1,27 @@
+\section{Preliminary}
+\label{sec:preliminary}
+
+{\color{gray}
+\paragraph{Problem Formulation}
+Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ denote the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ denote the target domain, where $C_s$ and $C_t$ are the number of channels in the source and target modalities, respectively. Given a set of spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$ with $x_i \in \mathcal{X}$ and $y_i \in \mathcal{Y}$, the goal of cross-modal image-to-image translation is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$ that minimizes a composite distance between the generated image $\hat{y} = G(x)$ and the ground-truth target $y$. In the context of the MAVIC-T challenge, four translation tasks are defined: SAR$\rightarrow$EO ($1 \!\rightarrow\! 1$ channel, $256 \times 256$), SAR$\rightarrow$RGB ($1 \!\rightarrow\! 3$, $1024 \times 1024$), SAR$\rightarrow$IR ($1 \!\rightarrow\! 1$, $1024 \times 1024$), and RGB$\rightarrow$IR ($3 \!\rightarrow\! 1$, $1024 \times 1024$).
+}
+
+{\color{gray}
+\paragraph{Evaluation Metric}
+The MAVIC-T challenge evaluates submissions using a composite score derived from three complementary metrics: LPIPS (Learned Perceptual Image Patch Similarity, based on VGG-16) for perceptual fidelity, FID (Fr\'{e}chet Inception Distance, based on InceptionV3) for distributional similarity, and L1 norm for pixel-level structural accuracy. These are combined into a task score:
+\begin{equation}
+    S_{\text{task}} = \frac{\tfrac{2}{\pi}\arctan(\text{FID}) + \text{LPIPS} + \text{L1}}{3}\,,
+    \label{eq:task_score}
+\end{equation}
+where the $\arctan$ normalization maps FID into the $[0, 1]$ range to balance its contribution against the other two metrics. The overall score is the average of the four task scores, with a penalty of $+1$ added for each unattempted domain, encouraging participants to develop generalizable solutions across all modality pairs.
+}
+
+{\color{gray}
+\paragraph{Denoising Diffusion Bridge Models}
+Unlike standard diffusion models that learn to generate data from pure Gaussian noise, \emph{Denoising Diffusion Bridge Models} (DDBM) define a stochastic bridge process that directly connects two data distributions---the source modality $\mathcal{X}$ and the target modality $\mathcal{Y}$. Given a training pair $(x, y)$ where $x$ is the source and $y$ is the target, the forward bridge process constructs a sequence of noisy intermediate states $z_t$ for $t \in [0, T]$ such that $z_0 = y$ and $z_T \approx x$. Under the variance-preserving (VP) formulation, the noisy sample at time $t$ is:
+\begin{equation}
+    z_t = a_t \cdot x + b_t \cdot y + \sigma_t \cdot \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
+    \label{eq:bridge_forward}
+\end{equation}
+where $a_t, b_t, \sigma_t$ are functions of the VP schedule parameters ($\beta_d$, $\beta_{\min}$) and the log signal-to-noise ratio at time $t$. The reverse process, parameterized by a denoising neural network $D_\theta$, learns to invert this corruption, thereby learning the conditional transport from $\mathcal{X}$ to $\mathcal{Y}$. This bridge formulation is inherently more suited for paired image translation than unconditional diffusion, as the source image directly constrains the generative trajectory.
+}
