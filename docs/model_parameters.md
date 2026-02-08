@@ -18,17 +18,17 @@ slightly depending on implementation details.
 Community practices and popular diffusion models often use informal scaling based on configuration patterns.
 This yields rough parameter-count categories; conditional variants with cross-attention add ~10–20%.
 
-- **Small/Tiny (10–50M parameters):** Suitable for low-resolution tasks (e.g., 32×32) or prototyping on limited hardware.
+- **Small/Tiny (10–50M parameters; example ~18–30M):** Suitable for low-resolution tasks (e.g., 32×32) or prototyping on limited hardware.
   - block_out_channels=(64, 128, 256, 512)
   - layers_per_block=2
   - Minimal attention (e.g., down_block_types=("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D"))
   - 18–30M parameters; common for simple DDPM experiments (MNIST, CIFAR-10).
-- **Medium/Base (100–500M parameters):** Balanced for mid-resolution tasks (64–128×128), such as face generation.
+- **Medium/Base (100–500M parameters; common configs ~100–200M):** Balanced for mid-resolution tasks (64–128×128), such as face generation.
   - block_out_channels=(128, 256, 512, 512)
   - layers_per_block=2
   - Selective attention (e.g., down_block_types=("DownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "DownBlock2D"))
   - 100–200M parameters; common in unconditional diffusion papers (e.g., CelebA-HQ).
-- **Large (500M–1B parameters):** Standard for high-quality 256–512×512 image generation (e.g., Stable Diffusion v1.x UNet2DConditionModel analogs).
+- **Large (500M–1B parameters):** Standard for high-quality 256×256 to 512×512 image generation (e.g., Stable Diffusion v1.x UNet2DConditionModel analogs).
   - block_out_channels=(320, 640, 1280, 1280)
   - layers_per_block=2
   - Attention in most blocks (e.g., down_block_types=("DownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D"))
