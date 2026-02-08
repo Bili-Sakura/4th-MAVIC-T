@@ -375,6 +375,6 @@ class DDIBTrainer:
                 source_unet=source_model, target_unet=target_model, scheduler=scheduler,
             )
             pipeline.save_pretrained(combined_dir)
-            logger.info(f"Saved combined DDIBPipeline to {combined_dir}")
+            logger.info("Saved combined DDIBPipeline to %s", combined_dir)
 
         logger.info(f"[{cfg.task_name}] DDIB training complete (both domains)!")
