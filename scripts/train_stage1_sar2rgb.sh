@@ -26,24 +26,20 @@ LATENT_VAE_PATH="./models/BiliSakura/VAEs"  # FLUX2-VAE or SD21-VAE
 
 OUTPUT_DIR="./ckpt/stage1_sar2rgb"
 
-CMD="python -m src.ddbm_baseline.train_sar2rgb \
-  --num_channels ${NUM_CHANNELS} \
-  --num_res_blocks ${NUM_RES_BLOCKS} \
-  --attention_resolutions ${ATTENTION_RESOLUTIONS} \
-  --channel_mult ${CHANNEL_MULT} \
-  --use_latent_target ${USE_LATENT_TARGET} \
-  --latent_vae_path ${LATENT_VAE_PATH} \
-  --output_dir ${OUTPUT_DIR}"
+COMMON_ARGS=(
+  --num_channels "${NUM_CHANNELS}"
+  --num_res_blocks "${NUM_RES_BLOCKS}"
+  --attention_resolutions "${ATTENTION_RESOLUTIONS}"
+  --channel_mult "${CHANNEL_MULT}"
+  --use_latent_target "${USE_LATENT_TARGET}"
+  --latent_vae_path "${LATENT_VAE_PATH}"
+  --output_dir "${OUTPUT_DIR}"
+)
 
 if [ "${NGPU}" -gt 1 ]; then
   accelerate launch --num_processes "${NGPU}" -m src.ddbm_baseline.train_sar2rgb \
-    --num_channels ${NUM_CHANNELS} \
-    --num_res_blocks ${NUM_RES_BLOCKS} \
-    --attention_resolutions "${ATTENTION_RESOLUTIONS}" \
-    --channel_mult "${CHANNEL_MULT}" \
-    --use_latent_target ${USE_LATENT_TARGET} \
-    --latent_vae_path "${LATENT_VAE_PATH}" \
-    --output_dir "${OUTPUT_DIR}"
+    "${COMMON_ARGS[@]}"
 else
-  ${CMD}
+  python -m src.ddbm_baseline.train_sar2rgb \
+    "${COMMON_ARGS[@]}"
 fi
