@@ -1,0 +1,468 @@
+# =============================================================================
+# Model Size Scaling Variants
+# =============================================================================
+#
+# Comprehensive reference of model-size configurations for all baselines and
+# tasks in 4th-MAVIC-T.  Each baseline offers four size tiers (small, medium,
+# large, huge) so that users can trade off parameter count against hardware
+# budget and target resolution.
+#
+# Approximate parameter counts are listed for quick comparison.  The "current
+# default" tag marks the configuration already used in the per-task config.py
+# files.
+#
+# Reference conventions are drawn from community practices around DDPM, Stable
+# Diffusion, and popular diffusers library examples.
+#
+# For cross-modality image-to-image translation, start with "medium" or "large"
+# and adjust based on dataset size, resolution, and GPU VRAM.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Common notes
+# ---------------------------------------------------------------------------
+# * channel_mult: comma-separated integer multipliers applied to num_channels
+#   to determine per-level channel widths.  An empty string "" means the
+#   multiplier is chosen automatically from the resolution (see each
+#   baseline's config.py).
+# * attention_resolutions: comma-separated spatial resolutions (in pixels)
+#   at which self-attention layers are inserted.
+# * Conditional models (DDBM, BiBBDM, I2SB) double input channels via
+#   concatenation, so param counts are slightly higher than unconditional
+#   variants at the same width.
+# * DDIB trains *two* independent unconditional UNets (one per domain); its
+#   total param count is 2× the single-model count listed here.
+# * Img2Img-Turbo uses a frozen pretrained SD-Turbo base (~865 M params).
+#   Only LoRA adapter weights are trainable; the "size" is controlled by
+#   LoRA rank.
+# ---------------------------------------------------------------------------
+
+# ============================================================
+# 1. Diffusion UNet Baselines — DDBM / BiBBDM / I2SB
+# ============================================================
+# These three baselines share the same ADM-style conditional UNet
+# architecture, so a single set of scaling tiers applies.
+# DDBM uses VP/VE noise; BiBBDM uses Brownian Bridge; I2SB uses
+# Schrödinger Bridge — but the UNet backbone is identical.
+
+diffusion_unet:
+  # -------------------------------------------------------
+  # Small / Tiny   (~18–30 M parameters per model)
+  # -------------------------------------------------------
+  # Good for low-resolution tasks (32×32–64×64), fast prototyping,
+  # or limited-VRAM environments.
+  # Inspired by simple DDPM experiments (MNIST, CIFAR-10).
+  small:
+    num_channels: 64
+    num_res_blocks: 2
+    attention_resolutions: ""          # no self-attention
+    channel_mult: "1,2,4,8"
+    dropout: 0.0
+    approx_params: "18–30 M"
+    recommended_resolution: "32–64"
+    notes: >
+      Minimal model for rapid iteration.  No attention layers keep
+      memory low.  Suitable for ablation studies on down-sampled data.
+
+  # -------------------------------------------------------
+  # Medium / Base   (~60–200 M parameters per model)
+  #   *** current default ***
+  # -------------------------------------------------------
+  # Balanced for mid-resolution tasks (128×256).  This is the default
+  # configuration already used in each baseline's config.py.
+  medium:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,1,2,2,4,4"       # auto-detected when left empty
+    dropout: 0.0
+    approx_params: "60–200 M"
+    recommended_resolution: "128–256"
+    notes: >
+      Current project default (~62 M for sar2eo at 256×256).
+      Good balance of quality and training cost for the MAVIC-T dataset.
+
+  # -------------------------------------------------------
+  # Large           (~300–800 M parameters per model)
+  # -------------------------------------------------------
+  # Standard for high-quality generation at 256–512 resolution.
+  # Inspired by Stable Diffusion v1.x UNet sizing.
+  large:
+    num_channels: 256
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,2,4,4"
+    dropout: 0.0
+    approx_params: "300–800 M"
+    recommended_resolution: "256–512"
+    notes: >
+      Significantly wider backbone.  Expect ~4× the training time and
+      VRAM of "medium".  Recommended when the medium variant plateaus
+      and higher fidelity is needed.
+
+  # -------------------------------------------------------
+  # Huge / XL       (~1 B+ parameters per model)
+  # -------------------------------------------------------
+  # For advanced, high-fidelity cross-modality translation at higher
+  # resolutions.  Inspired by Stable Diffusion XL.
+  huge:
+    num_channels: 320
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,2,4,4"
+    dropout: 0.0
+    approx_params: "1 B+"
+    recommended_resolution: "512–1024"
+    notes: >
+      Very large model; requires multi-GPU training and ≥40 GB VRAM
+      per device.  Consider gradient checkpointing and bf16/fp16.
+
+  # -------------------------------------------------------
+  # Per-task guidance
+  # -------------------------------------------------------
+  # Resolution and channel settings vary by task.  Override the
+  # task-specific fields (source_channels, target_channels,
+  # model_channels, resolution) from the per-task config functions
+  # in each baseline's config.py.
+  tasks:
+    sar2eo:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 256
+      recommended_size: "medium"
+      notes: >
+        256×256 single-channel task.  "medium" is sufficient for
+        current dataset size.  Scale to "large" only if quality
+        plateaus.
+
+    rgb2ir:
+      source_channels: 3
+      target_channels: 1
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+      notes: >
+        High-resolution 3-channel input.  "medium" works at 256
+        crop training; consider "large" for full 1024 resolution.
+
+    sar2ir:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 1024
+      recommended_size: "medium or large"
+      notes: >
+        1024×1024 single-channel cross-modality.  Similar guidance
+        to rgb2ir.
+
+    sar2rgb:
+      source_channels: 1
+      target_channels: 3
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+      notes: >
+        1024×1024 with 3-channel output.  Wider output head benefits
+        from "large" if VRAM allows.
+
+
+# ============================================================
+# 2. DDIB Baseline  (Dual Unconditional UNets)
+# ============================================================
+# DDIB trains two independent unconditional diffusion models (one
+# per domain) and translates via DDIM encode→decode.  Each model
+# uses the same UNet architecture as above but without conditioning.
+# Total parameter count is 2× the per-model count.
+
+ddib:
+  small:
+    num_channels: 64
+    num_res_blocks: 2
+    attention_resolutions: ""
+    channel_mult: "1,2,4,8"
+    dropout: 0.0
+    approx_params_per_model: "18–30 M"
+    approx_params_total: "36–60 M"
+    recommended_resolution: "32–64"
+    notes: >
+      Two tiny unconditional UNets.  For fast prototyping only.
+
+  medium:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,1,2,2,4,4"
+    dropout: 0.0
+    approx_params_per_model: "60–100 M"
+    approx_params_total: "120–200 M"
+    recommended_resolution: "128–256"
+    notes: >
+      Current project default (~62 M per model, ~124 M total).
+
+  large:
+    num_channels: 256
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,2,4,4"
+    dropout: 0.0
+    approx_params_per_model: "300–800 M"
+    approx_params_total: "600 M–1.6 B"
+    recommended_resolution: "256–512"
+    notes: >
+      Two large UNets; requires substantial VRAM for both models
+      during training.
+
+  huge:
+    num_channels: 320
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,2,4,4"
+    dropout: 0.0
+    approx_params_per_model: "1 B+"
+    approx_params_total: "2 B+"
+    recommended_resolution: "512–1024"
+    notes: >
+      Very large dual-model setup.  Multi-GPU mandatory.
+
+  tasks:
+    sar2eo:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 256
+      recommended_size: "medium"
+
+    rgb2ir:
+      source_channels: 3
+      target_channels: 1
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2ir:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2rgb:
+      source_channels: 1
+      target_channels: 3
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+
+# ============================================================
+# 3. CUT Baseline  (ResNet Generator + PatchGAN Discriminator)
+# ============================================================
+# CUT is a GAN-based method using a ResNet-9-block generator and
+# PatchGAN discriminator with contrastive (NCE) loss.  Scaling is
+# controlled by ngf/ndf (base filter counts) and n_blocks.
+
+cut:
+  small:
+    ngf: 32
+    ndf: 32
+    n_blocks: 6
+    n_downsampling: 2
+    n_layers_D: 2
+    netG: "resnet_6blocks"
+    approx_params: "3–5 M"
+    recommended_resolution: "64–128"
+    notes: >
+      Lightweight generator for quick experiments.  Fewer residual
+      blocks and narrower filters.
+
+  medium:
+    ngf: 64
+    ndf: 64
+    n_blocks: 9
+    n_downsampling: 2
+    n_layers_D: 3
+    netG: "resnet_9blocks"
+    approx_params: "11–15 M"
+    recommended_resolution: "128–256"
+    notes: >
+      Current project default (~14 M total).  Standard CUT
+      configuration from the original paper.
+
+  large:
+    ngf: 128
+    ndf: 128
+    n_blocks: 9
+    n_downsampling: 2
+    n_layers_D: 3
+    netG: "resnet_9blocks"
+    approx_params: "45–60 M"
+    recommended_resolution: "256–512"
+    notes: >
+      Doubled filter widths.  Better detail capture at higher
+      resolutions, but ~4× the compute of "medium".
+
+  huge:
+    ngf: 256
+    ndf: 256
+    n_blocks: 12
+    n_downsampling: 3
+    n_layers_D: 4
+    netG: "resnet_9blocks"
+    approx_params: "150–250 M"
+    recommended_resolution: "512–1024"
+    notes: >
+      Very wide generator with additional residual blocks and
+      deeper discriminator.  For high-fidelity 512+ translation.
+
+  tasks:
+    sar2eo:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 256
+      recommended_size: "medium"
+
+    rgb2ir:
+      source_channels: 3
+      target_channels: 1
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2ir:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 1
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2rgb:
+      source_channels: 1
+      target_channels: 3
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+
+# ============================================================
+# 4. Img2Img-Turbo Baseline  (SD-Turbo + LoRA)
+# ============================================================
+# Img2Img-Turbo fine-tunes a frozen Stable Diffusion Turbo backbone
+# via LoRA adapters.  The base model is fixed at ~865 M parameters;
+# "size" is controlled by LoRA rank which determines the number of
+# trainable adapter parameters.
+
+img2img_turbo:
+  small:
+    pretrained_model_name_or_path: "stabilityai/sd-turbo"
+    lora_rank_unet: 4
+    lora_rank_vae: 2
+    approx_base_params: "865 M (frozen)"
+    approx_lora_trainable: "~50 K"
+    notes: >
+      Minimal LoRA adaptation.  Fastest training, lowest risk of
+      over-fitting on small datasets.
+
+  medium:
+    pretrained_model_name_or_path: "stabilityai/sd-turbo"
+    lora_rank_unet: 8
+    lora_rank_vae: 4
+    approx_base_params: "865 M (frozen)"
+    approx_lora_trainable: "~138 K"
+    notes: >
+      Current project default.  Good balance of expressiveness and
+      regularisation.
+
+  large:
+    pretrained_model_name_or_path: "stabilityai/sd-turbo"
+    lora_rank_unet: 16
+    lora_rank_vae: 8
+    approx_base_params: "865 M (frozen)"
+    approx_lora_trainable: "~500 K"
+    notes: >
+      Higher-rank LoRA for more adaptation capacity.  Useful when
+      the domain gap is large (e.g., SAR → RGB).
+
+  huge:
+    pretrained_model_name_or_path: "stabilityai/sd-turbo"
+    lora_rank_unet: 32
+    lora_rank_vae: 16
+    approx_base_params: "865 M (frozen)"
+    approx_lora_trainable: "~2 M"
+    notes: >
+      Maximum adaptation capacity.  Risk of over-fitting on small
+      datasets — consider stronger regularisation.  Alternatively
+      switch to stabilityai/stable-diffusion-xl-base-1.0 for a
+      larger base model (~2.6 B params).
+
+  tasks:
+    sar2eo:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 3
+      resolution: 512
+      recommended_size: "medium"
+
+    rgb2ir:
+      source_channels: 3
+      target_channels: 1
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2ir:
+      source_channels: 1
+      target_channels: 1
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+    sar2rgb:
+      source_channels: 1
+      target_channels: 3
+      model_channels: 3
+      resolution: 1024
+      recommended_size: "medium or large"
+
+
+# ============================================================
+# 5. Quick-Reference Summary Table
+# ============================================================
+# (Approximate parameter counts for single-channel sar2eo task)
+#
+#  Tier    | Diffusion UNet | DDIB (total) | CUT (total) | Turbo LoRA
+# ---------|----------------|--------------|-------------|------------
+#  small   |  ~20 M         |  ~40 M       |  ~4 M       |  ~50 K
+#  medium  |  ~62 M  ★      |  ~124 M  ★   |  ~14 M  ★   |  ~138 K  ★
+#  large   |  ~500 M        |  ~1 B        |  ~50 M      |  ~500 K
+#  huge    |  ~1 B+         |  ~2 B+       |  ~200 M     |  ~2 M
+#
+#  ★ = current project default
+#
+# ---------------------------------------------------------------------------
+# VRAM Guidelines (approximate, fp16/bf16, batch_size=1)
+# ---------------------------------------------------------------------------
+#  Tier    | Single Model VRAM | Notes
+# ---------|-------------------|-------
+#  small   |  2–4 GB           | Consumer GPU (RTX 3060)
+#  medium  |  6–12 GB          | Mid-range GPU (RTX 3090 / A5000)
+#  large   |  16–24 GB         | High-end GPU (A100-40G)
+#  huge    |  40+ GB           | Multi-GPU (A100-80G)
+#
+# ---------------------------------------------------------------------------
+# How to use these variants
+# ---------------------------------------------------------------------------
+# Override the relevant fields in your per-task config function.  Example
+# for DDBM sar2eo with the "large" variant:
+#
+#   from src.ddbm_baseline.config import sar2eo_config
+#   cfg = sar2eo_config(
+#       num_channels=256,
+#       num_res_blocks=2,
+#       attention_resolutions="32,16,8",
+#       channel_mult="1,2,4,4",
+#   )
+#
+# Or pass them as command-line overrides to the train scripts that accept
+# arbitrary keyword arguments forwarded to the config function.

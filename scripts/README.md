@@ -36,6 +36,19 @@ python3 scripts/document_model_configs.py
 - sar2ir (SAR to Infrared)
 - sar2rgb (SAR to RGB)
 
+### Model Scaling Variants (`configs/model_scaling_variants.yaml`)
+
+**Purpose:** Comprehensive reference of model-size configurations (small / medium / large / huge) for all baselines and tasks, to support future model-size scaling experiments.
+
+**Location:** `configs/model_scaling_variants.yaml`
+
+**Contents:**
+- Four size tiers per baseline with approximate parameter counts and VRAM guidelines
+- Per-task channel/resolution settings and recommended starting sizes
+- Usage examples showing how to override config fields
+
+**Baselines covered:** DDBM, BiBBDM, I2SB (shared diffusion UNet), DDIB, CUT, Img2Img-Turbo
+
 ### `analyze_test_dataset.py`
 
 Analyzes test dataset statistics and metadata.
