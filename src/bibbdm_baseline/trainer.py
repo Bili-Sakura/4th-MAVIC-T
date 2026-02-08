@@ -430,10 +430,11 @@ class BiBBDMTrainer:
                 if cfg.use_ema and ema_model is not None:
                     model_param_names = list(unwrapped.state_dict().keys())
                     shadow_params = ema_model.shadow_params
-                    assert len(model_param_names) == len(shadow_params), (
-                        f"EMA shadow_params length ({len(shadow_params)}) != "
-                        f"model state_dict keys ({len(model_param_names)})"
-                    )
+                    if len(model_param_names) != len(shadow_params):
+                        raise RuntimeError(
+                            f"EMA shadow_params length ({len(shadow_params)}) != "
+                            f"model state_dict keys ({len(model_param_names)})"
+                        )
                     ema_state_dict = {
                         name: param.clone().detach()
                         for name, param in zip(model_param_names, shadow_params)

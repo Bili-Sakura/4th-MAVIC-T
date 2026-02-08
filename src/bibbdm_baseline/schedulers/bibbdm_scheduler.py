@@ -119,6 +119,11 @@ class BiBBDMScheduler(SchedulerMixin, ConfigMixin):
             m_t[0] = 0.0005
             m_t = 0.5 * np.sin(np.pi * (m_t - 0.5)) + 0.5
         elif self.mt_type == "log":
+            if T != 1000:
+                raise ValueError(
+                    f"mt_type='log' requires num_timesteps=1000 (got {T}); "
+                    "use 'linear' or 'sin' for other values."
+                )
             head = np.exp(np.linspace(np.log(self.m0), np.log(0.1), 270))
             mid = np.linspace(0.10165, 0.89835, 460)
             tail = np.flip(1.0 - head)
