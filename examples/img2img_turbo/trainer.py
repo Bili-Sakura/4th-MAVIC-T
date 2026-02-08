@@ -96,7 +96,7 @@ class Pix2PixTurboTrainer:
                     split="val",
                     resolution=self.cfg.resolution,
                     model_channels=self.cfg.model_channels,
-                    with_target=True,
+                    with_target=False,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
                 logger.warning("Val split unavailable for %s – skipping validation", self.cfg.task_name)
@@ -176,7 +176,11 @@ class Pix2PixTurboTrainer:
 
     @torch.no_grad()
     def log_validation(self, model, prompt_embeds, val_dataloader, accelerator, global_step):
-        """Run inference on the validation set and log FID + metrics."""
+        """Run inference on the validation set and log FID.
+
+        The official val set has no ground-truth targets, so only the
+        no-reference FID (generated vs. source) is reported.
+        """
         from src.utils.metrics import MetricCalculator
 
         logger.info("Running validation at step %d …", global_step)
@@ -186,25 +190,24 @@ class Pix2PixTurboTrainer:
         metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
 
         for batch in val_dataloader:
-            target, source = batch
-            source = source.to(accelerator.device) * 2 - 1
-            target = target.to(accelerator.device)
+            _zeros, source = batch
+            source_01 = source.to(accelerator.device)
+            source_inp = source_01 * 2 - 1
 
-            bsz = source.shape[0]
+            bsz = source_inp.shape[0]
             batch_embeds = prompt_embeds.expand(bsz, -1, -1)
-            output = model(source, batch_embeds)
+            output = model(source_inp, batch_embeds)
             generated = (output + 1) * 0.5
             generated = generated.clamp(0, 1)
-            metric_calc.update(generated, target)
+            metric_calc.update(generated, source_01)
 
         results = metric_calc.compute()
-        logs = {"val/lpips": results.lpips, "val/l1": results.l1}
+        logs = {}
         if results.fid is not None:
             logs["val/fid"] = results.fid
-        if results.score is not None:
-            logs["val/task_score"] = results.score
         accelerator.log(logs, step=global_step)
-        logger.info("Validation step %d: %s", global_step, results)
+        logger.info("Validation step %d: FID=%s", global_step,
+                     results.fid if results.fid is not None else "N/A")
 
         if was_training:
             model.train()
