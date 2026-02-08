@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Stage 4b — Unified DDBM training with RS-VAE
+# Stage 4b — Unified DDBM base model at 256px
 #
-# Train a single DDBM model on all 4 tasks (RGB→IR, SAR→IR, SAR→RGB, SAR→EO)
-# simultaneously, using the RS-VAE (from Stage 4a) to encode all modalities
-# into a shared latent space.
+# Train a single DDBM on ALL 4 tasks at 256px resolution:
+#   - SAR→EO:  native 256×256 images
+#   - RGB→IR / SAR→IR / SAR→RGB:  random-crop from 1024px to 256px
+#
+# This checkpoint is the flagship model for the SAR→EO competition task.
+# It can also be used for 1024px tasks but is further fine-tuned in 4c/4d.
 #
 # DDBM large config (~404 M params).
 #
@@ -11,13 +14,13 @@
 #   rather than the default pixel channel count. This will be updated later.
 #
 # Usage:
-#   bash scripts/train_stage4b_unified.sh
+#   bash scripts/train_stage4b_unified_256.sh
 #   # or multi-GPU:
-#   NGPU=4 bash scripts/train_stage4b_unified.sh
+#   NGPU=4 bash scripts/train_stage4b_unified_256.sh
 #
 # TODO: The unified multi-task training loop is not yet implemented.
 #   This script will be updated once the data loader supports mixed-task
-#   batches and the RS-VAE checkpoint is available.
+#   batches with random crop and the RS-VAE checkpoint is available.
 
 set -euo pipefail
 
@@ -29,27 +32,32 @@ NUM_RES_BLOCKS=2
 ATTENTION_RESOLUTIONS="32,16,8"
 CHANNEL_MULT="1,2,4,4"
 
-# --- Latent-space settings (RS-VAE from Stage 4a) ---
+# --- Latent-space settings (RS-VAE from external repo) ---
 USE_LATENT_TARGET=true
-LATENT_VAE_PATH="./ckpt/stage4a_rs_vae"  # RS-VAE fine-tuned on RS data
+LATENT_VAE_PATH="./models/rs_vae"
 
-OUTPUT_DIR="./ckpt/stage4b_unified"
+# --- Resolution & crop ---
+RESOLUTION=256   # all tasks trained at 256px (1024px tasks are random-cropped)
 
-echo "=== Stage 4b: Unified DDBM (all 4 tasks) ==="
+OUTPUT_DIR="./ckpt/stage4b_unified_256"
+
+echo "=== Stage 4b: Unified DDBM — 256px base model ==="
 echo "  UNet config : large (num_channels=${NUM_CHANNELS})"
+echo "  Resolution  : ${RESOLUTION}px (random crop from 1024px for 3 tasks)"
 echo "  RS-VAE      : ${LATENT_VAE_PATH}"
 echo "  Output dir  : ${OUTPUT_DIR}"
 echo ""
-echo "⚠️  Unified multi-task training loop is not yet implemented."
-echo "    This script will be updated once the mixed-task data loader"
-echo "    and RS-VAE checkpoint are available."
+echo "  Tasks: SAR→EO (native 256px) + RGB→IR, SAR→IR, SAR→RGB (crop 1024→256)"
+echo "  Flagship for: SAR→EO competition task"
 echo ""
+echo "⚠️  Unified multi-task training loop is not yet implemented."
 echo "    Planned invocation (placeholder):"
 echo "    python -m src.ddbm_baseline.train_unified \\"
 echo "      --num_channels ${NUM_CHANNELS} \\"
 echo "      --num_res_blocks ${NUM_RES_BLOCKS} \\"
 echo "      --attention_resolutions ${ATTENTION_RESOLUTIONS} \\"
 echo "      --channel_mult ${CHANNEL_MULT} \\"
+echo "      --resolution ${RESOLUTION} \\"
 echo "      --use_latent_target ${USE_LATENT_TARGET} \\"
 echo "      --latent_vae_path ${LATENT_VAE_PATH} \\"
 echo "      --output_dir ${OUTPUT_DIR}"
