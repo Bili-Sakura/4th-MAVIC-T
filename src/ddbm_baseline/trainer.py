@@ -193,9 +193,10 @@ class DDBMTrainer:
 
     def build_model(self):
         """Create the DDBM UNet model."""
+        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
         return create_model(
             image_size=self.cfg.resolution,
-            in_channels=self.cfg.model_channels,
+            in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
             unet_type=self.cfg.unet_type,

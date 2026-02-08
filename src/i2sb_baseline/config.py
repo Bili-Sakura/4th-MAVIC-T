@@ -91,6 +91,7 @@ class TaskConfig:
     use_latent_target: bool = False
     latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
     lambda_latent: float = 1.0  # weight for latent-space L2 loss
+    latent_channels: int = 32  # VAE latent dimension (overrides model_channels when use_latent_target=True)
 
     # ---- representation alignment ----
     use_rep_alignment: bool = False

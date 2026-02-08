@@ -94,9 +94,10 @@ class DDIBTrainer:
 
     def build_model(self, in_channels: int):
         """Create an unconditional DDIB UNet for a single domain."""
+        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else in_channels
         return create_model(
             image_size=self.cfg.resolution,
-            in_channels=in_channels,
+            in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
             attention_resolutions=self.cfg.attention_resolutions,
