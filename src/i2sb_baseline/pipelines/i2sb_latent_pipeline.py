@@ -3,6 +3,11 @@
 Wraps the I2SB Schrödinger Bridge process with a frozen VAE so that
 the UNet operates entirely in latent space while the pipeline accepts
 and produces pixel-space images.
+
+This pipeline follows the classic latent modeling pattern established
+in diffusers pipelines like StableDiffusionPipeline, where pixel-space
+images are encoded into VAE latents, processed in latent space, and
+then decoded back to pixel space.
 """
 
 from dataclasses import dataclass
@@ -18,7 +23,6 @@ from diffusers.utils import BaseOutput
 
 from ..schedulers.i2sb_scheduler import I2SBScheduler
 from ..models import I2SBUNet
-from .i2sb_pipeline import I2SBPipeline
 
 
 @dataclass
@@ -40,9 +44,14 @@ class I2SBLatentPipelineOutput(BaseOutput):
 class I2SBLatentPipeline(DiffusionPipeline):
     """I2SB pipeline that operates in VAE latent space.
 
-    The pipeline encodes pixel-space source images into the latent space
-    of a frozen VAE, runs the I2SB Schrödinger Bridge process in that
-    latent space, and decodes the result back to pixel space.
+    This model inherits from [`DiffusionPipeline`]. Check the superclass documentation
+    for the generic methods implemented for all pipelines (downloading, saving, running
+    on a particular device, etc.).
+
+    The pipeline encodes pixel-space source images into the latent space of a frozen VAE,
+    runs the I2SB Schrödinger Bridge process in that latent space, and decodes the result
+    back to pixel space. This allows the UNet to operate entirely in latent space while
+    maintaining a pixel-space API.
 
     Parameters
     ----------
@@ -65,35 +74,157 @@ class I2SBLatentPipeline(DiffusionPipeline):
         super().__init__()
         self.register_modules(unet=unet, scheduler=scheduler, vae=vae)
 
-        # Inner pixel-space pipeline for helper methods
-        self._i2sb = I2SBPipeline(unet=unet, scheduler=scheduler)
-
     # ------------------------------------------------------------------
-    # VAE helpers
+    # VAE encoding/decoding helpers
     # ------------------------------------------------------------------
 
     @staticmethod
     def _adapt_channels(images: torch.Tensor) -> torch.Tensor:
+        """Adapt single-channel images to 3-channel for VAE encoding.
+
+        Args:
+            images: Input tensor of shape (B, C, H, W).
+
+        Returns:
+            Tensor with 3 channels if input was 1 channel, otherwise unchanged.
+        """
         if images.shape[1] == 1:
             return images.repeat(1, 3, 1, 1)
         return images
 
     @staticmethod
     def _restore_channels(images: torch.Tensor, target_channels: int) -> torch.Tensor:
+        """Restore original channel count after VAE decoding.
+
+        Args:
+            images: Decoded tensor of shape (B, C, H, W).
+            target_channels: Original number of channels before encoding.
+
+        Returns:
+            Tensor with restored channel count.
+        """
         if target_channels == 1 and images.shape[1] == 3:
             return images.mean(dim=1, keepdim=True)
         return images
 
     @torch.no_grad()
     def _encode(self, images: torch.Tensor) -> torch.Tensor:
+        """Encode pixel-space images to VAE latent space.
+
+        Args:
+            images: Pixel-space images in [-1, 1] range, shape (B, C, H, W).
+
+        Returns:
+            Latent representations scaled by VAE scaling factor.
+        """
         adapted = self._adapt_channels(images)
         posterior = self.vae.encode(adapted).latent_dist
         return posterior.mean * self.vae.config.scaling_factor
 
     @torch.no_grad()
     def _decode(self, latents: torch.Tensor) -> torch.Tensor:
+        """Decode VAE latents to pixel-space images.
+
+        Args:
+            latents: Latent representations scaled by VAE scaling factor.
+
+        Returns:
+            Pixel-space images in [-1, 1] range.
+        """
         scaled = latents / self.vae.config.scaling_factor
         return self.vae.decode(scaled).sample
+
+    # ------------------------------------------------------------------
+    # Input preparation
+    # ------------------------------------------------------------------
+
+    def prepare_inputs(
+        self,
+        image: Union[torch.Tensor, Image.Image, List[Image.Image]],
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> torch.Tensor:
+        """Prepare input images for the pipeline.
+
+        Converts PIL images or numpy arrays to normalized tensors in [-1, 1] range.
+
+        Args:
+            image: Input image(s) as PIL Image, list of PIL Images, numpy array, or tensor.
+            device: Target device. If None, uses pipeline execution device.
+            dtype: Target dtype. If None, uses pipeline dtype.
+
+        Returns:
+            Normalized tensor in [-1, 1] range, shape (B, C, H, W).
+        """
+        if device is None:
+            device = self._execution_device
+        if dtype is None:
+            dtype = next(self.unet.parameters()).dtype
+
+        if isinstance(image, Image.Image):
+            image = [image]
+
+        if isinstance(image, list) and isinstance(image[0], Image.Image):
+            # Convert PIL images to tensor
+            images = []
+            for img in image:
+                img = img.convert("RGB")
+                img_array = np.array(img).astype(np.float32) / 255.0
+                img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
+                images.append(img_tensor)
+            image = torch.stack(images)
+
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image)
+
+        # Ensure image is in [-1, 1] range
+        if image.max() > 1.0:
+            image = image / 255.0
+
+        if image.min() >= 0:
+            image = image * 2 - 1  # Convert [0, 1] to [-1, 1]
+
+        return image.to(device=device, dtype=dtype)
+
+    # ------------------------------------------------------------------
+    # Output conversion helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _convert_to_pil(images: torch.Tensor) -> List[Image.Image]:
+        """Convert tensor in [-1, 1] to PIL images.
+
+        Args:
+            images: Tensor of shape (B, C, H, W) in [-1, 1] range.
+
+        Returns:
+            List of PIL Images.
+        """
+        images = (images + 1) / 2  # [-1, 1] -> [0, 1]
+        images = images.clamp(0, 1)
+        images = images.cpu().permute(0, 2, 3, 1).numpy()
+        images = (images * 255).round().astype(np.uint8)
+        pil_images = []
+        for img in images:
+            if img.shape[2] == 1:
+                img = img.squeeze(2)
+            pil_images.append(Image.fromarray(img))
+        return pil_images
+
+    @staticmethod
+    def _convert_to_numpy(images: torch.Tensor) -> np.ndarray:
+        """Convert tensor in [-1, 1] to numpy array.
+
+        Args:
+            images: Tensor of shape (B, C, H, W) in [-1, 1] range.
+
+        Returns:
+            Numpy array of shape (B, H, W, C) in [0, 1] range.
+        """
+        images = (images + 1) / 2  # [-1, 1] -> [0, 1]
+        images = images.clamp(0, 1)
+        images = images.cpu().permute(0, 2, 3, 1).numpy()
+        return images
 
     # ------------------------------------------------------------------
     # __call__
@@ -114,14 +245,28 @@ class I2SBLatentPipeline(DiffusionPipeline):
     ):
         """Translate a source image via I2SB in VAE latent space.
 
-        Accepts the same arguments as :class:`I2SBPipeline` but internally
-        operates in the VAE latent space.
+        Args:
+            source_image: The source/condition image(s) for the bridge.
+                Can be a tensor of shape (B, C, H, W) in [-1, 1] range,
+                or PIL Image(s).
+            nfe: Number of function evaluations / sampling steps (default: 100).
+            ot_ode: If True, use deterministic OT-ODE path (default: False).
+            clip_denoise: If True, clamp predicted x0 to [-1, 1] (default: False).
+                Note: This is ignored in latent space as clipping is handled by VAE.
+            generator: Random number generator for reproducibility.
+            output_type: Output format - "pil", "np", or "pt" (default: "pil").
+            return_dict: Whether to return a dict with the output (default: True).
+            callback: Callback function for progress updates.
+            callback_steps: Frequency of callback calls.
+
+        Returns:
+            Images generated through the Schrödinger bridge diffusion process.
         """
-        device = self._i2sb.device
-        dtype = self._i2sb.dtype
+        device = self._execution_device
+        dtype = next(self.unet.parameters()).dtype
 
         # Prepare pixel inputs
-        x_pixel = self._i2sb.prepare_inputs(source_image, device, dtype)
+        x_pixel = self.prepare_inputs(source_image, device, dtype)
         orig_channels = x_pixel.shape[1]
 
         # Encode to latent space
@@ -172,9 +317,10 @@ class I2SBLatentPipeline(DiffusionPipeline):
         images = images.clamp(-1, 1)
 
         if output_type == "pil":
-            images = self._i2sb._convert_to_pil(images)
+            images = self._convert_to_pil(images)
         elif output_type == "np":
-            images = self._i2sb._convert_to_numpy(images)
+            images = self._convert_to_numpy(images)
+        # else: output_type == "pt", return tensor as-is
 
         if not return_dict:
             return (images, nfe_count)
