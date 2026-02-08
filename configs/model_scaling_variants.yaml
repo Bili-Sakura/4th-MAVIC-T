@@ -71,7 +71,8 @@ diffusion_unet:
     recommended_resolution: "32–128"
     notes: >
       Minimal model for rapid iteration.  No attention layers keep
-      memory low.  Suitable for ablation studies on down-sampled data.
+      memory low.  Uses a gradual channel expansion (1,2,3,4) rather
+      than doubling at each level to stay within the ~20 M target.
 
   # -------------------------------------------------------
   # Medium / Base   (~120 M parameters)
@@ -356,8 +357,10 @@ cut:
     exact_total_params_1ch: 292_903_682
     recommended_resolution: "512–1024"
     notes: >
-      Very wide generator and deeper discriminator.
-      For high-fidelity 512+ translation.
+      Very wide generator and deeper discriminator (4 layers vs default
+      3).  Uses the standard 9 residual blocks; the CUT factory
+      create_generator() maps netG string to n_blocks so the netG field
+      controls block count in practice.
 
   tasks:
     sar2eo:
