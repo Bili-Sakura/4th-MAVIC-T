@@ -2,6 +2,11 @@ import pytest
 
 from src.cut_baseline.config import TaskConfig as CutConfig
 from src.ddbm_baseline.config import TaskConfig as DdbmConfig
+from src.i2sb_baseline.config import TaskConfig as I2sbConfig
+from src.img2img_turbo.config import TaskConfig as TurboConfig
+
+
+@pytest.mark.parametrize("cfg_cls", [TurboConfig, DdbmConfig, CutConfig, I2sbConfig])
 from src.ddib_baseline.config import TaskConfig as DdibConfig
 from src.img2img_turbo.config import TaskConfig as TurboConfig
 
