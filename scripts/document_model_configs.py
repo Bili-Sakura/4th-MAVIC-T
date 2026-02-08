@@ -105,8 +105,38 @@ def parse_config_function(config_file: Path, task: str) -> Optional[ModelConfig]
     return config
 
 
+def _try_exact_unet_params(config, is_conditional=True):
+    """Attempt to count exact UNet parameters by instantiation.
+
+    Returns the exact count, or ``None`` if the required libraries are not
+    available.
+    """
+    try:
+        from src.ddbm_baseline.models.unet import create_model
+        m = create_model(
+            image_size=int(config.resolution),
+            in_channels=int(config.model_channels),
+            num_channels=int(config.num_channels),
+            num_res_blocks=int(config.num_res_blocks),
+            attention_resolutions=config.attention_resolutions or "",
+            dropout=float(config.dropout),
+            condition_mode="concat" if is_conditional else None,
+            channel_mult=config.channel_mult or "",
+        )
+        return sum(p.numel() for p in m.parameters())
+    except Exception:
+        return None
+
+
 def estimate_unet_parameters(config, is_conditional=True):
-    """Estimate UNet parameters based on configuration."""
+    """Estimate UNet parameters based on configuration.
+
+    Tries exact instantiation first; falls back to a rough heuristic if
+    PyTorch / diffusers are not available.
+    """
+    exact = _try_exact_unet_params(config, is_conditional)
+    if exact is not None:
+        return exact
     # Parse channel_mult
     if config.channel_mult:
         channel_mult = tuple(int(c) for c in config.channel_mult.split(","))
@@ -169,8 +199,37 @@ def estimate_unet_parameters(config, is_conditional=True):
     return params
 
 
+def _try_exact_cut_params(config):
+    """Attempt to count exact CUT parameters by instantiation."""
+    try:
+        from src.cut_baseline.models.cut_model import CUTGenerator, PatchGANDiscriminator
+        g = CUTGenerator(
+            input_nc=int(config.source_channels),
+            output_nc=int(config.target_channels),
+            ngf=int(config.ngf),
+            n_blocks=int(config.n_blocks) if config.n_blocks else 9,
+        )
+        d = PatchGANDiscriminator(
+            input_nc=int(config.target_channels),
+            ndf=int(config.ndf),
+            n_layers=int(config.n_layers_D),
+        )
+        gen_p = sum(p.numel() for p in g.parameters())
+        disc_p = sum(p.numel() for p in d.parameters())
+        return gen_p, disc_p
+    except Exception:
+        return None
+
+
 def estimate_cut_parameters(config):
-    """Estimate CUT generator and discriminator parameters."""
+    """Estimate CUT generator and discriminator parameters.
+
+    Tries exact instantiation first; falls back to a rough heuristic if
+    PyTorch is not available.
+    """
+    exact = _try_exact_cut_params(config)
+    if exact is not None:
+        return exact
     ngf = int(config.ngf)
     ndf = int(config.ndf)
     n_blocks = int(config.n_blocks)

@@ -4,8 +4,9 @@ This document provides detailed information about model architectures and parame
 for all baselines in the 4th-MAVIC-T project. All models are initialized from their default
 configurations for each task.
 
-**Note:** Parameter counts are estimates based on model configurations. Actual counts may vary
-slightly depending on implementation details.
+**Note:** Parameter counts are **exact**, verified by instantiating each model with PyTorch and
+counting parameters via ``sum(p.numel() for p in model.parameters())``.
+See also ``configs/model_scaling_variants.yaml`` for size-scaling tiers (small / medium / large / huge).
 
 **Tasks:**
 - `sar2eo`: SAR to EO (optical) translation
@@ -18,14 +19,12 @@ slightly depending on implementation details.
 **Description:** Denoising Diffusion Bridge Models for image-to-image translation.
 Uses a UNet architecture with conditioning via concatenation.
 
-| Task | Estimated Parameters | Resolution | Channels | Model Channels |
+| Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
-| sar2eo | ~61,803,904 | 256×256 | 1→1 | 1 |
-| rgb2ir | ~61,810,816 | 1024×1024 | 3→1 | 3 |
-| sar2ir | ~61,803,904 | 1024×1024 | 1→1 | 1 |
-| sar2rgb | ~61,810,816 | 1024×1024 | 1→3 | 3 |
-
-### DDBM - Detailed Configuration
+| sar2eo | 120,246,401 | 256×256 | 1→1 | 1 |
+| rgb2ir | 120,253,315 | 1024×1024 | 3→1 | 3 |
+| sar2ir | 120,246,401 | 1024×1024 | 1→1 | 1 |
+| sar2rgb | 120,253,315 | 1024×1024 | 1→3 | 3 |
 
 #### sar2eo
 
@@ -88,14 +87,12 @@ condition_mode: concat
 **Description:** Bidirectional Brownian Bridge Diffusion Models with reversible translation.
 Supports bidirectional sampling (source→target and target→source).
 
-| Task | Estimated Parameters | Resolution | Channels | Model Channels |
+| Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
-| sar2eo | ~61,803,904 | 256×256 | 1→1 | 1 |
-| rgb2ir | ~61,810,816 | 1024×1024 | 3→1 | 3 |
-| sar2ir | ~61,803,904 | 1024×1024 | 1→1 | 1 |
-| sar2rgb | ~61,810,816 | 1024×1024 | 1→3 | 3 |
-
-### BiBBDM - Detailed Configuration
+| sar2eo | 120,247,554 | 256×256 | 1→1 | 1 |
+| rgb2ir | 120,256,774 | 1024×1024 | 3→1 | 3 |
+| sar2ir | 120,247,554 | 1024×1024 | 1→1 | 1 |
+| sar2rgb | 120,256,774 | 1024×1024 | 1→3 | 3 |
 
 #### sar2eo
 
@@ -158,14 +155,12 @@ condition_mode: concat
 **Description:** Image-to-Image Schrödinger Bridge for paired image translation.
 Uses Schrödinger Bridge formulation with ODE/SDE samplers.
 
-| Task | Estimated Parameters | Resolution | Channels | Model Channels |
+| Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
-| sar2eo | ~61,803,904 | 256×256 | 1→1 | 1 |
-| rgb2ir | ~61,810,816 | 1024×1024 | 3→1 | 3 |
-| sar2ir | ~61,803,904 | 1024×1024 | 1→1 | 1 |
-| sar2rgb | ~61,810,816 | 1024×1024 | 1→3 | 3 |
-
-### I2SB - Detailed Configuration
+| sar2eo | 120,246,401 | 256×256 | 1→1 | 1 |
+| rgb2ir | 120,253,315 | 1024×1024 | 3→1 | 3 |
+| sar2ir | 120,246,401 | 1024×1024 | 1→1 | 1 |
+| sar2rgb | 120,253,315 | 1024×1024 | 1→3 | 3 |
 
 #### sar2eo
 
@@ -230,10 +225,10 @@ Translation works via DDIM inversion and forward sampling through shared latent 
 
 | Task | Source Model | Target Model | Total Parameters | Resolution | Channels |
 |------|--------------|--------------|------------------|------------|----------|
-| sar2eo | ~61,802,752 | ~61,802,752 | ~123,605,504 | 256×256 | 1→1 |
-| rgb2ir | ~61,807,360 | ~61,807,360 | ~123,614,720 | 1024×1024 | 3→1 |
-| sar2ir | ~61,802,752 | ~61,802,752 | ~123,605,504 | 1024×1024 | 1→1 |
-| sar2rgb | ~61,807,360 | ~61,807,360 | ~123,614,720 | 1024×1024 | 1→3 |
+| sar2eo | 120,245,249 | 120,245,249 | 240,490,498 | 256×256 | 1→1 |
+| rgb2ir | 120,249,859 | 120,249,859 | 240,499,718 | 1024×1024 | 3→1 |
+| sar2ir | 120,245,249 | 120,245,249 | 240,490,498 | 1024×1024 | 1→1 |
+| sar2rgb | 120,249,859 | 120,249,859 | 240,499,718 | 1024×1024 | 1→3 |
 
 ### DDIB - Detailed Configuration
 
@@ -292,10 +287,10 @@ Uses a ResNet-based generator and PatchGAN discriminator with contrastive loss.
 
 | Task | Generator | Discriminator | Total Parameters | Resolution | Channels |
 |------|-----------|---------------|------------------|------------|----------|
-| sar2eo | ~10,918,016 | ~2,761,728 | ~13,679,744 | 256×256 | 1→1 |
-| rgb2ir | ~10,924,288 | ~2,761,728 | ~13,686,016 | 1024×1024 | 3→1 |
-| sar2ir | ~10,918,016 | ~2,761,728 | ~13,679,744 | 1024×1024 | 1→1 |
-| sar2rgb | ~10,924,288 | ~2,763,776 | ~13,688,064 | 1024×1024 | 1→3 |
+| sar2eo | 11,365,633 | 2,762,689 | 14,128,322 | 256×256 | 1→1 |
+| rgb2ir | 11,371,905 | 2,762,689 | 14,134,594 | 1024×1024 | 3→1 |
+| sar2ir | 11,365,633 | 2,762,689 | 14,128,322 | 1024×1024 | 1→1 |
+| sar2rgb | 11,371,907 | 2,764,737 | 14,136,644 | 1024×1024 | 1→3 |
 
 ### CUT - Detailed Configuration
 
@@ -401,13 +396,13 @@ prompt: "convert SAR image to RGB image"
 
 ### Parameter Count Comparison (sar2eo task)
 
-| Baseline | Estimated Parameters | Architecture Type | Notes |
+| Baseline | Exact Parameters | Architecture Type | Notes |
 |----------|---------------------|-------------------|-------|
-| DDBM | ~61,803,904 | Conditional UNet | Diffusion-based |
-| BiBBDM | ~61,803,904 | Conditional UNet | Diffusion-based |
-| I2SB | ~61,803,904 | Conditional UNet | Diffusion-based |
-| DDIB | ~123,605,504 | Dual Unconditional UNets | Two independent models |
-| CUT | ~13,679,744 | ResNet + PatchGAN | Generator + Discriminator |
+| DDBM | 120,246,401 | Conditional UNet | Diffusion-based |
+| BiBBDM | 120,247,554 | Conditional UNet | Diffusion-based (dlns 2× output) |
+| I2SB | 120,246,401 | Conditional UNet | Diffusion-based |
+| DDIB | 240,490,498 | Dual Unconditional UNets | Two independent models (120 M each) |
+| CUT | 14,128,322 | ResNet + PatchGAN | Generator + Discriminator |
 | Img2Img-Turbo | Base: ~865,000,000, LoRA: ~138,240 | SD-Turbo + LoRA | Pretrained foundation model |
 
 ### Key Architecture Differences
@@ -437,4 +432,4 @@ Most models support flexible channel configurations (1-ch, 3-ch) through their a
 
 ---
 *Generated automatically by document_model_configs.py*
-*Parameter counts are estimates based on model architecture configurations*
+*Parameter counts verified by model instantiation with PyTorch + diffusers*
