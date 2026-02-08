@@ -125,6 +125,8 @@ class DDIBTrainer:
         scheduler: DDIBScheduler,
         dataset: MavicTDDIBDataset,
         accelerator: Accelerator,
+        rep_alignment_module=None,
+        lambda_rep_alignment: float = 1.0,
     ):
         """Train one unconditional diffusion model on a single domain.
 
@@ -140,6 +142,10 @@ class DDIBTrainer:
             Single-domain dataset.
         accelerator : Accelerator
             Shared Accelerator instance.
+        rep_alignment_module : optional
+            Frozen encoder + trainable projector for REPA loss.
+        lambda_rep_alignment : float
+            Weight for the representation alignment loss.
         """
         cfg = self.cfg
         domain_output_dir = os.path.join(cfg.output_dir, f"ddib_{domain_label}", cfg.task_name)
@@ -155,8 +161,12 @@ class DDIBTrainer:
             from diffusers.training_utils import EMAModel
             ema_model = EMAModel(model.parameters(), decay=cfg.ema_decay, use_ema_warmup=True, model_cls=type(model))
 
+        train_params = list(model.parameters())
+        if rep_alignment_module is not None and rep_alignment_module.projector is not None:
+            train_params += list(rep_alignment_module.projector.parameters())
+
         optimizer = create_optimizer(
-            model.parameters(),
+            train_params,
             optimizer_type=cfg.optimizer_type,
             lr=cfg.learning_rate,
             weight_decay=cfg.weight_decay,
@@ -184,6 +194,8 @@ class DDIBTrainer:
         )
         if cfg.use_ema and ema_model is not None:
             ema_model.to(accelerator.device)
+        if rep_alignment_module is not None:
+            rep_alignment_module = rep_alignment_module.to(accelerator.device)
 
         num_update_steps_per_epoch = math.ceil(len(dataloader) / cfg.gradient_accumulation_steps)
         local_max_train_steps = cfg.max_train_steps if cfg.max_train_steps else cfg.num_epochs * num_update_steps_per_epoch
@@ -234,7 +246,18 @@ class DDIBTrainer:
                     # batch is a single tensor (B, C, H, W) in [0, 1]
                     x_0 = batch.to(accelerator.device) * 2 - 1  # scale to [-1, 1]
 
-                    loss = scheduler.compute_training_loss(model, x_0)
+                    if rep_alignment_module is not None:
+                        loss, pred_xstart = scheduler.compute_training_loss(
+                            model, x_0, return_pred_xstart=True,
+                        )
+                        with torch.no_grad():
+                            enc_feats = rep_alignment_module.extract_features(x_0)
+                        rep_loss = rep_alignment_module.compute_alignment_loss(
+                            pred_xstart, enc_feats,
+                        )
+                        loss = loss + lambda_rep_alignment * rep_loss
+                    else:
+                        loss = scheduler.compute_training_loss(model, x_0)
 
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:
@@ -353,11 +376,28 @@ class DDIBTrainer:
         # Build scheduler (shared between both models)
         scheduler = self.build_scheduler()
 
+        # Representation alignment (REPA)
+        rep_alignment_module = None
+        if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
+            from src.rep_alignment import SARCLIPAlignment, DINOv3SatAlignment
+            if cfg.task_name == "rgb2ir":
+                rep_alignment_module = DINOv3SatAlignment(cfg.rep_alignment_model_path)
+            else:
+                rep_alignment_module = SARCLIPAlignment(cfg.rep_alignment_model_path)
+            rep_alignment_module.build_projector(cfg.model_channels)
+            logger.info(
+                f"[{cfg.task_name}] Representation alignment enabled "
+                f"(model={cfg.rep_alignment_model_path}, "
+                f"lambda={cfg.lambda_rep_alignment})"
+            )
+
         # --- Phase 1: Train source-domain model ---
         logger.info(f"[{cfg.task_name}] === Phase 1: Training source-domain model ===")
         source_model = self.build_model(in_channels=cfg.source_channels)
         self._train_single_domain(
             "source", source_model, scheduler, source_dataset, accelerator,
+            rep_alignment_module=rep_alignment_module,
+            lambda_rep_alignment=cfg.lambda_rep_alignment,
         )
 
 
@@ -366,6 +406,8 @@ class DDIBTrainer:
         target_model = self.build_model(in_channels=cfg.target_channels)
         self._train_single_domain(
             "target", target_model, scheduler, target_dataset, accelerator,
+            rep_alignment_module=rep_alignment_module,
+            lambda_rep_alignment=cfg.lambda_rep_alignment,
         )
 
         # --- Save combined DDIBPipeline checkpoint ---

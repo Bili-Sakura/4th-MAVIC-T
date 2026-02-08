@@ -258,7 +258,7 @@ class DDIBScheduler(SchedulerMixin, ConfigMixin):
     # Training loss
     # ------------------------------------------------------------------
 
-    def compute_training_loss(self, model, x_0, noise=None):
+    def compute_training_loss(self, model, x_0, noise=None, return_pred_xstart=False):
         """Compute simple MSE denoising loss (noise prediction).
 
         Parameters
@@ -269,10 +269,13 @@ class DDIBScheduler(SchedulerMixin, ConfigMixin):
             Clean samples in ``[-1, 1]``.
         noise : Tensor or None
             If ``None`` random noise is sampled.
+        return_pred_xstart : bool
+            If ``True`` return ``(loss, pred_xstart)`` instead of just ``loss``.
 
         Returns
         -------
         loss : Tensor (scalar)
+            — or ``(loss, pred_xstart)`` when *return_pred_xstart* is set.
         """
         device = x_0.device
         bsz = x_0.shape[0]
@@ -295,6 +298,14 @@ class DDIBScheduler(SchedulerMixin, ConfigMixin):
             target = noise
 
         loss = ((model_output - target) ** 2).mean()
+
+        if return_pred_xstart:
+            if self.predict_xstart:
+                pred_xstart = model_output
+            else:
+                pred_xstart = self._predict_xstart_from_eps(x_t, t, model_output)
+            return loss, pred_xstart
+
         return loss
 
     # ------------------------------------------------------------------

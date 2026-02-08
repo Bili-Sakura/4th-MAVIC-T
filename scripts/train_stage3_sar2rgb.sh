@@ -20,6 +20,9 @@ CHANNEL_MULT="1,2,4,4"
 # --- Pixel-space (no latent VAE) ---
 USE_LATENT_TARGET=false
 
+# --- Representation alignment (REPA) ---
+USE_REP_ALIGNMENT=true
+
 OUTPUT_DIR="./ckpt/stage3_sar2rgb"
 
 COMMON_ARGS=(
@@ -28,6 +31,7 @@ COMMON_ARGS=(
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
   --channel_mult "${CHANNEL_MULT}"
   --use_latent_target "${USE_LATENT_TARGET}"
+  --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --output_dir "${OUTPUT_DIR}"
 )
 

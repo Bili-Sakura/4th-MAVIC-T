@@ -303,3 +303,79 @@ class TestDDBMTrainerLossSignature:
         sig = inspect.signature(DDBMTrainer.compute_training_loss)
         assert "rep_alignment_module" in sig.parameters
         assert "lambda_rep_alignment" in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# DDIB config defaults
+# ---------------------------------------------------------------------------
+
+class TestDDIBConfigDefaults:
+    """DDIB config has REPA fields with correct defaults."""
+
+    def test_rep_alignment_defaults(self):
+        from src.ddib_baseline.config import TaskConfig as DdibConfig
+        cfg = DdibConfig()
+        assert cfg.use_rep_alignment is False
+        assert cfg.rep_alignment_model_path is None
+        assert cfg.lambda_rep_alignment == 1.0
+
+    def test_overrides_work(self):
+        from src.ddib_baseline.config import rgb2ir_config as ddib_rgb2ir
+        cfg = ddib_rgb2ir(use_rep_alignment=True, lambda_rep_alignment=0.5)
+        assert cfg.use_rep_alignment is True
+        assert cfg.lambda_rep_alignment == 0.5
+
+
+# ---------------------------------------------------------------------------
+# DDIB task-specific config paths
+# ---------------------------------------------------------------------------
+
+class TestDDIBTaskConfigPaths:
+    """DDIB pre-built task configs set the expected model paths."""
+
+    def test_rgb2ir_has_mars_rgb_path(self):
+        from src.ddib_baseline.config import rgb2ir_config as ddib_rgb2ir
+        cfg = ddib_rgb2ir()
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-RGB"
+
+    def test_sar2eo_has_mars_sar_path(self):
+        from src.ddib_baseline.config import sar2eo_config as ddib_sar2eo
+        cfg = ddib_sar2eo()
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
+
+    def test_sar2ir_has_mars_sar_path(self):
+        from src.ddib_baseline.config import sar2ir_config as ddib_sar2ir
+        cfg = ddib_sar2ir()
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
+
+    def test_sar2rgb_has_mars_sar_path(self):
+        from src.ddib_baseline.config import sar2rgb_config as ddib_sar2rgb
+        cfg = ddib_sar2rgb()
+        assert cfg.rep_alignment_model_path == "./models/WanderRainy/MaRS-SAR"
+
+
+# ---------------------------------------------------------------------------
+# DDIB trainer _train_single_domain signature
+# ---------------------------------------------------------------------------
+
+class TestDDIBTrainerSignature:
+    """DDIB _train_single_domain accepts rep_alignment kwargs."""
+
+    def test_accepts_rep_alignment_kwargs(self):
+        from src.ddib_baseline.trainer import DDIBTrainer
+        sig = inspect.signature(DDIBTrainer._train_single_domain)
+        assert "rep_alignment_module" in sig.parameters
+        assert "lambda_rep_alignment" in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# DDIB scheduler return_pred_xstart
+# ---------------------------------------------------------------------------
+
+class TestDDIBSchedulerReturnPredXstart:
+    """DDIB scheduler compute_training_loss supports return_pred_xstart."""
+
+    def test_returns_tuple_when_requested(self):
+        from src.ddib_baseline.schedulers import DDIBScheduler
+        sig = inspect.signature(DDIBScheduler.compute_training_loss)
+        assert "return_pred_xstart" in sig.parameters
