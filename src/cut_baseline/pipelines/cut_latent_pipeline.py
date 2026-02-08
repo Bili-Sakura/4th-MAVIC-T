@@ -87,6 +87,46 @@ class CUTLatentPipeline(DiffusionPipeline):
         return self.vae.decode(scaled).sample
 
     # ------------------------------------------------------------------
+    # Input preparation
+    # ------------------------------------------------------------------
+
+    def prepare_inputs(
+        self,
+        image: Union[torch.Tensor, Image.Image, List[Image.Image]],
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        """Prepare input images for the pipeline.
+
+        Converts PIL images or numpy arrays to normalised tensors in
+        ``[-1, 1]`` range.
+        """
+        if isinstance(image, Image.Image):
+            image = [image]
+
+        if isinstance(image, list) and isinstance(image[0], Image.Image):
+            images = []
+            for img in image:
+                img_array = np.array(img, dtype=np.float32)
+                if img_array.max() > 1.0:
+                    img_array = img_array / 255.0
+                if img_array.ndim == 2:
+                    img_array = img_array[:, :, np.newaxis]
+                img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
+                images.append(img_tensor)
+            image = torch.stack(images)
+
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image)
+
+        if image.min() >= 0 and image.max() <= 1.0:
+            image = image * 2 - 1
+        elif image.max() > 1.0:
+            image = image / 255.0 * 2 - 1
+
+        return image.to(device=device, dtype=dtype)
+
+    # ------------------------------------------------------------------
     # __call__
     # ------------------------------------------------------------------
 
@@ -105,8 +145,8 @@ class CUTLatentPipeline(DiffusionPipeline):
         device = self.device
         dtype = self.dtype
 
-        # Prepare pixel inputs (reuse CUTPipeline's logic)
-        x_pixel = CUTPipeline.prepare_inputs(self, source_image, device, dtype)
+        # Prepare pixel inputs
+        x_pixel = self.prepare_inputs(source_image, device, dtype)
         orig_channels = x_pixel.shape[1]
 
         # Encode to latent space

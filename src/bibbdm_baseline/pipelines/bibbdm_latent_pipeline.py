@@ -104,7 +104,7 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         clip_denoised: bool = False,
         output_type: str = "pt",
         generator: Optional[torch.Generator] = None,
-    ) -> BiBBDMLatentPipelineOutput:
+    ) -> Union[BiBBDMLatentPipelineOutput, tuple]:
         """Translate a source image via BiBBDM in VAE latent space.
 
         Accepts the same arguments as :class:`BiBBDMPipeline` but internally
