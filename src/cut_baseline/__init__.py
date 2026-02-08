@@ -22,6 +22,7 @@ from .models import (
 
 # Pipelines
 from .pipelines import CUTPipeline, CUTPipelineOutput
+from .pipelines import CUTLatentPipeline, CUTLatentPipelineOutput
 
 # Schedulers
 from .schedulers import CUTScheduler, CUTSchedulerOutput
@@ -39,6 +40,8 @@ __all__ = [
     # Pipelines
     "CUTPipeline",
     "CUTPipelineOutput",
+    "CUTLatentPipeline",
+    "CUTLatentPipelineOutput",
     # Schedulers
     "CUTScheduler",
     "CUTSchedulerOutput",

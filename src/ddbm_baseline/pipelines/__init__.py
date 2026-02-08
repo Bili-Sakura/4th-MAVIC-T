@@ -2,5 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 
 from .ddbm_pipeline import DDBMPipeline, DDBMPipelineOutput
+from .ddbm_latent_pipeline import DDBMLatentPipeline, DDBMLatentPipelineOutput
 
-__all__ = ["DDBMPipeline", "DDBMPipelineOutput"]
+__all__ = [
+    "DDBMPipeline",
+    "DDBMPipelineOutput",
+    "DDBMLatentPipeline",
+    "DDBMLatentPipelineOutput",
+]

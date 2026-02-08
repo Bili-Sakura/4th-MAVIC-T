@@ -1,7 +1,10 @@
 # Competition Roadmap
 
 > **Baseline method**: DDBM (`diffusion_unet` in `configs/model_scaling_variants.yaml`).
-> Other baselines (BiBBDM, I2SB, DDIB, CUT, Img2Img-Turbo) are left for future exploration.
+> For latent-space modelling stages we use the **DDBM Latent Pipeline**
+> (`DDBMLatentPipeline`) which wraps the DDBM diffusion process with a
+> frozen pre-trained VAE.  Other baselines (BiBBDM, I2SB, DDIB, CUT,
+> Img2Img-Turbo) are left for future exploration.
 
 We progressively increase training compute across four stages. Each stage
 builds on the previous one and the corresponding training scripts live in
@@ -52,6 +55,8 @@ even without retraining on remote-sensing data.
 domain (FLUX2-VAE with spatial compression ratio 8, latent channels 32; or
 SD21-VAE).
 
+**Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE).
+
 | Task | Latent shape | DDBM config tier | ~Params |
 |------|-------------|------------------|---------|
 | RGB → IR  | `(128, 128, 32)` | **medium** | ~120 M |
@@ -72,6 +77,8 @@ bash scripts/train_stage1_sar2eo.sh
 ## Stage 2 — Latent-Space Modelling with Scaled-Up Models
 
 **Goal**: Increase model capacity while still operating in latent space.
+
+**Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE).
 
 | Task | Latent shape | DDBM config tier | ~Params |
 |------|-------------|------------------|---------|
@@ -94,6 +101,8 @@ bash scripts/train_stage2_sar2eo.sh
 **Goal**: Remove the VAE bottleneck by modelling directly in pixel space with
 the same architecture tiers as Stage 2.
 
+**Pipeline**: `DDBMPipeline` (DDBM in pixel space, no VAE).
+
 | Task | Pixel shape | DDBM config tier | ~Params |
 |------|------------|------------------|---------|
 | RGB → IR  | `(1024, 1024)` | **large**  | ~404 M |
@@ -114,6 +123,8 @@ bash scripts/train_stage3_sar2eo.sh
 
 **Goal**: Train a single image-to-image translation foundation model across
 all four tasks using progressive resolution training.
+
+**Pipeline**: `DDBMLatentPipeline` (DDBM + RS-VAE).
 
 ### Step 4a — RS-VAE (External)
 
@@ -207,14 +218,14 @@ The encoder checkpoint path is pre-configured in each task's
 
 ## Summary
 
-| Stage | Space | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
-|-------|-------|--------|---------------------------|----------|
-| 1 | Latent (frozen VAE) | small | medium | Fast baseline + REPA |
-| 2 | Latent (frozen VAE) | medium | large | Scale model + REPA |
-| 3 | Pixel | medium | large | Drop VAE bottleneck + REPA |
-| 4b | Latent (RS-VAE) | large (unified, 256px) | large (unified, 256px crop) | Base foundation model + REPA |
-| 4c | Latent (RS-VAE) | — | large (unified, 512px crop) | Fine-tune + REPA |
-| 4d | Latent (RS-VAE) | — | large (unified, 1024px) | Optional full-resolution fine-tune + REPA |
+| Stage | Space | Pipeline | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
+|-------|-------|----------|--------|---------------------------|----------|
+| 1 | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Fast baseline + REPA |
+| 2 | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Scale model + REPA |
+| 3 | Pixel | `DDBMPipeline` | medium | large | Drop VAE bottleneck + REPA |
+| 4b | Latent (RS-VAE) | `DDBMLatentPipeline` | large (unified, 256px) | large (unified, 256px crop) | Base foundation model + REPA |
+| 4c | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 512px crop) | Fine-tune + REPA |
+| 4d | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 1024px) | Optional full-resolution fine-tune + REPA |
 
 ---
 
@@ -238,10 +249,10 @@ quality-vs-compute trade-off for the primary DDBM baseline on all tasks.
 
 ### 3. Latent Modelling vs. Pixel Modelling
 
-Compare latent-space modelling (Stages 1–2 with frozen VAE) against
-pixel-space modelling (Stage 3) at matched model capacity, to quantify the
-effect of the VAE bottleneck on reconstruction fidelity and training
-efficiency.
+Compare latent-space modelling (`DDBMLatentPipeline` — Stages 1–2 with frozen
+VAE) against pixel-space modelling (`DDBMPipeline` — Stage 3) at matched model
+capacity, to quantify the effect of the VAE bottleneck on reconstruction
+fidelity and training efficiency.
 
 ### 4. Advanced REPA Variants
 

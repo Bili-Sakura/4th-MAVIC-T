@@ -13,6 +13,7 @@ from .schedulers import DDBMScheduler, DDBMSchedulerOutput
 
 # Pipelines
 from .pipelines import DDBMPipeline, DDBMPipelineOutput
+from .pipelines import DDBMLatentPipeline, DDBMLatentPipelineOutput
 
 # Models
 from .models import DDBMUNet, create_model
@@ -24,6 +25,8 @@ __all__ = [
     # Pipelines
     "DDBMPipeline",
     "DDBMPipelineOutput",
+    "DDBMLatentPipeline",
+    "DDBMLatentPipelineOutput",
     # Models
     "DDBMUNet",
     "create_model",

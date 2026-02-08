@@ -17,6 +17,7 @@ from .schedulers import BiBBDMScheduler, BiBBDMSchedulerOutput
 
 # Pipelines
 from .pipelines import BiBBDMPipeline, BiBBDMPipelineOutput
+from .pipelines import BiBBDMLatentPipeline, BiBBDMLatentPipelineOutput
 
 # Models
 from .models import BiBBDMUNet, create_model
@@ -28,6 +29,8 @@ __all__ = [
     # Pipelines
     "BiBBDMPipeline",
     "BiBBDMPipelineOutput",
+    "BiBBDMLatentPipeline",
+    "BiBBDMLatentPipelineOutput",
     # Models
     "BiBBDMUNet",
     "create_model",

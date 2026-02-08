@@ -12,6 +12,7 @@ from .schedulers import I2SBScheduler, I2SBSchedulerOutput
 
 # Pipelines
 from .pipelines import I2SBPipeline, I2SBPipelineOutput
+from .pipelines import I2SBLatentPipeline, I2SBLatentPipelineOutput
 
 # Models
 from .models import I2SBUNet, create_model
@@ -23,6 +24,8 @@ __all__ = [
     # Pipelines
     "I2SBPipeline",
     "I2SBPipelineOutput",
+    "I2SBLatentPipeline",
+    "I2SBLatentPipelineOutput",
     # Models
     "I2SBUNet",
     "create_model",
