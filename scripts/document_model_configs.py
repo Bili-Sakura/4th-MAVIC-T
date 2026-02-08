@@ -337,6 +337,39 @@ def generate_markdown(results, project_root):
         "- `sar2rgb`: SAR to RGB translation",
         "",
     ]
+
+    md_lines.extend(
+        [
+            "## Diffusion Model Size Guidelines",
+            "",
+            "Community practices and popular diffusion models often use informal scaling based on configuration patterns, leading to rough parameter-count categories (conditional variants with cross-attention add ~10–20%).",
+            "",
+            "- **Small/Tiny (10–50M parameters):** Suitable for low-resolution tasks (e.g., 32×32) or prototyping on limited hardware.",
+            "  - block_out_channels=(64, 128, 256, 512)",
+            "  - layers_per_block=2",
+            '  - Minimal attention (e.g., down_block_types=("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D"))',
+            "  - ~18–30M parameters; common for simple DDPM experiments (MNIST, CIFAR-10).",
+            "- **Medium/Base (100–500M parameters):** Balanced for mid-resolution tasks (64–128×128), such as face generation.",
+            "  - block_out_channels=(128, 256, 512, 512)",
+            "  - layers_per_block=2",
+            '  - Selective attention (e.g., down_block_types=("DownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "DownBlock2D"))',
+            "  - ~100–200M parameters; common in unconditional diffusion papers (e.g., CelebA-HQ).",
+            "- **Large (500M–1B parameters):** Standard for high-quality 256–512×512 image generation (e.g., Stable Diffusion v1.x UNet2DConditionModel analogs).",
+            "  - block_out_channels=(320, 640, 1280, 1280)",
+            "  - layers_per_block=2",
+            '  - Attention in most blocks (e.g., down_block_types=("DownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D"))',
+            "  - attention_head_dim=8",
+            "  - ~700–860M parameters (unconditional variants slightly lower).",
+            "- **Huge/XL (1B+ parameters):** For advanced, high-fidelity tasks at higher resolutions (e.g., Stable Diffusion XL-style).",
+            "  - block_out_channels=(320, 640, 1280)",
+            "  - layers_per_block=2 with transformer_layers_per_block=[1, 2, 10]",
+            "  - attention_head_dim=[5, 10, 20]; heavy attention/projections (use_linear_projection=True)",
+            "  - ~2.6B parameters; larger SD3-style pipelines can reach ~8B total across components.",
+            "",
+            "For cross-modality image-to-image translation, start with a **medium** or **large** configuration based on dataset size, resolution, and GPU VRAM. When conditioning on another modality, prefer `UNet2DConditionModel` for built-in cross-attention; it typically adds ~10–20% parameters compared to unconditional UNets.",
+            "",
+        ]
+    )
     
     # Process each baseline
     for baseline_name, baseline_data in results.items():
