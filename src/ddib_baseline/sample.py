@@ -7,14 +7,28 @@ DDIB translates images by:
   2. Decoding the latent to the target domain via DDIM forward sampling
      with the target-domain diffusion model.
 
-Usage::
+Usage (pretrained directories — recommended)::
 
     python -m src.ddib_baseline.sample \
         --task sar2ir \
-        --source_model_path ./ckpt/ddib_source/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
-        --target_model_path ./ckpt/ddib_target/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
+        --source_pretrained_path ./ckpt/ddib/source/sar2ir/checkpoint-epoch-100 \
+        --target_pretrained_path ./ckpt/ddib/target/sar2ir/checkpoint-epoch-100 \
         --split test \
         --output_dir ./samples/ddib_sar2ir
+
+Usage (legacy single-file checkpoints)::
+
+    python -m src.ddib_baseline.sample \
+        --task sar2ir \
+        --source_pretrained_path ./ckpt/ddib_source/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
+        --target_pretrained_path ./ckpt/ddib_target/sar2ir/checkpoint-epoch-100/unet/diffusion_pytorch_model.safetensors \
+        --split test \
+        --output_dir ./samples/ddib_sar2ir
+
+When a directory is provided the script loads UNet and scheduler via
+``from_pretrained`` following the HuggingFace *diffusers* convention.
+Legacy ``.pt`` / ``.safetensors`` single-file checkpoints are still
+supported for backward compatibility.
 """
 
 from __future__ import annotations
@@ -45,7 +59,7 @@ from src.ddib_baseline.config import (  # noqa: E402
     sar2ir_config,
     sar2rgb_config,
 )
-from src.ddib_baseline.models import create_model  # noqa: E402
+from src.ddib_baseline.models import DDIBUNet, create_model  # noqa: E402
 
 # Reuse the DDBM dataset wrapper for loading paired data (source side only)
 from src.ddbm_baseline.dataset_wrapper import MavicTDDBMDataset  # noqa: E402
@@ -64,8 +78,18 @@ _TASK_CONFIG_MAP = {
 def parse_args():
     parser = argparse.ArgumentParser(description="Translate images using trained DDIB models.")
     parser.add_argument("--task", type=str, required=True, choices=list(_TASK_CONFIG_MAP.keys()))
-    parser.add_argument("--source_model_path", type=str, required=True, help="Path to source-domain model .pt/.safetensors checkpoint.")
-    parser.add_argument("--target_model_path", type=str, required=True, help="Path to target-domain model .pt/.safetensors checkpoint.")
+    parser.add_argument(
+        "--source_pretrained_path",
+        type=str,
+        required=True,
+        help="Path to the source-domain pretrained directory or legacy .pt/.safetensors file.",
+    )
+    parser.add_argument(
+        "--target_pretrained_path",
+        type=str,
+        required=True,
+        help="Path to the target-domain pretrained directory or legacy .pt/.safetensors file.",
+    )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=8)
@@ -78,12 +102,33 @@ def parse_args():
     return parser.parse_args()
 
 
-def _load_state_dict(path: str):
-    """Load a state dict from a .pt or .safetensors file."""
-    if path.endswith(".safetensors"):
+def _load_unet(pretrained_path: str, cfg: TaskConfig, in_channels: int) -> DDIBUNet:
+    """Load a single DDIB UNet from a pretrained directory or legacy file."""
+    path = Path(pretrained_path)
+
+    if path.is_dir():
+        logger.info("Loading UNet from pretrained directory: %s", path)
+        return DDIBUNet.from_pretrained(pretrained_path, subfolder="unet")
+
+    # ---- legacy single-file checkpoint ----
+    logger.info("Loading UNet from legacy checkpoint: %s", path)
+    model = create_model(
+        image_size=cfg.resolution,
+        in_channels=in_channels,
+        num_channels=cfg.num_channels,
+        num_res_blocks=cfg.num_res_blocks,
+        attention_resolutions=cfg.attention_resolutions,
+        dropout=0.0,
+        learn_sigma=cfg.learn_sigma,
+        channel_mult=cfg.channel_mult,
+    )
+    if str(path).endswith(".safetensors"):
         from safetensors.torch import load_file
-        return load_file(path)
-    return torch.load(path, map_location="cpu", weights_only=True)
+        ckpt = load_file(str(path))
+    else:
+        ckpt = torch.load(str(path), map_location="cpu", weights_only=True)
+    model.load_state_dict(ckpt)
+    return model
 
 
 def main():
@@ -96,44 +141,26 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build source model
-    logger.info("Loading source model …")
-    source_model = create_model(
-        image_size=cfg.resolution,
-        in_channels=cfg.source_channels,
-        num_channels=cfg.num_channels,
-        num_res_blocks=cfg.num_res_blocks,
-        attention_resolutions=cfg.attention_resolutions,
-        dropout=0.0,
-        learn_sigma=cfg.learn_sigma,
-        channel_mult=cfg.channel_mult,
-    )
-    source_model.load_state_dict(_load_state_dict(args.source_model_path))
+    # Load models
+    source_model = _load_unet(args.source_pretrained_path, cfg, cfg.source_channels)
     source_model = source_model.to(args.device).eval()
 
-    # Build target model
-    logger.info("Loading target model …")
-    target_model = create_model(
-        image_size=cfg.resolution,
-        in_channels=cfg.target_channels,
-        num_channels=cfg.num_channels,
-        num_res_blocks=cfg.num_res_blocks,
-        attention_resolutions=cfg.attention_resolutions,
-        dropout=0.0,
-        learn_sigma=cfg.learn_sigma,
-        channel_mult=cfg.channel_mult,
-    )
-    target_model.load_state_dict(_load_state_dict(args.target_model_path))
+    target_model = _load_unet(args.target_pretrained_path, cfg, cfg.target_channels)
     target_model = target_model.to(args.device).eval()
 
     # Build scheduler + pipeline
-    scheduler = DDIBScheduler(
-        num_train_timesteps=cfg.diffusion_steps,
-        noise_schedule=cfg.noise_schedule,
-        learn_sigma=cfg.learn_sigma,
-        predict_xstart=cfg.predict_xstart,
-        rescale_timesteps=cfg.rescale_timesteps,
-    )
+    # Prefer loading scheduler from a pretrained directory if available
+    source_path = Path(args.source_pretrained_path)
+    if source_path.is_dir() and (source_path / "scheduler").is_dir():
+        scheduler = DDIBScheduler.from_pretrained(args.source_pretrained_path, subfolder="scheduler")
+    else:
+        scheduler = DDIBScheduler(
+            num_train_timesteps=cfg.diffusion_steps,
+            noise_schedule=cfg.noise_schedule,
+            learn_sigma=cfg.learn_sigma,
+            predict_xstart=cfg.predict_xstart,
+            rescale_timesteps=cfg.rescale_timesteps,
+        )
     pipeline = DDIBPipeline(
         source_unet=source_model,
         target_unet=target_model,

@@ -1,17 +1,26 @@
 #!/usr/bin/env python
 """Sample (inference) script for a trained BiBBDM model on any MAVIC-T task.
 
-Usage::
+Usage (pretrained directory — recommended)::
 
     python -m src.bibbdm_baseline.sample \
         --task sar2ir \
-        --model_path ./outputs/bibbdm_sar2ir/model_epoch_100.pt \
+        --pretrained_model_name_or_path ./ckpt/bibbdm/sar2ir/checkpoint-epoch-100 \
         --split test \
         --output_dir ./samples/sar2ir
 
-The script loads the model checkpoint, reads the evaluation inputs via
-:class:`src.mavic_t_dataset.MavicTImageToImageDataset`, runs the BiBBDM
-pipeline, and saves the generated images.
+Usage (legacy ``.pt`` file)::
+
+    python -m src.bibbdm_baseline.sample \
+        --task sar2ir \
+        --pretrained_model_name_or_path ./outputs/bibbdm_sar2ir/model_epoch_100.pt \
+        --split test \
+        --output_dir ./samples/sar2ir
+
+When a directory is provided the script loads the UNet and scheduler via
+``from_pretrained`` following the HuggingFace *diffusers* convention.
+Legacy ``.pt`` / ``.safetensors`` single-file checkpoints are still
+supported for backward compatibility.
 """
 
 from __future__ import annotations
@@ -43,7 +52,7 @@ from src.bibbdm_baseline.config import (  # noqa: E402
     sar2rgb_config,
 )
 from src.bibbdm_baseline.dataset_wrapper import MavicTBiBBDMDataset  # noqa: E402
-from src.bibbdm_baseline.models import create_model  # noqa: E402
+from src.bibbdm_baseline.models import BiBBDMUNet, create_model  # noqa: E402
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,7 +68,12 @@ _TASK_CONFIG_MAP = {
 def parse_args():
     parser = argparse.ArgumentParser(description="Sample from a trained BiBBDM model.")
     parser.add_argument("--task", type=str, required=True, choices=list(_TASK_CONFIG_MAP.keys()))
-    parser.add_argument("--model_path", type=str, required=True, help="Path to model .pt checkpoint.")
+    parser.add_argument(
+        "--pretrained_model_name_or_path",
+        type=str,
+        required=True,
+        help="Path to a diffusers-style checkpoint directory or a legacy .pt/.safetensors file.",
+    )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=8)
@@ -72,6 +86,55 @@ def parse_args():
     return parser.parse_args()
 
 
+def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str, num_inference_steps: int) -> BiBBDMPipeline:
+    """Load the BiBBDM pipeline from a pretrained directory or legacy file."""
+    path = Path(pretrained_path)
+
+    if path.is_dir():
+        # ---- diffusers from_pretrained path ----
+        logger.info("Loading pipeline from pretrained directory: %s", path)
+        unet = BiBBDMUNet.from_pretrained(pretrained_path, subfolder="unet")
+        scheduler = BiBBDMScheduler.from_pretrained(pretrained_path, subfolder="scheduler")
+        pipeline = BiBBDMPipeline(unet=unet, scheduler=scheduler)
+    else:
+        # ---- legacy single-file checkpoint ----
+        logger.info("Loading model from legacy checkpoint: %s", path)
+        model = create_model(
+            image_size=cfg.resolution,
+            in_channels=cfg.model_channels,
+            num_channels=cfg.num_channels,
+            num_res_blocks=cfg.num_res_blocks,
+            attention_resolutions=cfg.attention_resolutions,
+            dropout=0.0,
+            condition_mode=cfg.condition_mode,
+            channel_mult=cfg.channel_mult,
+            objective=cfg.objective,
+        )
+        if str(path).endswith(".safetensors"):
+            from safetensors.torch import load_file
+            ckpt = load_file(str(path))
+        else:
+            ckpt = torch.load(str(path), map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt)
+
+        scheduler = BiBBDMScheduler(
+            num_timesteps=cfg.num_timesteps,
+            mt_type=cfg.mt_type,
+            m0=cfg.m0,
+            mT=cfg.mT,
+            eta=cfg.eta,
+            var_scale=cfg.var_scale,
+            skip_sample=cfg.skip_sample,
+            sample_step=num_inference_steps,
+            sample_step_type=cfg.sample_step_type,
+            objective=cfg.objective,
+        )
+        pipeline = BiBBDMPipeline(unet=model, scheduler=scheduler)
+
+    pipeline = pipeline.to(device)
+    return pipeline
+
+
 def main():
     args = parse_args()
     if args.seed is not None:
@@ -82,37 +145,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build model
-    logger.info("Loading model …")
-    model = create_model(
-        image_size=cfg.resolution,
-        in_channels=cfg.model_channels,
-        num_channels=cfg.num_channels,
-        num_res_blocks=cfg.num_res_blocks,
-        attention_resolutions=cfg.attention_resolutions,
-        dropout=0.0,
-        condition_mode=cfg.condition_mode,
-        channel_mult=cfg.channel_mult,
-        objective=cfg.objective,
-    )
-    ckpt = torch.load(args.model_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(ckpt)
-    model = model.to(args.device).eval()
-
-    # Build scheduler + pipeline
-    scheduler = BiBBDMScheduler(
-        num_timesteps=cfg.num_timesteps,
-        mt_type=cfg.mt_type,
-        m0=cfg.m0,
-        mT=cfg.mT,
-        eta=cfg.eta,
-        var_scale=cfg.var_scale,
-        skip_sample=cfg.skip_sample,
-        sample_step=args.num_inference_steps,
-        sample_step_type=cfg.sample_step_type,
-        objective=cfg.objective,
-    )
-    pipeline = BiBBDMPipeline(unet=model, scheduler=scheduler)
+    pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device, args.num_inference_steps)
 
     # Load evaluation data
     dataset = MavicTBiBBDMDataset(

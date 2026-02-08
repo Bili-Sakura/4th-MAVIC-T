@@ -1,17 +1,26 @@
 #!/usr/bin/env python
 """Sample (inference) script for a trained CUT model on any MAVIC-T task.
 
-Usage::
+Usage (pretrained directory — recommended)::
 
     python -m src.cut_baseline.sample \
         --task sar2ir \
-        --model_path ./outputs/cut_sar2ir/netG_epoch_400.pt \
+        --pretrained_model_name_or_path ./ckpt/cut/sar2ir/checkpoint-epoch-400 \
         --split test \
         --output_dir ./samples/cut_sar2ir
 
-The script loads the generator checkpoint, reads the evaluation inputs via
-:class:`src.mavic_t_dataset.MavicTImageToImageDataset`, runs a single
-forward pass through the generator, and saves the generated images.
+Usage (legacy ``.pt`` file)::
+
+    python -m src.cut_baseline.sample \
+        --task sar2ir \
+        --pretrained_model_name_or_path ./outputs/cut_sar2ir/netG_epoch_400.pt \
+        --split test \
+        --output_dir ./samples/cut_sar2ir
+
+When a directory is provided the script loads the generator via
+``from_pretrained`` following the HuggingFace *diffusers* convention.
+Legacy ``.pt`` / ``.safetensors`` single-file checkpoints are still
+supported for backward compatibility.
 """
 
 from __future__ import annotations
@@ -40,7 +49,8 @@ from src.cut_baseline.config import (  # noqa: E402
     sar2rgb_config,
 )
 from src.cut_baseline.dataset_wrapper import MavicTCUTDataset  # noqa: E402
-from src.cut_baseline.model import create_generator  # noqa: E402
+from src.cut_baseline.models import CUTGenerator, create_generator  # noqa: E402
+from src.cut_baseline.pipelines import CUTPipeline  # noqa: E402
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,7 +66,12 @@ _TASK_CONFIG_MAP = {
 def parse_args():
     parser = argparse.ArgumentParser(description="Sample from a trained CUT generator.")
     parser.add_argument("--task", type=str, required=True, choices=list(_TASK_CONFIG_MAP.keys()))
-    parser.add_argument("--model_path", type=str, required=True, help="Path to generator .pt checkpoint.")
+    parser.add_argument(
+        "--pretrained_model_name_or_path",
+        type=str,
+        required=True,
+        help="Path to a diffusers-style checkpoint directory or a legacy .pt/.safetensors file.",
+    )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=8)
@@ -64,6 +79,42 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save_npz", action="store_true")
     return parser.parse_args()
+
+
+def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> CUTPipeline:
+    """Load the CUT pipeline from a pretrained directory or legacy file."""
+    path = Path(pretrained_path)
+
+    if path.is_dir():
+        # ---- diffusers from_pretrained path ----
+        logger.info("Loading generator from pretrained directory: %s", path)
+        netG = CUTGenerator.from_pretrained(pretrained_path, subfolder="unet")
+        pipeline = CUTPipeline(generator=netG)
+    else:
+        # ---- legacy single-file checkpoint ----
+        logger.info("Loading generator from legacy checkpoint: %s", path)
+        netG = create_generator(
+            input_nc=cfg.model_channels,
+            output_nc=cfg.model_channels,
+            ngf=cfg.ngf,
+            netG=cfg.netG,
+            norm_type=cfg.normG,
+            use_dropout=not cfg.no_dropout,
+            no_antialias=cfg.no_antialias,
+            no_antialias_up=cfg.no_antialias_up,
+            init_type=cfg.init_type,
+            init_gain=cfg.init_gain,
+        )
+        if str(path).endswith(".safetensors"):
+            from safetensors.torch import load_file
+            ckpt = load_file(str(path))
+        else:
+            ckpt = torch.load(str(path), map_location="cpu", weights_only=True)
+        netG.load_state_dict(ckpt)
+        pipeline = CUTPipeline(generator=netG)
+
+    pipeline = pipeline.to(device)
+    return pipeline
 
 
 def main():
@@ -76,23 +127,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build generator
-    logger.info("Loading CUT generator …")
-    netG = create_generator(
-        input_nc=cfg.model_channels,
-        output_nc=cfg.model_channels,
-        ngf=cfg.ngf,
-        netG=cfg.netG,
-        norm_type=cfg.normG,
-        use_dropout=not cfg.no_dropout,
-        no_antialias=cfg.no_antialias,
-        no_antialias_up=cfg.no_antialias_up,
-        init_type=cfg.init_type,
-        init_gain=cfg.init_gain,
-    )
-    ckpt = torch.load(args.model_path, map_location="cpu", weights_only=True)
-    netG.load_state_dict(ckpt)
-    netG = netG.to(args.device).eval()
+    pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device)
 
     # Load evaluation data
     dataset = MavicTCUTDataset(
@@ -112,11 +147,11 @@ def main():
         for batch in tqdm(dataloader, desc="Sampling"):
             source = batch[0].to(args.device) * 2 - 1  # [0,1] → [-1,1]
 
-            # Single forward pass through the generator
-            fake_B = netG(source)
+            result = pipeline(source_image=source, output_type="pt")
+            images = result.images
 
             # Convert from [-1, 1] to [0, 255] uint8
-            images_uint8 = ((fake_B + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+            images_uint8 = ((images + 1) * 127.5).clamp(0, 255).to(torch.uint8)
             images_uint8 = images_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
             for img_arr in images_uint8:
