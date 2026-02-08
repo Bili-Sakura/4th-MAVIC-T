@@ -379,11 +379,13 @@ class DDIBTrainer:
         # Representation alignment (REPA)
         rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
-            from src.rep_alignment import SARCLIPAlignment, DINOv3SatAlignment
+            from src.rep_alignment import MaRSRGBAlignment, MaRSSARAlignment
             if cfg.task_name == "rgb2ir":
-                rep_alignment_module = DINOv3SatAlignment(cfg.rep_alignment_model_path)
+                # Default for RGB2IR: MaRS-RGB alignment
+                rep_alignment_module = MaRSRGBAlignment(cfg.rep_alignment_model_path)
             else:
-                rep_alignment_module = SARCLIPAlignment(cfg.rep_alignment_model_path)
+                # Default for SAR2EO, SAR2IR, SAR2RGB: MaRS-SAR alignment
+                rep_alignment_module = MaRSSARAlignment(cfg.rep_alignment_model_path)
             rep_alignment_module.build_projector(cfg.model_channels)
             logger.info(
                 f"[{cfg.task_name}] Representation alignment enabled "

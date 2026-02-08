@@ -10,9 +10,6 @@
 #
 # DDBM large config (~404 M params).
 #
-# ⚠️ NOTE: in_channels / out_channels of the UNet should be 32 (latent dim)
-#   rather than the default pixel channel count. This will be updated later.
-#
 # Usage:
 #   bash scripts/train_stage4b_unified_256.sh
 #   # or multi-GPU:

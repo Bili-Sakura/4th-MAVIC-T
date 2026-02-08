@@ -64,10 +64,10 @@ diffusion_unet:
     attention_resolutions: ""          # no self-attention
     channel_mult: "1,2,3,4"
     dropout: 0.0
-    exact_params_1ch: 20_017_153       # DDBM/I2SB sar2eo
-    exact_params_3ch: 20_020_611       # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 20_017_730
-    exact_params_bibbdm_3ch: 20_022_342
+    exact_params_1ch: 20017153       # DDBM/I2SB sar2eo
+    exact_params_3ch: 20020611       # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 20017730
+    exact_params_bibbdm_3ch: 20022342
     recommended_resolution: "32–128"
     notes: >
       Minimal model for rapid iteration.  No attention layers keep
@@ -86,10 +86,10 @@ diffusion_unet:
     attention_resolutions: "32,16,8"
     channel_mult: "1,1,2,2,4,4"       # auto-detected when left empty
     dropout: 0.0
-    exact_params_1ch: 120_246_401      # DDBM/I2SB sar2eo
-    exact_params_3ch: 120_253_315      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 120_247_554
-    exact_params_bibbdm_3ch: 120_256_774
+    exact_params_1ch: 120246401      # DDBM/I2SB sar2eo
+    exact_params_3ch: 120253315      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 120247554
+    exact_params_bibbdm_3ch: 120256774
     recommended_resolution: "128–256"
     notes: >
       Current project default (~120 M for sar2eo at 256×256).
@@ -106,10 +106,10 @@ diffusion_unet:
     attention_resolutions: "32,16,8"
     channel_mult: "1,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 404_284_161      # DDBM/I2SB sar2eo
-    exact_params_3ch: 404_297_987      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 404_286_466
-    exact_params_bibbdm_3ch: 404_304_902
+    exact_params_1ch: 404284161      # DDBM/I2SB sar2eo
+    exact_params_3ch: 404297987      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 404286466
+    exact_params_bibbdm_3ch: 404304902
     recommended_resolution: "256–512"
     notes: >
       Significantly wider backbone.  Expect ~3× the training time and
@@ -127,10 +127,10 @@ diffusion_unet:
     attention_resolutions: "32,16,8"
     channel_mult: "1,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 909_497_473      # DDBM/I2SB sar2eo
-    exact_params_3ch: 909_518_211      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 909_500_930
-    exact_params_bibbdm_3ch: 909_528_582
+    exact_params_1ch: 909497473      # DDBM/I2SB sar2eo
+    exact_params_3ch: 909518211      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 909500930
+    exact_params_bibbdm_3ch: 909528582
     recommended_resolution: "512–1024"
     notes: >
       Very large model; requires multi-GPU training and ≥40 GB VRAM
@@ -205,10 +205,10 @@ ddib:
     attention_resolutions: ""
     channel_mult: "1,2,3,4"
     dropout: 0.0
-    exact_params_per_model_1ch: 20_016_577
-    exact_params_per_model_3ch: 20_018_883
-    exact_params_total_1ch: 40_033_154
-    exact_params_total_3ch: 40_037_766
+    exact_params_per_model_1ch: 20016577
+    exact_params_per_model_3ch: 20018883
+    exact_params_total_1ch: 40033154
+    exact_params_total_3ch: 40037766
     recommended_resolution: "32–128"
     notes: >
       Two small unconditional UNets.  For fast prototyping only.
@@ -219,10 +219,10 @@ ddib:
     attention_resolutions: "32,16,8"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_per_model_1ch: 120_245_249
-    exact_params_per_model_3ch: 120_249_859
-    exact_params_total_1ch: 240_490_498
-    exact_params_total_3ch: 240_499_718
+    exact_params_per_model_1ch: 120245249
+    exact_params_per_model_3ch: 120249859
+    exact_params_total_1ch: 240490498
+    exact_params_total_3ch: 240499718
     recommended_resolution: "128–256"
     notes: >
       Current project default (~120 M per model, ~240 M total).
@@ -233,10 +233,10 @@ ddib:
     attention_resolutions: "32,16,8"
     channel_mult: "1,2,4,4"
     dropout: 0.0
-    exact_params_per_model_1ch: 404_281_857
-    exact_params_per_model_3ch: 404_291_075
-    exact_params_total_1ch: 808_563_714
-    exact_params_total_3ch: 808_582_150
+    exact_params_per_model_1ch: 404281857
+    exact_params_per_model_3ch: 404291075
+    exact_params_total_1ch: 808563714
+    exact_params_total_3ch: 808582150
     recommended_resolution: "256–512"
     notes: >
       Two large UNets; requires substantial VRAM for both models
@@ -248,10 +248,10 @@ ddib:
     attention_resolutions: "32,16,8"
     channel_mult: "1,2,4,4"
     dropout: 0.0
-    exact_params_per_model_1ch: 909_494_017
-    exact_params_per_model_3ch: 909_507_843
-    exact_params_total_1ch: 1_818_988_034
-    exact_params_total_3ch: 1_819_015_686
+    exact_params_per_model_1ch: 909494017
+    exact_params_per_model_3ch: 909507843
+    exact_params_total_1ch: 1818988034
+    exact_params_total_3ch: 1819015686
     recommended_resolution: "512–1024"
     notes: >
       Very large dual-model setup.  Multi-GPU mandatory.
@@ -310,9 +310,9 @@ cut:
     n_blocks: 6
     n_layers_D: 2
     netG: "resnet_6blocks"
-    exact_gen_params_1ch: 1_958_785
-    exact_disc_params_1ch: 166_625
-    exact_total_params_1ch: 2_125_410
+    exact_gen_params_1ch: 1958785
+    exact_disc_params_1ch: 166625
+    exact_total_params_1ch: 2125410
     recommended_resolution: "64–128"
     notes: >
       Lightweight generator for quick experiments.  Fewer residual
@@ -324,9 +324,9 @@ cut:
     n_blocks: 9
     n_layers_D: 3
     netG: "resnet_9blocks"
-    exact_gen_params_1ch: 11_365_633
-    exact_disc_params_1ch: 2_762_689
-    exact_total_params_1ch: 14_128_322
+    exact_gen_params_1ch: 11365633
+    exact_disc_params_1ch: 2762689
+    exact_total_params_1ch: 14128322
     recommended_resolution: "128–256"
     notes: >
       Current project default (~14.1 M total).  Standard CUT
@@ -338,9 +338,9 @@ cut:
     n_blocks: 9
     n_layers_D: 3
     netG: "resnet_9blocks"
-    exact_gen_params_1ch: 45_439_489
-    exact_disc_params_1ch: 11_030_401
-    exact_total_params_1ch: 56_469_890
+    exact_gen_params_1ch: 45439489
+    exact_disc_params_1ch: 11030401
+    exact_total_params_1ch: 56469890
     recommended_resolution: "256–512"
     notes: >
       Doubled filter widths.  Better detail capture at higher
@@ -352,9 +352,9 @@ cut:
     n_blocks: 9
     n_layers_D: 4
     netG: "resnet_9blocks"
-    exact_gen_params_1ch: 181_711_873
-    exact_disc_params_1ch: 111_191_809
-    exact_total_params_1ch: 292_903_682
+    exact_gen_params_1ch: 181711873
+    exact_disc_params_1ch: 111191809
+    exact_total_params_1ch: 292903682
     recommended_resolution: "512–1024"
     notes: >
       Very wide generator and deeper discriminator (4 layers vs default

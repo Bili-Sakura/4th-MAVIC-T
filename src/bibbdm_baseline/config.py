@@ -128,7 +128,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         train_batch_size=32,
         eval_batch_size=16,
         latent_vae_path="./models/BiliSakura/VAEs",
-        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
+        rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -148,7 +148,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         train_batch_size=8,
         eval_batch_size=4,
         latent_vae_path="./models/BiliSakura/VAEs",
-        rep_alignment_model_path="./models/WanderRainy/MaRS-RGB",
+        rep_alignment_model_path="./models/BiliSakura/MaRS-B-RGB",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -168,7 +168,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         train_batch_size=8,
         eval_batch_size=4,
         latent_vae_path="./models/BiliSakura/VAEs",
-        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
+        rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -188,7 +188,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         train_batch_size=8,
         eval_batch_size=4,
         latent_vae_path="./models/BiliSakura/VAEs",
-        rep_alignment_model_path="./models/WanderRainy/MaRS-SAR",
+        rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)

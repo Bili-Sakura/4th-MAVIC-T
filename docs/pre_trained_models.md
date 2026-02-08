@@ -10,15 +10,27 @@ All pre-trained models are stored under the `models/` directory with the followi
 
 **Path:** `models/BiliSakura/SARCLIP-ViT-L-14`
 
-Vision-language model (ViT-L/14) fine-tuned for SAR (Synthetic Aperture Radar) imagery understanding. Used for SAR feature extraction and cross-modal representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks.
+Vision-language model (ViT-L/14) fine-tuned for SAR (Synthetic Aperture Radar) imagery understanding. Can be used as an alternative encoder for representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks.
 
-### 2. DINOv3-sat
+### 2. MaRS-SAR
+
+**Path:** `models/BiliSakura/MaRS-B-SAR`
+
+SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for SAR (Synthetic Aperture Radar) imagery. Used as the default encoder for representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks. Loaded via `timm` library.
+
+### 3. MaRS-RGB
+
+**Path:** `models/BiliSakura/MaRS-B-RGB`
+
+SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for RGB imagery. Used as the default encoder for representation alignment in the RGB2IR task. Loaded via `timm` library.
+
+### 4. DINOv3-sat
 
 **Path:** `models/facebook/dinov3-vitl16-pretrain-sat493m`
 
-Self-supervised vision transformer (ViT-L) pre-trained on satellite imagery. Provides robust visual features for remote sensing tasks. Used for representation alignment in the RGB2IR task.
+Self-supervised vision transformer (ViT-L) pre-trained on satellite imagery. Provides robust visual features for remote sensing tasks. Can be used as an alternative encoder for representation alignment in the RGB2IR task.
 
-### 3. VAEs Collection
+### 5. VAEs Collection
 
 **Path:** `models/BiliSakura/VAEs`
 
@@ -39,12 +51,14 @@ frozen pre-trained encoders above to inject semantic knowledge into the
 translation model during training.  The technique is **architecture-agnostic**
 and works with any baseline (Pix2Pix-Turbo, CUT, DDBM).
 
-| Task | Encoder | Config field |
-|------|---------|-------------|
-| `sar2eo` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
-| `sar2ir` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
-| `sar2rgb` | SARCLIP | `rep_alignment_model_path="./models/BiliSakura/SARCLIP-ViT-L-14"` |
-| `rgb2ir` | DINOv3-sat | `rep_alignment_model_path="./models/facebook/dinov3-vitl16-pretrain-sat493m"` |
+| Task | Default Encoder | Config field |
+|------|-----------------|-------------|
+| `sar2eo` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
+| `sar2ir` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
+| `sar2rgb` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
+| `rgb2ir` | MaRS-RGB | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-RGB"` |
+
+**Alternative encoders:** SARCLIP (`./models/BiliSakura/SARCLIP-ViT-L-14`) can be used for SAR tasks, and DINOv3-sat (`./models/facebook/dinov3-vitl16-pretrain-sat493m`) can be used for RGB2IR task by overriding the `rep_alignment_model_path` config field.
 
 Enable via `use_rep_alignment=True` in the task config.  The alignment loss
 weight is controlled by `lambda_rep_alignment` (default 1.0).

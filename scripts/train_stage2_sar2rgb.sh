@@ -2,9 +2,6 @@
 # Stage 2 — SAR→RGB — Latent-space modelling, scaled-up model
 # DDBM large config for latent shape (128, 128, 32)
 #
-# ⚠️ NOTE: in_channels / out_channels of the UNet should be 32 (latent dim)
-#   rather than the default pixel channel count. This will be updated later.
-#
 # Usage:
 #   bash scripts/train_stage2_sar2rgb.sh
 #   # or multi-GPU:

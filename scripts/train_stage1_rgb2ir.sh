@@ -2,9 +2,6 @@
 # Stage 1 — RGB→IR — Latent-space modelling with frozen pre-trained VAE
 # DDBM medium config for latent shape (128, 128, 32)
 #
-# ⚠️ NOTE: in_channels / out_channels of the UNet should be 32 (latent dim)
-#   rather than the default pixel channel count. This will be updated later.
-#
 # Usage:
 #   bash scripts/train_stage1_rgb2ir.sh
 #   # or multi-GPU:
