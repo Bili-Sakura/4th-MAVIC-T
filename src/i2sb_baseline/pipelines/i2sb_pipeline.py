@@ -17,6 +17,7 @@ from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from ..schedulers.i2sb_scheduler import I2SBScheduler
+from ..models import I2SBUNet
 
 
 @dataclass
@@ -59,7 +60,7 @@ class I2SBPipeline(DiffusionPipeline):
 
     def __init__(
         self,
-        unet: torch.nn.Module,
+        unet: I2SBUNet,
         scheduler: I2SBScheduler,
     ):
         super().__init__()

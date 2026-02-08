@@ -31,6 +31,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 
+from diffusers import ModelMixin
+from diffusers.configuration_utils import ConfigMixin, register_to_config
+
 
 # ---------------------------------------------------------------------------
 # Utility helpers
@@ -94,8 +97,12 @@ class _ResnetBlock(nn.Module):
         return x + self.conv_block(x)
 
 
-class CUTGenerator(nn.Module):
+class CUTGenerator(ModelMixin, ConfigMixin):
     """ResNet-based generator following the CUT paper architecture.
+
+    Inherits from :class:`~diffusers.ModelMixin` and
+    :class:`~diffusers.ConfigMixin` so that instances can be persisted and
+    restored with ``save_pretrained`` / ``from_pretrained``.
 
     When called with ``layers`` and ``encode_only=True`` the forward pass
     returns a list of intermediate feature maps (used by PatchNCE).
@@ -124,6 +131,7 @@ class CUTGenerator(nn.Module):
         Gain for weight initialisation.
     """
 
+    @register_to_config
     def __init__(
         self,
         input_nc: int = 3,

@@ -5,8 +5,6 @@ generator, following the diffusers-style pipeline pattern established
 in :mod:`src.ddbm_baseline.pipelines`.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
@@ -14,9 +12,14 @@ import numpy as np
 import torch
 from PIL import Image
 
+from diffusers import DiffusionPipeline
+from diffusers.utils import BaseOutput
+
+from ..models import CUTGenerator
+
 
 @dataclass
-class CUTPipelineOutput:
+class CUTPipelineOutput(BaseOutput):
     """Output class for CUT pipeline.
 
     Attributes
@@ -28,13 +31,18 @@ class CUTPipelineOutput:
     images: Union[List[Image.Image], np.ndarray, torch.Tensor]
 
 
-class CUTPipeline:
+class CUTPipeline(DiffusionPipeline):
     """Single-pass inference pipeline for Contrastive Unpaired Translation.
 
     Unlike diffusion-based pipelines, CUT performs image translation in a
     single forward pass through the generator network.  This pipeline wraps
     the generator with a consistent API for loading, preprocessing, and
     postprocessing.
+
+    Inherits from :class:`~diffusers.DiffusionPipeline` so that checkpoints
+    can be loaded via ``from_pretrained`` following the HuggingFace
+    *diffusers* convention.  Device management (``to()``) and module
+    registration are provided by the parent class.
 
     Parameters
     ----------
@@ -45,17 +53,16 @@ class CUTPipeline:
     -------
     ::
 
-        from src.cut_baseline.models import create_generator
         from src.cut_baseline.pipelines import CUTPipeline
 
-        netG = create_generator(input_nc=1, output_nc=1)
-        netG.load_state_dict(torch.load("netG_epoch_400.pt"))
-        pipeline = CUTPipeline(generator=netG)
+        # One-liner loading from a pretrained directory (recommended):
+        pipeline = CUTPipeline.from_pretrained("./ckpt/cut/sar2ir/checkpoint-epoch-400")
         output = pipeline(source_image=my_tensor)
     """
 
-    def __init__(self, generator: torch.nn.Module) -> None:
-        self.generator = generator
+    def __init__(self, generator: CUTGenerator) -> None:
+        super().__init__()
+        self.register_modules(generator=generator)
 
     @property
     def device(self) -> torch.device:
@@ -66,16 +73,6 @@ class CUTPipeline:
     def dtype(self) -> torch.dtype:
         """Get the dtype of the pipeline."""
         return next(self.generator.parameters()).dtype
-
-    def to(self, device: Union[str, torch.device]) -> "CUTPipeline":
-        """Move the pipeline to a device."""
-        self.generator = self.generator.to(device)
-        return self
-
-    def eval(self) -> "CUTPipeline":
-        """Set the generator to eval mode."""
-        self.generator.eval()
-        return self
 
     def prepare_inputs(
         self,

@@ -205,6 +205,7 @@ def save_checkpoint_diffusers(
     scheduler: Optional[Any] = None,
     *,
     model_name: str = "unet",
+    pipeline_class_name: Optional[str] = None,
     extra_state_dicts: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
     model_index: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -220,6 +221,10 @@ def save_checkpoint_diffusers(
             scheduler/
                 scheduler_config.json
 
+    When the *model* is a :class:`~diffusers.ModelMixin` instance its
+    ``save_pretrained`` method is used, producing a ``config.json`` that
+    is compatible with ``from_pretrained``.
+
     Parameters
     ----------
     save_dir : str
@@ -230,6 +235,9 @@ def save_checkpoint_diffusers(
         A diffusers-compatible scheduler with a ``save_config`` method.
     model_name : str
         Sub-directory name for the main model (default ``"unet"``).
+    pipeline_class_name : str, optional
+        Name of the pipeline class to write in ``model_index.json``
+        (e.g. ``"DDBMPipeline"``).  Defaults to the model class name.
     extra_state_dicts : dict, optional
         Additional ``{folder_name: state_dict}`` to save alongside the main
         model (e.g. ``{"vae": vae.state_dict()}``).
@@ -241,17 +249,20 @@ def save_checkpoint_diffusers(
 
     # ---- main model ----
     model_dir = os.path.join(save_dir, model_name)
-    os.makedirs(model_dir, exist_ok=True)
-    _save_safetensors(model.state_dict(), os.path.join(model_dir, "diffusion_pytorch_model.safetensors"))
-
-    # Write a minimal config.json for the model sub-folder
-    model_config: Dict[str, Any] = {}
-    if hasattr(model, "config") and hasattr(model.config, "to_dict"):
-        model_config = model.config.to_dict()
-    elif hasattr(model, "config") and isinstance(model.config, dict):
-        model_config = model.config
-    with open(os.path.join(model_dir, "config.json"), "w") as f:
-        json.dump(model_config, f, indent=2, default=str)
+    if hasattr(model, "save_pretrained"):
+        # ModelMixin path – writes config.json + safetensors in one call
+        model.save_pretrained(model_dir)
+    else:
+        os.makedirs(model_dir, exist_ok=True)
+        _save_safetensors(model.state_dict(), os.path.join(model_dir, "diffusion_pytorch_model.safetensors"))
+        # Write a minimal config.json for the model sub-folder
+        model_config: Dict[str, Any] = {}
+        if hasattr(model, "config") and hasattr(model.config, "to_dict"):
+            model_config = model.config.to_dict()
+        elif hasattr(model, "config") and isinstance(model.config, dict):
+            model_config = model.config
+        with open(os.path.join(model_dir, "config.json"), "w") as f:
+            json.dump(model_config, f, indent=2, default=str)
 
     # ---- scheduler ----
     if scheduler is not None:
@@ -275,8 +286,9 @@ def save_checkpoint_diffusers(
 
     # ---- model_index.json ----
     if model_index is None:
+        cls_name = pipeline_class_name if pipeline_class_name else type(model).__name__
         model_index = {
-            "_class_name": type(model).__name__,
+            "_class_name": cls_name,
             "_diffusers_version": "0.36.0",
             model_name: [type(model).__module__, type(model).__name__],
         }

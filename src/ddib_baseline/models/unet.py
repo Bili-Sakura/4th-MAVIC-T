@@ -18,7 +18,8 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from diffusers import UNet2DModel
+from diffusers import ModelMixin, UNet2DModel
+from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
@@ -32,8 +33,12 @@ def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
     }.get(resolution, (1, 2, 3, 4))
 
 
-class DDIBUNet(nn.Module):
+class DDIBUNet(ModelMixin, ConfigMixin):
     """Unconditional UNet for DDIB diffusion models.
+
+    Inherits from :class:`~diffusers.ModelMixin` and
+    :class:`~diffusers.ConfigMixin` so that instances can be persisted and
+    restored with ``save_pretrained`` / ``from_pretrained``.
 
     Parameters
     ----------
@@ -55,6 +60,7 @@ class DDIBUNet(nn.Module):
         Per-level channel multipliers.  Auto-detected if ``None``.
     """
 
+    @register_to_config
     def __init__(
         self,
         image_size: int = 256,

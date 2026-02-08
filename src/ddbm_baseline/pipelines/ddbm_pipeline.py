@@ -17,6 +17,7 @@ from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from ..schedulers.ddbm_scheduler import DDBMScheduler
+from ..models import DDBMUNet
 
 
 @dataclass
@@ -59,7 +60,7 @@ class DDBMPipeline(DiffusionPipeline):
 
     def __init__(
         self,
-        unet: torch.nn.Module,
+        unet: DDBMUNet,
         scheduler: DDBMScheduler,
     ):
         super().__init__()
