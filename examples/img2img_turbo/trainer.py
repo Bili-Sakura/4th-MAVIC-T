@@ -88,14 +88,18 @@ class Pix2PixTurboTrainer:
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
         )
-        # val_ds = MavicTTurboDataset(
-        #     task=self.cfg.task_name,
-        #     split="val",
-        #     resolution=self.cfg.resolution,
-        #     model_channels=self.cfg.model_channels,
-        #     with_target=False,
-        # )
-        val_ds = None  # Disabled: we only work with train set for now
+        val_ds = None
+        if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
+            try:
+                val_ds = MavicTTurboDataset(
+                    task=self.cfg.task_name,
+                    split="val",
+                    resolution=self.cfg.resolution,
+                    model_channels=self.cfg.model_channels,
+                    with_target=True,
+                )
+            except (ValueError, FileNotFoundError, RuntimeError):
+                logger.warning("Val split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model -------------------------------------------------------------
@@ -167,6 +171,44 @@ class Pix2PixTurboTrainer:
             loss = loss + lambda_rep_alignment * rep_loss
 
         return loss
+
+    # ----- validation --------------------------------------------------------
+
+    @torch.no_grad()
+    def log_validation(self, model, prompt_embeds, val_dataloader, accelerator, global_step):
+        """Run inference on the validation set and log FID + metrics."""
+        from src.utils.metrics import MetricCalculator
+
+        logger.info("Running validation at step %d …", global_step)
+        was_training = model.training
+        model.eval()
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
+
+        for batch in val_dataloader:
+            target, source = batch
+            source = source.to(accelerator.device) * 2 - 1
+            target = target.to(accelerator.device)
+
+            bsz = source.shape[0]
+            batch_embeds = prompt_embeds.expand(bsz, -1, -1)
+            output = model(source, batch_embeds)
+            generated = (output + 1) * 0.5
+            generated = generated.clamp(0, 1)
+            metric_calc.update(generated, target)
+
+        results = metric_calc.compute()
+        logs = {"val/lpips": results.lpips, "val/l1": results.l1}
+        if results.fid is not None:
+            logs["val/fid"] = results.fid
+        if results.score is not None:
+            logs["val/task_score"] = results.score
+        accelerator.log(logs, step=global_step)
+        logger.info("Validation step %d: %s", global_step, results)
+
+        if was_training:
+            model.train()
+        return results
 
     # ----- main training loop ------------------------------------------------
 
@@ -282,13 +324,12 @@ class Pix2PixTurboTrainer:
             num_workers=cfg.dataloader_num_workers,
             drop_last=True,
         )
-        # val_dataloader is disabled - we only use train set for now
-        # val_dataloader = DataLoader(
-        #     val_dataset,
-        #     batch_size=cfg.eval_batch_size,
-        #     shuffle=False,
-        #     num_workers=cfg.dataloader_num_workers,
-        # ) if val_dataset is not None else None
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=cfg.eval_batch_size,
+            shuffle=False,
+            num_workers=cfg.dataloader_num_workers,
+        ) if val_dataset is not None else None
 
         from diffusers.optimization import get_scheduler as get_lr_scheduler
         total_steps = cfg.max_train_steps if cfg.max_train_steps else len(train_dataloader) * cfg.num_epochs
@@ -391,6 +432,15 @@ class Pix2PixTurboTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
+                    # Step-based validation
+                    if (
+                        val_dataloader is not None
+                        and cfg.validation_steps is not None
+                        and global_step % cfg.validation_steps == 0
+                        and accelerator.is_main_process
+                    ):
+                        self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
+
                     if (
                         checkpointing_steps is not None
                         and global_step % checkpointing_steps == 0
@@ -414,6 +464,15 @@ class Pix2PixTurboTrainer:
 
                 if global_step >= cfg.max_train_steps:
                     break
+
+            # Epoch-based validation
+            if (
+                val_dataloader is not None
+                and cfg.validation_epochs is not None
+                and (epoch + 1) % cfg.validation_epochs == 0
+                and accelerator.is_main_process
+            ):
+                self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
 
             # Save diffusers-style checkpoint at epoch boundary
             if (
