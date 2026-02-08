@@ -166,7 +166,7 @@ class TestScheduler:
         """Verify the beta schedule is symmetric (mirrored)."""
         half = scheduler.interval // 2
         betas = scheduler.betas.numpy()
-        assert pytest.approx(betas[:half], abs=1e-8) == list(betas[half:][::-1])
+        assert list(betas[:half]) == pytest.approx(list(betas[half:][::-1]), abs=1e-8)
 
 
 # ---------------------------------------------------------------------------
