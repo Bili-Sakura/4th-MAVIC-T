@@ -13,7 +13,7 @@
 | **CUT** | ResNet Generator + PatchGAN Discriminator | 14.14M | 14.14M | 2 |
 | **Img2Img-Turbo** | SD-Turbo (LoRA-adapted) | ~981M | ~5M (LoRA only) | 1 |
 
-> **Note**: Parameter counts above use the **default `TaskConfig()`** values (resolution=256, model\_channels=1 for diffusion baselines; model\_channels=3 for CUT). Task-specific configs (e.g. `sar2eo`, `rgb2ir`) may change `model_channels` and `resolution`, which affects the parameter count.
+> **Note**: Parameter counts above use the **default `TaskConfig()`** values (resolution=256, `model_channels`=1 for diffusion baselines; `model_channels`=3 for CUT). Task-specific configs (e.g. `sar2eo`, `rgb2ir`) may change `model_channels` and `resolution`, which affects the parameter count.
 
 ---
 
@@ -249,7 +249,7 @@
 
 ## Notes
 
-- **Channel multiplier**: When `channel_mult` is empty (default), it is auto-detected from the resolution. For 256px and 512px: `(1,1,2,2,4,4)`. For 128px: `(1,1,2,3,4)`. For 64px and 32px: `(1,2,3,4)`. For 1024px (used in `rgb2ir`, `sar2ir`, `sar2rgb` tasks): falls back to `(1,2,3,4)`.
+- **Channel multiplier**: When `channel_mult` is empty (default), it is auto-detected from the resolution. For 256px and 512px: `(1,1,2,2,4,4)`. For 128px: `(1,1,2,3,4)`. For 64px and 32px: `(1,2,3,4)`. For 1024px (used in `rgb2ir`, `sar2ir`, `sar2rgb` tasks): uses the generic default `(1,2,3,4)` since no explicit mapping exists for that resolution.
 - **Conditioning**: DDBM, I2SB, and BiBBDM concatenate the source image along the channel dimension (`condition_mode="concat"`). DDIB is unconditional (no source conditioning). CUT and Img2Img-Turbo use their own conditioning mechanisms.
 - **DDIB trains 2 models**: One for the source domain and one for the target domain. Translation is performed via DDIM reverse encoding → DDIM forward decoding through a shared latent space.
 - **BiBBDM dual output**: With the default `"dlns"` objective, the UNet outputs `2 × in_channels` (predicting both `(b-a)` difference and noise simultaneously).
