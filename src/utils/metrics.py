@@ -29,16 +29,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from torchmetrics.image import (
-    LearnedPerceptualImagePatchSimilarity,
-)
+# LPIPS (torchmetrics hides it under image.lpip)
+from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
 # FID (optional – requires torchvision for InceptionV3 weights)
 try:
@@ -227,13 +226,13 @@ class MetricCalculator:
             except Exception:
                 self._compute_fid = False
 
-        self._l1_values: List[float] = []
-        self._num_updates: int = 0
+        self._l1_total: float = 0.0
+        self._num_samples: int = 0
 
     def reset(self) -> None:
         """Clear all accumulated state."""
-        self._l1_values.clear()
-        self._num_updates = 0
+        self._l1_total = 0.0
+        self._num_samples = 0
         self._lpips.reset()
         if self._fid is not None:
             self._fid.reset()
@@ -250,8 +249,10 @@ class MetricCalculator:
         predictions = predictions.clamp(0, 1)
         targets = targets.clamp(0, 1)
 
-        # L1
-        self._l1_values.append(F.l1_loss(predictions, targets).item())
+        # L1 – accumulate weighted by batch size to avoid per-batch bias
+        batch_size = predictions.shape[0]
+        self._l1_total += F.l1_loss(predictions, targets, reduction="sum").item()
+        self._num_samples += batch_size
 
         # LPIPS (expects [-1, 1], 3 channels) – accumulates internally
         preds_lp = predictions * 2 - 1
@@ -271,11 +272,9 @@ class MetricCalculator:
             self._fid.update(tgts_uint8, real=True)
             self._fid.update(preds_uint8, real=False)
 
-        self._num_updates += 1
-
     def compute(self) -> MetricResults:
         """Return aggregated :class:`MetricResults`."""
-        if self._num_updates == 0:
+        if self._num_samples == 0:
             return MetricResults(lpips=0.0, l1=0.0, fid=None)
 
         fid_val: Optional[float] = None
@@ -287,7 +286,7 @@ class MetricCalculator:
 
         return MetricResults(
             lpips=self._lpips.compute().item(),
-            l1=float(np.mean(self._l1_values)),
+            l1=float(self._l1_total / self._num_samples),
             fid=fid_val,
         )
 

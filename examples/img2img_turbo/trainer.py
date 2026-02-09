@@ -196,7 +196,9 @@ class Pix2PixTurboTrainer:
 
             bsz = source_inp.shape[0]
             batch_embeds = prompt_embeds.expand(bsz, -1, -1)
-            output = model(source_inp, batch_embeds)
+            # Batched inference + batched metric update for speed
+            with accelerator.autocast():
+                output = model(source_inp, batch_embeds)
             generated = (output + 1) * 0.5
             generated = generated.clamp(0, 1)
             metric_calc.update(generated, source_01)

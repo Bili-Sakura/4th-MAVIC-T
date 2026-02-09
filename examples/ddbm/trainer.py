@@ -341,13 +341,15 @@ class DDBMTrainer:
             source_01 = source.to(accelerator.device)        # [0,1] for metrics
             source_inp = source_01 * 2 - 1                   # [0,1] → [-1,1]
 
-            result = pipeline(
-                source_image=source_inp,
-                num_inference_steps=cfg.num_inference_steps,
-                guidance=cfg.guidance,
-                churn_step_ratio=cfg.churn_step_ratio,
-                output_type="pt",
-            )
+            # Batched inference + batched metric update for speed
+            with accelerator.autocast():
+                result = pipeline(
+                    source_image=source_inp,
+                    num_inference_steps=cfg.num_inference_steps,
+                    guidance=cfg.guidance,
+                    churn_step_ratio=cfg.churn_step_ratio,
+                    output_type="pt",
+                )
             generated = (result.images + 1) * 0.5  # [-1,1] → [0,1]
             generated = generated.clamp(0, 1)
             metric_calc.update(generated, source_01)

@@ -151,12 +151,14 @@ class DDIBTrainer:
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
 
-            result = pipeline(
-                source_image=source_inp,
-                num_inference_steps=cfg.num_inference_steps,
-                clip_denoised=True,
-                output_type="pt",
-            )
+            # Batched inference + batched metric update for speed
+            with accelerator.autocast():
+                result = pipeline(
+                    source_image=source_inp,
+                    num_inference_steps=cfg.num_inference_steps,
+                    clip_denoised=True,
+                    output_type="pt",
+                )
             generated = (result.images + 1) * 0.5
             generated = generated.clamp(0, 1)
             metric_calc.update(generated, source_01)
