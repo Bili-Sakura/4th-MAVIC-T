@@ -14,13 +14,13 @@ Vision-language model (ViT-L/14) fine-tuned for SAR (Synthetic Aperture Radar) i
 
 ### 2. MaRS-SAR
 
-**Path:** `models/BiliSakura/MaRS-B-SAR`
+**Path:** `models/BiliSakura/MaRS-Base-SAR`
 
 SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for SAR (Synthetic Aperture Radar) imagery. Used as the default encoder for representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks. Loaded via `timm` library.
 
 ### 3. MaRS-RGB
 
-**Path:** `models/BiliSakura/MaRS-B-RGB`
+**Path:** `models/BiliSakura/MaRS-Base-RGB`
 
 SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for RGB imagery. Used as the default encoder for representation alignment in the RGB2IR task. Loaded via `timm` library.
 
@@ -53,10 +53,10 @@ and works with any baseline (Pix2Pix-Turbo, CUT, DDBM).
 
 | Task | Default Encoder | Config field |
 |------|-----------------|-------------|
-| `sar2eo` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
-| `sar2ir` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
-| `sar2rgb` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-SAR"` |
-| `rgb2ir` | MaRS-RGB | `rep_alignment_model_path="./models/BiliSakura/MaRS-B-RGB"` |
+| `sar2eo` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
+| `sar2ir` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
+| `sar2rgb` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
+| `rgb2ir` | MaRS-RGB | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB"` |
 
 **Alternative encoders:** SARCLIP (`./models/BiliSakura/SARCLIP-ViT-L-14`) can be used for SAR tasks, and DINOv3-sat (`./models/facebook/dinov3-vitl16-pretrain-sat493m`) can be used for RGB2IR task by overriding the `rep_alignment_model_path` config field.
 

@@ -53,19 +53,19 @@ class TestTaskConfigPaths:
 
     def test_rgb2ir_has_mars_rgb_path(self):
         cfg = rgb2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-RGB"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
 
     def test_sar2eo_has_mars_sar_path(self):
         cfg = sar2eo_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
 
     def test_sar2ir_has_mars_sar_path(self):
         cfg = sar2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
 
     def test_sar2rgb_has_mars_sar_path(self):
         cfg = sar2rgb_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-B-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
 
     def test_all_tasks_have_vae_path(self):
         """All tasks should have latent_vae_path set for optional latent modeling."""

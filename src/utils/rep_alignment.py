@@ -13,12 +13,12 @@ Four concrete strategies are provided:
 * **MaRS-RGB alignment** (default for RGB2IR) – A frozen MaRS-RGB SwinV2
   image encoder extracts features from the input RGB image.  Loaded via
   ``timm`` with ``swinv2_base_window8_256``.
-  Checkpoint: ``models/BiliSakura/MaRS-B-RGB``.
+  Checkpoint: ``models/BiliSakura/MaRS-Base-RGB``.
 
 * **MaRS-SAR alignment** (default for SAR2EO, SAR2IR, SAR2RGB) – A frozen
   MaRS-SAR SwinV2 image encoder extracts features from the input SAR
   image.  Loaded via ``timm`` with ``swinv2_base_window8_256``.
-  Checkpoint: ``models/BiliSakura/MaRS-B-SAR``.
+  Checkpoint: ``models/BiliSakura/MaRS-Base-SAR``.
 
 * **SARCLIP alignment** – for SAR2EO, SAR2IR, SAR2RGB tasks.  A frozen
   SARCLIP ViT-L/14 image encoder extracts features from the input SAR
@@ -224,7 +224,7 @@ class MaRSRGBAlignment(nn.Module):
 
     def __init__(
         self,
-        model_path: str = "./models/BiliSakura/MaRS-B-RGB",
+        model_path: str = "./models/BiliSakura/MaRS-Base-RGB",
         projector_dim: Optional[int] = None,
         encoder_dim: Optional[int] = None,
         timm_model_name: str = "swinv2_base_window8_256",
@@ -293,7 +293,7 @@ class MaRSSARAlignment(nn.Module):
 
     def __init__(
         self,
-        model_path: str = "./models/BiliSakura/MaRS-B-SAR",
+        model_path: str = "./models/BiliSakura/MaRS-Base-SAR",
         projector_dim: Optional[int] = None,
         encoder_dim: Optional[int] = None,
         timm_model_name: str = "swinv2_base_window8_256",
