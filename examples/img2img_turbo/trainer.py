@@ -24,6 +24,8 @@ import math
 import os
 import sys
 from pathlib import Path
+import numpy as np
+from PIL import Image
 
 import torch
 import torch.nn.functional as F
@@ -75,9 +77,7 @@ class Pix2PixTurboTrainer:
     def build_datasets(self):
         """Return ``(train_dataset, val_dataset)``.
         
-        Currently val_dataset is set to None as we only use the train set.
-        Can be enabled later by splitting a validation set from the training data.
-        """
+        Validation now uses the *test* split for sample generation."""
         train_ds = MavicTTurboDataset(
             task=self.cfg.task_name,
             split="train",
@@ -93,13 +93,13 @@ class Pix2PixTurboTrainer:
             try:
                 val_ds = MavicTTurboDataset(
                     task=self.cfg.task_name,
-                    split="val",
+                    split="test",
                     resolution=self.cfg.resolution,
                     model_channels=self.cfg.model_channels,
                     with_target=False,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
-                logger.warning("Val split unavailable for %s – skipping validation", self.cfg.task_name)
+                logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model -------------------------------------------------------------
@@ -185,18 +185,15 @@ class Pix2PixTurboTrainer:
 
     @torch.no_grad()
     def log_validation(self, model, prompt_embeds, val_dataloader, accelerator, global_step):
-        """Run inference on the validation set and log FID.
-
-        The official val set has no ground-truth targets, so only the
-        no-reference FID (generated vs. source) is reported.
-        """
-        from src.utils.metrics import MetricCalculator
+        """Generate and save test samples (first four inputs)."""
 
         logger.info("Running validation at step %d …", global_step)
         was_training = model.training
         model.eval()
 
-        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
+        sample_dir = Path(self.cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
+        sample_dir.mkdir(parents=True, exist_ok=True)
+        saved = 0
 
         for batch in val_dataloader:
             _zeros, source = batch
@@ -205,24 +202,42 @@ class Pix2PixTurboTrainer:
 
             bsz = source_inp.shape[0]
             batch_embeds = prompt_embeds.expand(bsz, -1, -1)
-            # Batched inference + batched metric update for speed
             with accelerator.autocast():
                 output = model(source_inp, batch_embeds)
             generated = (output + 1) * 0.5
-            generated = generated.clamp(0, 1)
-            metric_calc.update(generated, source_01)
+            src_vis = source_01
+            gen_vis = generated
+            if gen_vis.shape[1] != src_vis.shape[1]:
+                if gen_vis.shape[1] == 3 and src_vis.shape[1] == 1:
+                    src_vis = src_vis.repeat(1, 3, 1, 1)
+                elif gen_vis.shape[1] == 1 and src_vis.shape[1] == 3:
+                    gen_vis = gen_vis.repeat(1, 3, 1, 1)
 
-        results = metric_calc.compute()
-        logs = {}
-        if results.fid is not None:
-            logs["val/fid"] = results.fid
-        accelerator.log(logs, step=global_step)
-        logger.info("Validation step %d: FID=%s", global_step,
-                     results.fid if results.fid is not None else "N/A")
+            src_uint8 = (src_vis.clamp(0, 1) * 255).round().to(torch.uint8)
+            gen_uint8 = (gen_vis.clamp(0, 1) * 255).round().to(torch.uint8)
+
+            src_uint8 = src_uint8.permute(0, 2, 3, 1).cpu().numpy()
+            gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
+
+            for src_arr, gen_arr in zip(src_uint8, gen_uint8):
+                if saved >= 4:
+                    break
+                if src_arr.shape[2] == 1:
+                    src_arr = src_arr.squeeze(2)
+                if gen_arr.shape[2] == 1:
+                    gen_arr = gen_arr.squeeze(2)
+                concat = np.concatenate([src_arr, gen_arr], axis=1)
+                Image.fromarray(concat).save(sample_dir / f"sample_{saved:02d}.png")
+                saved += 1
+
+            if saved >= 4:
+                break
+
+        logger.info("Saved %d test samples to %s", saved, sample_dir)
 
         if was_training:
             model.train()
-        return results
+        return {"saved_samples": saved, "sample_dir": str(sample_dir)}
 
     # ----- main training loop ------------------------------------------------
 
