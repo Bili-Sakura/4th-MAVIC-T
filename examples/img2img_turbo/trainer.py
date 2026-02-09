@@ -310,7 +310,8 @@ class Pix2PixTurboTrainer:
             else:
                 # Default for SAR2EO, SAR2IR, SAR2RGB: MaRS-SAR alignment
                 rep_alignment_module = MaRSSARAlignment(cfg.rep_alignment_model_path)
-            rep_alignment_module.build_projector(cfg.model_channels)
+            # Build projector with source_channels since features are aligned to match source encoder
+            rep_alignment_module.build_projector(cfg.source_channels)
             logger.info(
                 f"[{cfg.task_name}] Representation alignment enabled "
                 f"(model={cfg.rep_alignment_model_path}, "
@@ -326,6 +327,7 @@ class Pix2PixTurboTrainer:
             optimizer_type=cfg.optimizer_type,
             lr=cfg.learning_rate,
             weight_decay=cfg.weight_decay,
+            prodigy_d0=getattr(cfg, "prodigy_d0", 1e-6),
         )
 
         logger.info(f"[{cfg.task_name}] Loading dataset …")

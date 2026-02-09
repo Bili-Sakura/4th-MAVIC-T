@@ -89,6 +89,7 @@ def create_optimizer(
     lr: float = 1.0,
     weight_decay: float = 0.0,
     betas: tuple = (0.9, 0.999),
+    prodigy_d0: float = 1e-6,
 ) -> torch.optim.Optimizer:
     """Create an optimizer from a string identifier.
 
@@ -104,6 +105,8 @@ def create_optimizer(
         Weight-decay coefficient.
     betas : tuple
         Beta coefficients for Adam-family optimizers.
+    prodigy_d0 : float
+        Prodigy d0 parameter (initial estimate of D). Default is 1e-6.
 
     Returns
     -------
@@ -123,6 +126,7 @@ def create_optimizer(
             lr=lr,
             weight_decay=weight_decay,
             betas=betas,
+            d0=prodigy_d0,
         )
     elif name == "muon":
         Muon, SingleDeviceMuon = _load_muon_optimizers()

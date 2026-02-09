@@ -54,7 +54,8 @@ class TaskConfig:
     learning_rate: float = 1.0  # Prodigy adapts lr; set to 1.0 by default
     lr_scheduler: str = "constant"
     lr_warmup_steps: int = 500
-    weight_decay: float = 1e-2
+    weight_decay: float = 0.01
+    prodigy_d0: float = 1e-5  # Prodigy d0 parameter (initial estimate of D)
     max_grad_norm: float = 1.0
 
     # ---- loss weights ----

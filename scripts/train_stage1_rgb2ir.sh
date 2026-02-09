@@ -62,6 +62,9 @@ SEED=42
 
 OUTPUT_DIR="./ckpt/stage1_rgb2ir"
 
+# --- Resume from checkpoint ---
+RESUME_FROM_CHECKPOINT="checkpoint-3000"
+
 COMMON_ARGS=(
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
@@ -91,6 +94,7 @@ COMMON_ARGS=(
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
   --seed "${SEED}"
   --output_dir "${OUTPUT_DIR}"
+  --resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}"
 )
 
 if [ -n "${VALIDATION_STEPS}" ]; then
