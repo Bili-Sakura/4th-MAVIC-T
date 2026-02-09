@@ -1,5 +1,9 @@
 """Core I2SB trainer for MAVIC-T tasks.
 
+Reference: Liu, Guan-Horng, Arash Vahdat, De-An Huang, Evangelos Theodorou,
+Weili Nie, and Anima Anandkumar. “I2SB: Image-to-Image Schrödinger Bridge.”
+ICML 2023. https://openreview.net/forum?id=WH2Cy3eQd0.
+
 This module implements the training logic for Image-to-Image Schrödinger Bridge
 (I2SB) into a reusable :class:`I2SBTrainer` class.  Per-task scripts instantiate the trainer with
 their own :class:`~examples.i2sb.config.TaskConfig` and can monkey-patch / sub-class any

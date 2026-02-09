@@ -5,6 +5,10 @@ This module re-implements the core Pix2Pix-Turbo architecture from
 blocks: :class:`~diffusers.AutoencoderKL`, :class:`~diffusers.UNet2DConditionModel`,
 and :class:`~diffusers.DDPMScheduler`.
 
+Reference: Parmar, Gaurav, Taesung Park, Srinivasa Narasimhan, and Jun-Yan Zhu.
+“One-Step Image Translation with Text-to-Image Models.” 2024.
+https://doi.org/10.48550/arXiv.2403.12036.
+
 The key architectural innovations from the vendor code are preserved:
 
 * **Enhanced VAE decoder** with skip connections from the encoder to the

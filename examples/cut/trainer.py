@@ -1,5 +1,9 @@
 """Core CUT trainer for MAVIC-T tasks.
 
+Reference: Park, Taesung, Alexei A. Efros, Richard Zhang, and Jun-Yan Zhu.
+“Contrastive Learning for Unpaired Image-to-Image Translation.” ECCV 2020.
+https://doi.org/10.1007/978-3-030-58545-7_19.
+
 This module implements the CUT (Contrastive Unpaired Translation) training
 loop as a reusable :class:`CUTTrainer` class, following the same structure
 as :class:`examples.ddbm.trainer.DDBMTrainer`.  Per-task scripts

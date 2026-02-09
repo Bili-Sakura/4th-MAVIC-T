@@ -1,5 +1,10 @@
 """Core BiBBDM trainer for MAVIC-T tasks.
 
+Reference: Xue, Kaitao, Bo Li, Ziyi Liu, Zhifen He, Bin Liu, Congxuan Zhang,
+and Yu-Kun Lai. “BiBBDM: Bidirectional Image Translation With Brownian Bridge
+Diffusion Models.” IEEE Transactions on Pattern Analysis and Machine
+Intelligence 47, no. 11 (2025): 10546–59. https://doi.org/10.1109/TPAMI.2025.3597667.
+
 This module adapts the BiBBDM training logic (Brownian Bridge Diffusion)
 into a reusable :class:`BiBBDMTrainer` class following the same pattern
 as :mod:`examples.ddbm.trainer`.  Per-task scripts instantiate the
