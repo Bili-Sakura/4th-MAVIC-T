@@ -13,10 +13,12 @@ import math
 import os
 import shutil
 from pathlib import Path
+import numpy as np
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from PIL import Image
 
 from accelerate import Accelerator, InitProcessGroupKwargs
 from accelerate.logging import get_logger
@@ -166,9 +168,8 @@ class DDBMTrainer:
     def build_datasets(self):
         """Return ``(train_dataset, val_dataset)``.
         
-        The val dataset is loaded when ``validation_epochs`` or
-        ``validation_steps`` is set.  If the val split is unavailable for
-        the current task the dataset is silently set to *None*.
+        The validation loader now uses the *test* split and only serves as
+        a source of inputs for sample generation.
         """
         # When training in latent space (Stage 1), we can load source and target
         # with their task-native channel counts.  LatentTargetEncoder will
@@ -197,14 +198,14 @@ class DDBMTrainer:
             try:
                 val_ds = MavicTDDBMDataset(
                     task=self.cfg.task_name,
-                    split="val",
+                    split="test",
                     resolution=self.cfg.resolution,
                     source_channels=src_ch,
                     target_channels=tgt_ch,
                     with_target=False,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
-                logger.warning("Val split unavailable for %s – skipping validation", self.cfg.task_name)
+                logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model / scheduler -------------------------------------------------
@@ -362,13 +363,8 @@ class DDBMTrainer:
 
     @torch.no_grad()
     def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
-        """Run inference on the validation set and log FID.
-
-        The official val set has no ground-truth targets, so only the
-        no-reference FID (generated vs. source) is reported.
-        """
+        """Generate and save test samples (first four inputs)."""
         from src.pipelines.ddbm import DDBMPipeline, DDBMLatentPipeline
-        from src.utils.metrics import MetricCalculator
 
         logger.info("Running validation at step %d …", global_step)
         cfg = self.cfg
@@ -382,14 +378,15 @@ class DDBMTrainer:
             pipeline = DDBMPipeline(unet=unwrapped, scheduler=scheduler)
         pipeline = pipeline.to(accelerator.device)
 
-        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
+        sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
+        sample_dir.mkdir(parents=True, exist_ok=True)
+        saved = 0
 
         for batch in val_dataloader:
             _zeros, source = batch
-            source_01 = source.to(accelerator.device)        # [0,1] for metrics
-            source_inp = source_01 * 2 - 1                   # [0,1] → [-1,1]
+            source_01 = source.to(accelerator.device)
+            source_inp = source_01 * 2 - 1  # [0,1] → [-1,1]
 
-            # Batched inference + batched metric update for speed
             with accelerator.autocast():
                 result = pipeline(
                     source_image=source_inp,
@@ -400,28 +397,41 @@ class DDBMTrainer:
                     target_channels=cfg.target_channels,
                 )
             generated = (result.images + 1) * 0.5  # [-1,1] → [0,1]
-            generated = generated.clamp(0, 1)
 
-            # Ensure same number of channels for metric update
-            if generated.shape[1] != source_01.shape[1]:
-                if generated.shape[1] == 3 and source_01.shape[1] == 1:
-                    source_01 = source_01.repeat(1, 3, 1, 1)
-                elif generated.shape[1] == 1 and source_01.shape[1] == 3:
-                    generated = generated.repeat(1, 3, 1, 1)
+            # Match channel counts for visualization
+            src_vis = source_01
+            gen_vis = generated
+            if gen_vis.shape[1] != src_vis.shape[1]:
+                if gen_vis.shape[1] == 3 and src_vis.shape[1] == 1:
+                    src_vis = src_vis.repeat(1, 3, 1, 1)
+                elif gen_vis.shape[1] == 1 and src_vis.shape[1] == 3:
+                    gen_vis = gen_vis.repeat(1, 3, 1, 1)
 
-            metric_calc.update(generated, source_01)
+            src_uint8 = (src_vis.clamp(0, 1) * 255).round().to(torch.uint8)
+            gen_uint8 = (gen_vis.clamp(0, 1) * 255).round().to(torch.uint8)
 
-        results = metric_calc.compute()
-        logs = {}
-        if results.fid is not None:
-            logs["val/fid"] = results.fid
-        accelerator.log(logs, step=global_step)
-        logger.info("Validation step %d: FID=%s", global_step,
-                     results.fid if results.fid is not None else "N/A")
+            src_uint8 = src_uint8.permute(0, 2, 3, 1).cpu().numpy()
+            gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
+
+            for src_arr, gen_arr in zip(src_uint8, gen_uint8):
+                if saved >= 4:
+                    break
+                if src_arr.shape[2] == 1:
+                    src_arr = src_arr.squeeze(2)
+                if gen_arr.shape[2] == 1:
+                    gen_arr = gen_arr.squeeze(2)
+                concat = np.concatenate([src_arr, gen_arr], axis=1)
+                Image.fromarray(concat).save(sample_dir / f"sample_{saved:02d}.png")
+                saved += 1
+
+            if saved >= 4:
+                break
+
+        logger.info("Saved %d test samples to %s", saved, sample_dir)
 
         if was_training:
             unwrapped.train()
-        return results
+        return {"saved_samples": saved, "sample_dir": str(sample_dir)}
 
     # ----- main training loop ------------------------------------------------
 
