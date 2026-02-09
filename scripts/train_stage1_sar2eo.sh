@@ -44,7 +44,7 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=256
+TRAIN_BATCH_SIZE=384
 EVAL_BATCH_SIZE=4
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=10000

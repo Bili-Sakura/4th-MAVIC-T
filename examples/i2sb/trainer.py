@@ -271,14 +271,16 @@ class I2SBTrainer:
             source_inp = source_01 * 2 - 1
 
             with accelerator.autocast():
-                result = pipeline(
-                    source_image=source_inp,
-                    nfe=cfg.nfe,
-                    ot_ode=cfg.ot_ode,
-                    clip_denoise=cfg.clip_denoise,
-                    output_type="pt",
-                    target_channels=cfg.target_channels,
-                )
+                pipeline_kwargs = {
+                    "source_image": source_inp,
+                    "nfe": cfg.nfe,
+                    "ot_ode": cfg.ot_ode,
+                    "clip_denoise": cfg.clip_denoise,
+                    "output_type": "pt",
+                }
+                if latent_target_encoder is not None:
+                    pipeline_kwargs["target_channels"] = cfg.target_channels
+                result = pipeline(**pipeline_kwargs)
             generated = (result.images + 1) * 0.5
 
             src_vis = source_01

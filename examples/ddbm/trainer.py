@@ -388,14 +388,16 @@ class DDBMTrainer:
             source_inp = source_01 * 2 - 1  # [0,1] → [-1,1]
 
             with accelerator.autocast():
-                result = pipeline(
-                    source_image=source_inp,
-                    num_inference_steps=cfg.num_inference_steps,
-                    guidance=cfg.guidance,
-                    churn_step_ratio=cfg.churn_step_ratio,
-                    output_type="pt",
-                    target_channels=cfg.target_channels,
-                )
+                pipeline_kwargs = {
+                    "source_image": source_inp,
+                    "num_inference_steps": cfg.num_inference_steps,
+                    "guidance": cfg.guidance,
+                    "churn_step_ratio": cfg.churn_step_ratio,
+                    "output_type": "pt",
+                }
+                if latent_target_encoder is not None:
+                    pipeline_kwargs["target_channels"] = cfg.target_channels
+                result = pipeline(**pipeline_kwargs)
             generated = (result.images + 1) * 0.5  # [-1,1] → [0,1]
 
             # Match channel counts for visualization

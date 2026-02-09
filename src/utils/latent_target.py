@@ -16,7 +16,45 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from diffusers import AutoencoderKL
+from diffusers import AutoencoderDC, AutoencoderKL, AutoencoderKLFlux2, AutoencoderKLQwenImage
+from diffusers.configuration_utils import ConfigMixin
+
+# Map of VAE class names to their classes
+# This follows the same pattern as diffusers' AutoModel.from_pretrained
+_VAE_CLASSES = {
+    "AutoencoderKL": AutoencoderKL,
+    "AutoencoderKLFlux2": AutoencoderKLFlux2,
+    "AutoencoderKLQwenImage": AutoencoderKLQwenImage,
+    "AutoencoderDC": AutoencoderDC,
+}
+
+
+def _detect_vae_class(vae_path: str) -> type:
+    """Detect the correct VAE class from config.json.
+
+    This function reads the ``_class_name`` field from the VAE's config.json
+    file (similar to how diffusers' AutoModel.from_pretrained works) and
+    returns the appropriate VAE class.
+
+    Parameters
+    ----------
+    vae_path : str
+        Path to the VAE checkpoint directory.
+
+    Returns
+    -------
+    type
+        The VAE class to use (defaults to AutoencoderKL if config not found
+        or class name not recognized).
+    """
+    try:
+        # Use diffusers' load_config to handle both local and remote paths
+        config = ConfigMixin.load_config(vae_path)
+        class_name = config.get("_class_name", "AutoencoderKL")
+        return _VAE_CLASSES.get(class_name, AutoencoderKL)
+    except Exception:
+        # Fallback to AutoencoderKL if config loading fails
+        return AutoencoderKL
 
 
 class LatentTargetEncoder(nn.Module):
@@ -31,7 +69,8 @@ class LatentTargetEncoder(nn.Module):
 
     def __init__(self, vae_path: str) -> None:
         super().__init__()
-        self.vae: AutoencoderKL = AutoencoderKL.from_pretrained(vae_path)
+        vae_class = _detect_vae_class(vae_path)
+        self.vae = vae_class.from_pretrained(vae_path)
         self.vae.requires_grad_(False)
         self.vae.eval()
         # Store scaling factor for consistency
