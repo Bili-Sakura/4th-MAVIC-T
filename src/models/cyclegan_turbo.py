@@ -2,6 +2,15 @@
 
 Ported from ``vendor/Img2Image-Turbo/src/cyclegan_turbo.py``.
 
+Reference: Parmar, Gaurav, Taesung Park, Srinivasa Narasimhan, and Jun-Yan Zhu.
+“One-Step Image Translation with Text-to-Image Models.” 2024.
+https://doi.org/10.48550/arXiv.2403.12036.
+
+Reference: Zhu, Jun-Yan, Taesung Park, Phillip Isola, and Alexei A. Efros.
+“Unpaired Image-to-Image Translation Using Cycle-Consistent Adversarial
+Networks.” ICCV 2017.
+https://openaccess.thecvf.com/content_iccv_2017/html/Zhu_Unpaired_Image-To-Image_Translation_ICCV_2017_paper.html.
+
 The CycleGAN-Turbo architecture uses:
 
 * **Dual VAEs** (``vae_a2b`` and ``vae_b2a``) with skip-connection-enhanced
