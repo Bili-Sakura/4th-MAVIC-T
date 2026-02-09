@@ -56,6 +56,7 @@ CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS="1000"
 VALIDATION_EPOCHS=""
 PUSH_TO_HUB=true
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
@@ -90,6 +91,7 @@ COMMON_ARGS=(
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
   --push_to_hub "${PUSH_TO_HUB}"
+  --hub_model_id "${HUB_MODEL_ID}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
   --seed "${SEED}"
