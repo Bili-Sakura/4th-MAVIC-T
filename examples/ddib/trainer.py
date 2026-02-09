@@ -322,6 +322,7 @@ class DDIBTrainer:
                         with torch.no_grad():
                             x_0 = latent_target_encoder.encode(pixel_x0)
 
+                    rep_loss = None
                     if rep_alignment_module is not None:
                         loss, pred_xstart = scheduler.compute_training_loss(
                             model, x_0, return_pred_xstart=True,
@@ -356,6 +357,8 @@ class DDIBTrainer:
                     global_step += 1
 
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+                    if rep_loss is not None:
+                        logs["loss/repa"] = rep_loss.detach().item()
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 

@@ -210,6 +210,11 @@ class CUTTrainer:
             loss_NCE_both = loss_NCE
 
         loss_G = loss_G_GAN + loss_NCE_both
+        extras = {
+            "loss_mavic": None,
+            "loss_latent": None,
+            "loss_rep_alignment": None,
+        }
 
         decoded = None
         if latent_decode_fn is not None and (mavic_criterion is not None or rep_alignment_module is not None):
@@ -230,6 +235,7 @@ class CUTTrainer:
             target_01 = target_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss_G = loss_G + mavic_loss_weight * mavic_loss
+            extras["loss_mavic"] = mavic_loss.detach()
 
         # Optional latent-space L2 loss
         if latent_target_encoder is not None and not in_latent_space:
@@ -238,6 +244,7 @@ class CUTTrainer:
                 latent_tgt = latent_target_encoder.encode(real_B).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss_G = loss_G + lambda_latent * loss_latent
+            extras["loss_latent"] = loss_latent.detach()
 
         # Optional representation alignment loss (REPA)
         if rep_alignment_module is not None:
@@ -247,8 +254,9 @@ class CUTTrainer:
             rep_features = decoded if decoded is not None else fake_B
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss_G = loss_G + lambda_rep_alignment * rep_loss
+            extras["loss_rep_alignment"] = rep_loss.detach()
 
-        return loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y
+        return loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y, extras
 
     @staticmethod
     def _calculate_NCE_loss(netG, netF, nce_criteria, src, tgt, nce_layers, lambda_NCE, num_patches):
@@ -595,7 +603,7 @@ class CUTTrainer:
                     optimizer_D.zero_grad()
 
                     # ---- Update G + F ----
-                    loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y = self.compute_G_loss(
+                    loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y, loss_extras = self.compute_G_loss(
                         netG, netD, netF, criterion_GAN, nce_criteria,
                         real_A, fake_B, real_B,
                         nce_layers=nce_layers,
@@ -633,6 +641,12 @@ class CUTTrainer:
                         "lr": optimizer_G.param_groups[0]["lr"],
                         "epoch": epoch,
                     }
+                    if loss_extras.get("loss_rep_alignment") is not None:
+                        logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
+                    if loss_extras.get("loss_mavic") is not None:
+                        logs["loss/mavic"] = loss_extras["loss_mavic"].item()
+                    if loss_extras.get("loss_latent") is not None:
+                        logs["loss/latent"] = loss_extras["loss_latent"].item()
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 

@@ -140,6 +140,11 @@ class Pix2PixTurboTrainer:
         # L2 loss
         loss_l2 = F.mse_loss(x_tgt_pred.float(), x_tgt.float(), reduction="mean") * lambda_l2
         loss = loss_l2
+        extras = {
+            "loss_mavic": None,
+            "loss_latent": None,
+            "loss_rep_alignment": None,
+        }
 
         # LPIPS loss
         if net_lpips is not None:
@@ -154,6 +159,7 @@ class Pix2PixTurboTrainer:
             target_01 = target_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss = loss + mavic_loss_weight * mavic_loss
+            extras["loss_mavic"] = mavic_loss.detach()
 
         # Optional latent-space L2 loss
         if latent_target_encoder is not None:
@@ -162,6 +168,7 @@ class Pix2PixTurboTrainer:
                 latent_tgt = latent_target_encoder.encode(x_tgt).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss = loss + lambda_latent * loss_latent
+            extras["loss_latent"] = loss_latent.detach()
 
         # Optional representation alignment loss (REPA)
         if rep_alignment_module is not None:
@@ -169,8 +176,9 @@ class Pix2PixTurboTrainer:
                 enc_feats = rep_alignment_module.extract_features(x_src_norm)
             rep_loss = rep_alignment_module.compute_alignment_loss(x_tgt_pred, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
+            extras["loss_rep_alignment"] = rep_loss.detach()
 
-        return loss
+        return loss, extras
 
     # ----- validation --------------------------------------------------------
 
@@ -404,7 +412,7 @@ class Pix2PixTurboTrainer:
         for epoch in range(first_epoch, cfg.num_epochs):
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
-                    loss = self.compute_training_loss(
+                    loss, loss_extras = self.compute_training_loss(
                         accelerator.unwrap_model(model),
                         batch,
                         prompt_embeds,
@@ -434,6 +442,12 @@ class Pix2PixTurboTrainer:
                         "lr": lr_scheduler.get_last_lr()[0],
                         "epoch": epoch,
                     }
+                    if loss_extras.get("loss_rep_alignment") is not None:
+                        logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
+                    if loss_extras.get("loss_mavic") is not None:
+                        logs["loss/mavic"] = loss_extras["loss_mavic"].item()
+                    if loss_extras.get("loss_latent") is not None:
+                        logs["loss/latent"] = loss_extras["loss_latent"].item()
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 

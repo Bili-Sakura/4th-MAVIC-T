@@ -188,6 +188,11 @@ class I2SBTrainer:
 
         # MSE loss between predicted and true noise label
         loss = F.mse_loss(pred, label)
+        extras = {
+            "loss_mavic": None,
+            "loss_latent": None,
+            "loss_rep_alignment": None,
+        }
 
         # Compute denoised prediction for optional losses
         denoised = scheduler.compute_pred_x0(step, xt, pred)
@@ -212,6 +217,7 @@ class I2SBTrainer:
             target_01 = target_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss = loss + mavic_loss_weight * mavic_loss
+            extras["loss_mavic"] = mavic_loss.detach()
 
         # Optional latent-space L2 loss on the denoised prediction
         if latent_target_encoder is not None and not in_latent_space:
@@ -220,6 +226,7 @@ class I2SBTrainer:
                 latent_tgt = latent_target_encoder.encode(x0).detach()
             loss_latent = F.mse_loss(latent_pred.float(), latent_tgt.float())
             loss = loss + lambda_latent * loss_latent
+            extras["loss_latent"] = loss_latent.detach()
 
         # Optional representation alignment loss (REPA)
         if rep_alignment_module is not None:
@@ -229,8 +236,9 @@ class I2SBTrainer:
             rep_features = decoded if decoded is not None else denoised
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
+            extras["loss_rep_alignment"] = rep_loss.detach()
 
-        return loss
+        return loss, extras
 
     # ----- validation --------------------------------------------------------
 
@@ -500,7 +508,7 @@ class I2SBTrainer:
                         with torch.no_grad():
                             x0 = latent_target_encoder.encode(pixel_x0)
                             x_T = latent_target_encoder.encode(pixel_x_T)
-                    loss = self.compute_training_loss(
+                    loss, loss_extras = self.compute_training_loss(
                         model, scheduler, x0, x_T, condition_mode=cfg.condition_mode,
                         mavic_criterion=mavic_criterion,
                         mavic_loss_weight=cfg.mavic_loss_weight,
@@ -528,6 +536,12 @@ class I2SBTrainer:
                     global_step += 1
 
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+                    if loss_extras.get("loss_rep_alignment") is not None:
+                        logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
+                    if loss_extras.get("loss_mavic") is not None:
+                        logs["loss/mavic"] = loss_extras["loss_mavic"].item()
+                    if loss_extras.get("loss_latent") is not None:
+                        logs["loss/latent"] = loss_extras["loss_latent"].item()
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
