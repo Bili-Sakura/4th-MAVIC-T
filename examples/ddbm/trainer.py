@@ -1,5 +1,8 @@
 """Core DDBM trainer for MAVIC-T tasks.
 
+Reference: Zhou, Linqi, Aaron Lou, Samar Khanna, and Stefano Ermon. “Denoising
+Diffusion Bridge Models.” ICLR 2024. https://openreview.net/forum?id=FKksTayvGo.
+
 This module adapts the training logic from ``vendor/DDBM/scripts/train_ddbm_diffusers.py``
 into a reusable :class:`DDBMTrainer` class.  Per-task scripts instantiate the trainer with
 their own :class:`~examples.ddbm.config.TaskConfig` and can monkey-patch / sub-class any

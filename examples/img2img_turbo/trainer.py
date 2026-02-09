@@ -1,5 +1,9 @@
 """Core Pix2Pix-Turbo trainer for MAVIC-T tasks.
 
+Reference: Parmar, Gaurav, Taesung Park, Srinivasa Narasimhan, and Jun-Yan Zhu.
+“One-Step Image Translation with Text-to-Image Models.” 2024.
+https://doi.org/10.48550/arXiv.2403.12036.
+
 .. note::
    **Lower priority**: the Img2Image-Turbo / Pix2Pix-Turbo method has been
    found less suitable for the MAVIC-T task compared to other baselines
