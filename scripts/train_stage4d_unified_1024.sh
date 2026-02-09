@@ -36,6 +36,9 @@ CHANNEL_MULT="1,2,4,4"
 USE_LATENT_TARGET=true
 LATENT_VAE_PATH="./models/rs_vae"
 
+# --- Representation alignment (REPA) ---
+LAMBDA_REP_ALIGNMENT=0.1
+
 # --- Resolution ---
 RESOLUTION=1024  # native 1024px (no crop)
 
@@ -64,5 +67,6 @@ echo "      --resolution ${RESOLUTION} \\"
 echo "      --use_latent_target ${USE_LATENT_TARGET} \\"
 echo "      --latent_vae_path ${LATENT_VAE_PATH} \\"
 echo "      --use_rep_alignment true \\"
+echo "      --lambda_rep_alignment ${LAMBDA_REP_ALIGNMENT} \\"
 echo "      --resume_from_checkpoint ${RESUME_FROM} \\"
 echo "      --output_dir ${OUTPUT_DIR}"

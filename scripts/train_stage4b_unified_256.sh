@@ -39,6 +39,9 @@ CHANNEL_MULT="1,2,4,4"
 USE_LATENT_TARGET=true
 LATENT_VAE_PATH="./models/rs_vae"
 
+# --- Representation alignment (REPA) ---
+LAMBDA_REP_ALIGNMENT=0.1
+
 # --- Resolution & crop ---
 RESOLUTION=256   # all tasks trained at 256px (1024px tasks are random-cropped)
 
@@ -64,4 +67,5 @@ echo "      --resolution ${RESOLUTION} \\"
 echo "      --use_latent_target ${USE_LATENT_TARGET} \\"
 echo "      --latent_vae_path ${LATENT_VAE_PATH} \\"
 echo "      --use_rep_alignment true \\"
+echo "      --lambda_rep_alignment ${LAMBDA_REP_ALIGNMENT} \\"
 echo "      --output_dir ${OUTPUT_DIR}"

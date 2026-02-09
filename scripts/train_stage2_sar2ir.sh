@@ -33,6 +33,7 @@ LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=true
+LAMBDA_REP_ALIGNMENT=0.1
 
 # --- Data augmentation and filtering ---
 USE_AUGMENTED=true
@@ -51,6 +52,7 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=1
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS="1000"
+VALIDATION_EPOCHS=""
 PUSH_TO_HUB=true
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
@@ -66,6 +68,7 @@ COMMON_ARGS=(
   --use_latent_target "${USE_LATENT_TARGET}"
   --latent_vae_path "${LATENT_VAE_PATH}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
+  --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
   --use_augmented "${USE_AUGMENTED}"
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
   --use_vertical_flip "${USE_VERTICAL_FLIP}"
@@ -88,6 +91,9 @@ COMMON_ARGS=(
 
 if [ -n "${VALIDATION_STEPS}" ]; then
   COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
+fi
+if [ -n "${VALIDATION_EPOCHS}" ]; then
+  COMMON_ARGS+=(--validation_epochs "${VALIDATION_EPOCHS}")
 fi
 
 if [ "${NGPU}" -gt 1 ]; then
