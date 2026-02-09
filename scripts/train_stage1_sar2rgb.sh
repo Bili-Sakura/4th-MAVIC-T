@@ -32,11 +32,11 @@ USE_LATENT_TARGET=true
 LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
 
 # --- Representation alignment (REPA) ---
-USE_REP_ALIGNMENT=true
+USE_REP_ALIGNMENT=false
 LAMBDA_REP_ALIGNMENT=0.1
 
 # --- Data augmentation and filtering ---
-USE_AUGMENTED=false
+USE_AUGMENTED=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
@@ -63,7 +63,7 @@ SEED=42
 OUTPUT_DIR="./ckpt/stage1_sar2rgb"
 
 # --- Resume from checkpoint ---
-RESUME_FROM_CHECKPOINT="checkpoint-3000"
+RESUME_FROM_CHECKPOINT="latest"
 
 COMMON_ARGS=(
   --num_channels "${NUM_CHANNELS}"

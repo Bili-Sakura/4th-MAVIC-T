@@ -620,6 +620,11 @@ class DDBMTrainer:
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
+                # Clear optimizer state when REPA is used: projector may have changed (e.g. 3→1)
+                # to avoid Prodigy "size of tensor a (6144) must match size of tensor b (2048)"
+                if rep_alignment_module is not None:
+                    optimizer.state.clear()
+                    logger.info("Cleared optimizer state (REPA projector shape may have changed)")
 
         progress_bar = tqdm(range(global_step, cfg.max_train_steps), disable=not accelerator.is_local_main_process, desc=f"Training {cfg.task_name}")
 

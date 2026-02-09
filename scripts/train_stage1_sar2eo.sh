@@ -32,7 +32,7 @@ USE_LATENT_TARGET=true
 LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
 
 # --- Representation alignment (REPA) ---
-USE_REP_ALIGNMENT=true
+USE_REP_ALIGNMENT=false
 LAMBDA_REP_ALIGNMENT=0.1
 
 # --- Data augmentation and filtering ---
@@ -63,7 +63,7 @@ SEED=42
 OUTPUT_DIR="./ckpt/stage1_sar2eo"
 
 # --- Resume from checkpoint ---
-RESUME_FROM_CHECKPOINT="checkpoint-3000"
+RESUME_FROM_CHECKPOINT="latest"
 
 COMMON_ARGS=(
   --num_channels "${NUM_CHANNELS}"
