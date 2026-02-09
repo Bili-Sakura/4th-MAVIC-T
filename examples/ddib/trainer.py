@@ -5,8 +5,8 @@ two domains by training *independent unconditional* diffusion models on each
 domain and connecting them through a shared DDIM latent space.
 
 Reference: Su, Xuan, Jiaming Song, Chenlin Meng, and Stefano Ermon. “Dual
-Diffusion Implicit Bridges for Image-to-Image Translation,” 2023.
-https://openreview.net/forum?id=5HLoTvVGDe. ICLR.
+Diffusion Implicit Bridges for Image-to-Image Translation.” ICLR 2023.
+https://openreview.net/forum?id=5HLoTvVGDe.
 
 This module provides a :class:`DDIBTrainer` that trains **both** the source-
 and target-domain diffusion models for a given task.  Each model is a standard
