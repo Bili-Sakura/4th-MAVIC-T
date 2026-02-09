@@ -196,23 +196,28 @@ bash scripts/train_stage4d_unified_1024.sh
 
 ## Representation Alignment (REPA)
 
-All four training stages now use **REPA** (REPresentation Alignment) by
-default.  A frozen pre-trained encoder extracts features from the source
-image, while a trainable projection head maps the translation model's
-output features into the same embedding space.  A negative-cosine-similarity
-loss encourages the model to preserve the semantic content captured by the
-encoder.
+All four training stages support **REPA** (REPresentation Alignment).
+Following the original REPA formulation, a frozen pre-trained encoder extracts
+features from the **target (ground-truth)** image, while a trainable projection
+head maps the translation model's output features into the same embedding
+space.  A negative-cosine-similarity loss encourages the model to produce
+outputs whose representations match the clean target as seen by the encoder.
 
-| Task | Default encoder |
-|------|-----------------|
-| SAR → EO | MaRS-SAR (SwinV2) |
-| SAR → IR | MaRS-SAR (SwinV2) |
-| SAR → RGB | MaRS-SAR (SwinV2) |
-| RGB → IR | MaRS-RGB (SwinV2) |
+> **Important:** REPA requires a pre-trained encoder for the **target domain**.
+> Currently only the **SAR → RGB** task is supported (using MaRS-Base-RGB to
+> encode the RGB target).  For SAR → EO, RGB → IR, and SAR → IR, no suitable
+> target-domain encoder is available, so REPA is **not applicable**.
 
-REPA is enabled via `--use_rep_alignment true` in every training script.
+| Task | REPA Support | Default encoder |
+|------|:---:|-----------------|
+| SAR → RGB | ✅ | MaRS-RGB (SwinV2) |
+| SAR → EO | ❌ | — |
+| SAR → IR | ❌ | — |
+| RGB → IR | ❌ | — |
+
+REPA is enabled via `--use_rep_alignment true` in training scripts.
 The encoder checkpoint path is pre-configured in each task's
-`TaskConfig` preset.
+`TaskConfig` preset (only `sar2rgb` has a default path).
 
 ---
 

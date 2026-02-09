@@ -3,30 +3,43 @@
 This module implements representation alignment losses inspired by REPA
 (REPresentation Alignment, see ``vendor/REPA``).  The technique is
 architecture-agnostic: a frozen pre-trained encoder extracts features from
-the **source** image, while a trainable projection head maps the
-translation model's output features into the same embedding space.  A
-negative-cosine-similarity loss encourages the model to preserve the
-semantic content captured by the encoder.
+the **target (ground truth)** image, while a trainable projection head maps
+the translation model's output features into the same embedding space.  A
+negative-cosine-similarity loss encourages the model to produce outputs
+whose representations match the clean target as seen by the encoder.
 
-Four concrete strategies are provided:
+.. important::
 
-* **MaRS-RGB alignment** (default for RGB2IR) – A frozen MaRS-RGB SwinV2
-  image encoder extracts features from the input RGB image.  Loaded via
-  ``transformers`` as a Swinv2Model.
+   Following the original REPA formulation, the **teacher** encoder must
+   process the **target** image (the clean ground-truth), *not* the source
+   input.  This means REPA is only applicable when a pre-trained encoder
+   exists for the **target domain**:
+
+   * **SAR → RGB** – ✅  Use ``MaRS-Base-RGB`` to encode the RGB target.
+   * **SAR → EO** – ❌  No pre-trained EO encoder available.
+   * **RGB → IR** – ❌  No pre-trained IR encoder available.
+   * **SAR → IR** – ❌  No pre-trained IR encoder available.
+
+Four concrete encoder strategies are provided (only ``MaRS-RGB`` is
+currently applicable as a REPA teacher for the SAR→RGB task):
+
+* **MaRS-RGB alignment** (default for SAR2RGB) – A frozen MaRS-RGB SwinV2
+  image encoder extracts features from the **target RGB** image.  Loaded
+  via ``transformers`` as a Swinv2Model.
   Checkpoint: ``models/BiliSakura/MaRS-Base-RGB``.
 
-* **MaRS-SAR alignment** (default for SAR2EO, SAR2IR, SAR2RGB) – A frozen
-  MaRS-SAR SwinV2 image encoder extracts features from the input SAR
-  image.  Loaded via ``transformers`` as a Swinv2Model.
+* **MaRS-SAR alignment** – A frozen MaRS-SAR SwinV2 image encoder.
   Checkpoint: ``models/BiliSakura/MaRS-Base-SAR``.
+  ⚠️ Not suitable as a REPA teacher because no current task has SAR as its
+  *target* domain.
 
-* **SARCLIP alignment** – for SAR2EO, SAR2IR, SAR2RGB tasks.  A frozen
-  SARCLIP ViT-L/14 image encoder extracts features from the input SAR
-  image.  Checkpoint: ``models/BiliSakura/SARCLIP-ViT-L-14``.
+* **SARCLIP alignment** – A frozen SARCLIP ViT-L/14 image encoder.
+  Checkpoint: ``models/BiliSakura/SARCLIP-ViT-L-14``.
+  ⚠️ Same limitation as MaRS-SAR.
 
-* **DINOv3-sat alignment** – for RGB2IR.  A frozen DINOv3-sat ViT-L
-  encoder extracts features from the input RGB image.
+* **DINOv3-sat alignment** – A frozen DINOv3-sat ViT-L encoder.
   Checkpoint: ``models/facebook/dinov3-vitl16-pretrain-sat493m``.
+  ⚠️ Trained on general satellite imagery; may be used experimentally.
 
 The alignment loss follows REPA's formulation (negative cosine similarity
 averaged over the batch) and uses a 3-layer MLP projection head identical

@@ -135,8 +135,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         eval_batch_size=16,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
-        # representation alignment via MaRS-SAR
-        rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
+        # representation alignment not applicable – no pre-trained EO encoder
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -157,8 +156,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
-        # representation alignment via MaRS-RGB
-        rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB",
+        # representation alignment not applicable – no pre-trained IR encoder
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -179,8 +177,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
-        # representation alignment via MaRS-SAR
-        rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
+        # representation alignment not applicable – no pre-trained IR encoder
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
@@ -201,8 +198,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
-        # representation alignment via MaRS-SAR
-        rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
+        # representation alignment via MaRS-RGB (encode the RGB target)
+        rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB",
     )
     for k, v in overrides.items():
         setattr(cfg, k, v)
