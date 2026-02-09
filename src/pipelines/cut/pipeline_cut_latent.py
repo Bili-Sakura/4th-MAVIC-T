@@ -234,6 +234,7 @@ class CUTLatentPipeline(DiffusionPipeline):
         source_image: Union[torch.Tensor, Image.Image, List[Image.Image]],
         output_type: str = "pil",
         return_dict: bool = True,
+        target_channels: Optional[int] = None,
     ) -> Union[CUTLatentPipelineOutput, tuple]:
         """Translate a source image via CUT in VAE latent space.
 
@@ -245,6 +246,9 @@ class CUTLatentPipeline(DiffusionPipeline):
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`~pipelines.cut_latent_pipeline.CUTLatentPipelineOutput`]
                 instead of a plain tuple.
+            target_channels (`int`, *optional*):
+                Number of channels for the output image. If not provided, 
+                defaults to the number of channels in source_image.
 
         Returns:
             [`~pipelines.cut_latent_pipeline.CUTLatentPipelineOutput`] or `tuple`:
@@ -281,7 +285,7 @@ class CUTLatentPipeline(DiffusionPipeline):
 
         # Decode from latent to pixel space
         images = self.decode_latents(z_out)
-        images = self._restore_channels(images, orig_channels)
+        images = self._restore_channels(images, target_channels or orig_channels)
         images = images.clamp(-1, 1)
 
         # Convert to requested output format

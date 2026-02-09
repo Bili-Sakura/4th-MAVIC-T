@@ -5,12 +5,15 @@
 # Usage:
 #   bash scripts/train_stage1_sar2rgb.sh
 #   # run on a specific GPU (e.g., cuda:0):
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage1_sar2rgb.sh
+#   fi
 #   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
 #   NGPU=4 bash scripts/train_stage1_sar2rgb.sh
 
 set -euo pipefail
+
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
 
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
@@ -32,7 +35,7 @@ LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
 USE_REP_ALIGNMENT=true
 
 # --- Data augmentation and filtering ---
-USE_AUGMENTED=true
+USE_AUGMENTED=false
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
@@ -40,9 +43,9 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=8
-EVAL_BATCH_SIZE=4
-NUM_EPOCHS=5
+TRAIN_BATCH_SIZE=2
+EVAL_BATCH_SIZE=2
+NUM_EPOCHS=2
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=1

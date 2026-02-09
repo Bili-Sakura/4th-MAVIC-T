@@ -92,11 +92,13 @@ class DDIBTrainer:
 
     # ----- model / scheduler -------------------------------------------------
 
-    def build_model(self, in_channels: int):
+    def build_model(self, in_channels: int, image_size: int | None = None):
         """Create an unconditional DDIB UNet for a single domain."""
         in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else in_channels
+        if image_size is None:
+            image_size = self.cfg.resolution
         return create_model(
-            image_size=self.cfg.resolution,
+            image_size=image_size,
             in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
@@ -119,13 +121,13 @@ class DDIBTrainer:
     # ----- validation --------------------------------------------------------
 
     @torch.no_grad()
-    def log_validation(self, source_model, target_model, scheduler, val_dataloader, accelerator, global_step):
+    def log_validation(self, source_model, target_model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
         """Run inference on the validation set and log FID.
 
         The official val set has no ground-truth targets, so only the
         no-reference FID (generated vs. source) is reported.
         """
-        from src.pipelines.ddib import DDIBPipeline
+        from src.pipelines.ddib import DDIBPipeline, DDIBLatentPipeline
         from src.utils.metrics import MetricCalculator
 
         logger.info("Running validation at step %d …", global_step)
@@ -137,11 +139,19 @@ class DDIBTrainer:
         src_unwrapped.eval()
         tgt_unwrapped.eval()
 
-        pipeline = DDIBPipeline(
-            source_unet=src_unwrapped,
-            target_unet=tgt_unwrapped,
-            scheduler=scheduler,
-        )
+        if latent_target_encoder is not None:
+            pipeline = DDIBLatentPipeline(
+                source_unet=src_unwrapped,
+                target_unet=tgt_unwrapped,
+                scheduler=scheduler,
+                vae=latent_target_encoder.vae,
+            )
+        else:
+            pipeline = DDIBPipeline(
+                source_unet=src_unwrapped,
+                target_unet=tgt_unwrapped,
+                scheduler=scheduler,
+            )
         pipeline = pipeline.to(accelerator.device)
 
         metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
@@ -187,7 +197,8 @@ class DDIBTrainer:
         dataset: MavicTDDIBDataset,
         accelerator: Accelerator,
         rep_alignment_module=None,
-        lambda_rep_alignment: float = 1.0,
+        lambda_rep_alignment: float = 0.1,
+        latent_target_encoder=None,
     ):
         """Train one unconditional diffusion model on a single domain.
 
@@ -306,15 +317,26 @@ class DDIBTrainer:
                 with accelerator.accumulate(model):
                     # batch is a single tensor (B, C, H, W) in [0, 1]
                     x_0 = batch.to(accelerator.device) * 2 - 1  # scale to [-1, 1]
+                    pixel_x0 = x_0
+                    if cfg.use_latent_target and latent_target_encoder is not None:
+                        with torch.no_grad():
+                            x_0 = latent_target_encoder.encode(pixel_x0)
 
                     if rep_alignment_module is not None:
                         loss, pred_xstart = scheduler.compute_training_loss(
                             model, x_0, return_pred_xstart=True,
                         )
                         with torch.no_grad():
-                            enc_feats = rep_alignment_module.extract_features(x_0)
+                            enc_feats = rep_alignment_module.extract_features(pixel_x0)
+                        if cfg.use_latent_target and latent_target_encoder is not None:
+                            pred_for_align = latent_target_encoder.decode(
+                                pred_xstart,
+                                target_channels=pixel_x0.shape[1],
+                            )
+                        else:
+                            pred_for_align = pred_xstart
                         rep_loss = rep_alignment_module.compute_alignment_loss(
-                            pred_xstart, enc_feats,
+                            pred_for_align, enc_feats,
                         )
                         loss = loss + lambda_rep_alignment * rep_loss
                     else:
@@ -437,6 +459,30 @@ class DDIBTrainer:
         # Build scheduler (shared between both models)
         scheduler = self.build_scheduler()
 
+        # Latent target encoder (ablation / latent-space training)
+        latent_target_encoder = None
+        latent_image_size = None
+        if cfg.use_latent_target:
+            if not cfg.latent_vae_path:
+                raise ValueError("use_latent_target=True requires latent_vae_path to be set.")
+            from src.utils.latent_target import LatentTargetEncoder
+            latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
+            vae_scale_factor = 2 ** (len(latent_target_encoder.vae.config.block_out_channels) - 1)
+            if cfg.resolution % vae_scale_factor != 0:
+                raise ValueError(
+                    f"Resolution {cfg.resolution} is not divisible by VAE scale factor "
+                    f"{vae_scale_factor} for latent training."
+                )
+            latent_image_size = cfg.resolution // vae_scale_factor
+            logger.info(
+                f"[{cfg.task_name}] Using latent target encoder from {cfg.latent_vae_path} "
+                f"(lambda={cfg.lambda_latent})"
+            )
+            logger.info(
+                f"[{cfg.task_name}] Latent resolution set to {latent_image_size} "
+                f"(vae_scale_factor={vae_scale_factor})"
+            )
+
         # Representation alignment (REPA)
         rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
@@ -453,24 +499,34 @@ class DDIBTrainer:
                 f"(model={cfg.rep_alignment_model_path}, "
                 f"lambda={cfg.lambda_rep_alignment})"
             )
+        if latent_target_encoder is not None:
+            latent_target_encoder = latent_target_encoder.to(accelerator.device)
 
         # --- Phase 1: Train source-domain model ---
         logger.info(f"[{cfg.task_name}] === Phase 1: Training source-domain model ===")
-        source_model = self.build_model(in_channels=cfg.source_channels)
+        source_model = self.build_model(
+            in_channels=cfg.source_channels,
+            image_size=latent_image_size if latent_image_size is not None else cfg.resolution,
+        )
         self._train_single_domain(
             "source", source_model, scheduler, source_dataset, accelerator,
             rep_alignment_module=rep_alignment_module,
             lambda_rep_alignment=cfg.lambda_rep_alignment,
+            latent_target_encoder=latent_target_encoder,
         )
 
 
         # --- Phase 2: Train target-domain model ---
         logger.info(f"[{cfg.task_name}] === Phase 2: Training target-domain model ===")
-        target_model = self.build_model(in_channels=cfg.target_channels)
+        target_model = self.build_model(
+            in_channels=cfg.target_channels,
+            image_size=latent_image_size if latent_image_size is not None else cfg.resolution,
+        )
         self._train_single_domain(
             "target", target_model, scheduler, target_dataset, accelerator,
             rep_alignment_module=rep_alignment_module,
             lambda_rep_alignment=cfg.lambda_rep_alignment,
+            latent_target_encoder=latent_target_encoder,
         )
 
         # Post-training validation (requires both models)
@@ -497,17 +553,24 @@ class DDIBTrainer:
                 self.log_validation(
                     source_model, target_model, scheduler,
                     val_dataloader, accelerator, global_step,
+                    latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
                 logger.warning("Val split unavailable for %s – skipping validation", cfg.task_name)
 
         # --- Save combined DDIBPipeline checkpoint ---
         if accelerator.is_main_process:
-            from .pipelines import DDIBPipeline
+            from .pipelines import DDIBPipeline, DDIBLatentPipeline
             combined_dir = os.path.join(cfg.output_dir, "pipeline")
-            pipeline = DDIBPipeline(
-                source_unet=source_model, target_unet=target_model, scheduler=scheduler,
-            )
+            if cfg.use_latent_target and latent_target_encoder is not None:
+                pipeline = DDIBLatentPipeline(
+                    source_unet=source_model, target_unet=target_model, scheduler=scheduler,
+                    vae=latent_target_encoder.vae,
+                )
+            else:
+                pipeline = DDIBPipeline(
+                    source_unet=source_model, target_unet=target_model, scheduler=scheduler,
+                )
             pipeline.save_pretrained(combined_dir)
             logger.info("Saved combined DDIBPipeline to %s", combined_dir)
 

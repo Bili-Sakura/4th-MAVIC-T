@@ -120,7 +120,7 @@ class Pix2PixTurboTrainer:
                               lambda_lpips=5.0, net_lpips=None,
                               mavic_criterion=None, mavic_loss_weight=0.1,
                               latent_target_encoder=None, lambda_latent=1.0,
-                              rep_alignment_module=None, lambda_rep_alignment=1.0):
+                              rep_alignment_module=None, lambda_rep_alignment=0.1):
         """Compute the Pix2Pix-Turbo training loss for one batch.
 
         The loss combines:

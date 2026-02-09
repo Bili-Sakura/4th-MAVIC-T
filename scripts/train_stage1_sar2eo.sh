@@ -5,12 +5,15 @@
 # Usage:
 #   bash scripts/train_stage1_sar2eo.sh
 #   # run on a specific GPU (e.g., cuda:0):
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage1_sar2eo.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/train_stage1_sar2eo.sh
 #   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
 #   NGPU=4 bash scripts/train_stage1_sar2eo.sh
 
 set -euo pipefail
+
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
 
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
@@ -41,13 +44,13 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=32
-EVAL_BATCH_SIZE=16
-NUM_EPOCHS=5
+EVAL_BATCH_SIZE=32
+NUM_EPOCHS=2
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=1
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS="1000"
+VALIDATION_STEPS="500"
 PUSH_TO_HUB=true
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8

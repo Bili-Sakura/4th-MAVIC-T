@@ -262,6 +262,7 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         clip_denoised: bool = False,
         output_type: str = "pt",
         generator: Optional[torch.Generator] = None,
+        target_channels: Optional[int] = None,
     ) -> Union[BiBBDMLatentPipelineOutput, tuple]:
         """Translate a source image via BiBBDM in VAE latent space.
 
@@ -283,6 +284,9 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
             ``"pt"`` for tensors, ``"pil"`` for PIL images, ``"np"`` for numpy.
         generator : torch.Generator or None
             RNG for reproducibility.
+        target_channels: Optional[int]
+            Number of channels for the output image. If not provided, 
+            defaults to the number of channels in source_image.
 
         Returns
         -------
@@ -313,7 +317,7 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
 
         # Decode from latent to pixel space
         images = self._decode(z_result)
-        images = self._restore_channels(images, orig_channels)
+        images = self._restore_channels(images, target_channels or orig_channels)
         images = images.clamp(-1, 1)
 
         # Format output

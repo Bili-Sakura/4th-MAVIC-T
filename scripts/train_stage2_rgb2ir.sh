@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
+
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
 LOG_FILE="${LOG_DIR}/train_stage2_rgb2ir.log"

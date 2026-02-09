@@ -13,6 +13,9 @@
 
 set -euo pipefail
 
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
+
 echo "=== Stage 4a: RS-VAE ==="
 echo ""
 echo "  The RS-VAE is trained and borrowed from an external repository."

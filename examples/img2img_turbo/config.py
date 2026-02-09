@@ -97,7 +97,7 @@ class TaskConfig:
     # ---- representation alignment ----
     use_rep_alignment: bool = False
     rep_alignment_model_path: Optional[str] = None  # path to encoder checkpoint
-    lambda_rep_alignment: float = 1.0  # weight for alignment loss
+    lambda_rep_alignment: float = 0.1  # weight for alignment loss
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         train_batch_size=4,
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment via MaRS-SAR
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )
@@ -140,7 +140,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         train_batch_size=4,
         eval_batch_size=1,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment via MaRS-RGB
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB",
     )
@@ -163,7 +163,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         train_batch_size=4,
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment via MaRS-SAR
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )
@@ -186,7 +186,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         train_batch_size=4,
         eval_batch_size=1,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment via MaRS-SAR
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )

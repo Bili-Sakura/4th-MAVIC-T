@@ -24,6 +24,10 @@ accelerate launch -m examples.img2img_turbo.train_sar2ir --train_batch_size 4
 
 Every config field can be overridden on the command line (see `examples/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
 
+> [!IMPORTANT]
+> **Negative Training Loss**
+> When training with **Representation Alignment (REPA)** enabled (`--use_rep_alignment true`), it is normal and expected for the total loss to become **negative**. This happens because the alignment loss is calculated as **negative cosine similarity** (ranging from -1 to 1). As the model successfully aligns its features with the pre-trained encoder, this component will move toward -1.0, often pushing the total loss below zero. This indicates healthy convergence.
+
 ## 3. Run inference
 
 After training, generate predictions for the val/test inputs:

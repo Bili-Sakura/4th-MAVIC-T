@@ -242,6 +242,7 @@ class I2SBLatentPipeline(DiffusionPipeline):
         return_dict: bool = True,
         callback: Optional[Callable[[int, int, torch.Tensor], None]] = None,
         callback_steps: int = 1,
+        target_channels: Optional[int] = None,
     ):
         """Translate a source image via I2SB in VAE latent space.
 
@@ -258,6 +259,8 @@ class I2SBLatentPipeline(DiffusionPipeline):
             return_dict: Whether to return a dict with the output (default: True).
             callback: Callback function for progress updates.
             callback_steps: Frequency of callback calls.
+            target_channels: Number of channels for the output image. If not 
+                provided, defaults to the number of channels in source_image.
 
         Returns:
             Images generated through the Schrödinger bridge diffusion process.
@@ -313,7 +316,7 @@ class I2SBLatentPipeline(DiffusionPipeline):
 
         # Decode from latent to pixel space
         images = self._decode(zt)
-        images = self._restore_channels(images, orig_channels)
+        images = self._restore_channels(images, target_channels or orig_channels)
         images = images.clamp(-1, 1)
 
         if output_type == "pil":

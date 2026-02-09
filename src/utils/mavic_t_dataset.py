@@ -86,6 +86,7 @@ class MavicTImageToImageDataset:
         *,
         with_target: Optional[bool] = None,
         diffusers_format: bool = False,
+        load_images: bool = True,
     ) -> datasets.Dataset:
         split = split.lower()
         task = _normalize_task(task)
@@ -93,11 +94,11 @@ class MavicTImageToImageDataset:
             with_target = split == "train"
 
         if split == "train":
-            return self._load_refined_train(task, with_target, diffusers_format)
+            return self._load_refined_train(task, with_target, diffusers_format, load_images)
         if split in ("val", "test"):
             if task is None:
                 raise ValueError("task is required for val/test splits.")
-            return self._load_eval_split(split, task, with_target, diffusers_format)
+            return self._load_eval_split(split, task, with_target, diffusers_format, load_images)
 
         raise ValueError("split must be one of: train, val, test.")
 
@@ -123,6 +124,7 @@ class MavicTImageToImageDataset:
         task: Optional[str],
         with_target: bool,
         diffusers_format: bool,
+        load_images: bool,
     ) -> datasets.Dataset:
         records = []
         manifest_paths = [
@@ -176,6 +178,7 @@ class MavicTImageToImageDataset:
             with_target=with_target,
             diffusers_format=diffusers_format,
             include_train_meta=True,
+            load_images=load_images,
         )
         return dataset.cast(features)
 
@@ -185,6 +188,7 @@ class MavicTImageToImageDataset:
         task: str,
         with_target: bool,
         diffusers_format: bool,
+        load_images: bool,
     ) -> datasets.Dataset:
         if with_target:
             raise ValueError("Targets are not available for val/test splits.")
@@ -237,6 +241,7 @@ class MavicTImageToImageDataset:
             with_target=False,
             diffusers_format=diffusers_format,
             include_train_meta=False,
+            load_images=load_images,
         )
         return dataset.cast(features)
 
@@ -246,22 +251,23 @@ class MavicTImageToImageDataset:
         with_target: bool,
         diffusers_format: bool,
         include_train_meta: bool,
+        load_images: bool,
     ) -> datasets.Features:
         features = {
             "id": datasets.Value("string"),
             "task": datasets.Value("string"),
             "split": datasets.Value("string"),
-            "input": datasets.Image(),
+            "input": datasets.Image() if load_images else datasets.Value("string"),
             "input_path": datasets.Value("string"),
         }
         if include_train_meta:
             features["tile"] = datasets.Value("string")
             features["source_city"] = datasets.Value("string")
         if with_target:
-            features["target"] = datasets.Image()
+            features["target"] = datasets.Image() if load_images else datasets.Value("string")
             features["target_path"] = datasets.Value("string")
         if diffusers_format:
-            features["conditioning_image"] = datasets.Image()
+            features["conditioning_image"] = datasets.Image() if load_images else datasets.Value("string")
             if with_target:
-                features["image"] = datasets.Image()
+                features["image"] = datasets.Image() if load_images else datasets.Value("string")
         return datasets.Features(features)

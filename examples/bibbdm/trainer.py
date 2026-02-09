@@ -64,15 +64,28 @@ class BiBBDMTrainer:
 
     def build_datasets(self):
         """Return ``(train_dataset, val_dataset)``.
-
+        
         The val dataset is loaded when ``validation_epochs`` or
-        ``validation_steps`` is set.
+        ``validation_steps`` is set.  If the val split is unavailable for
+        the current task the dataset is silently set to *None*.
         """
+        # When training in latent space (Stage 1), we can load source and target
+        # with their task-native channel counts.  LatentTargetEncoder will
+        # handle the expansion to 3-ch if needed.
+        if self.cfg.use_latent_target:
+            src_ch = self.cfg.source_channels
+            tgt_ch = self.cfg.target_channels
+        else:
+            # In pixel space, BiBBDM expects symmetric channel counts
+            src_ch = self.cfg.model_channels
+            tgt_ch = self.cfg.model_channels
+
         train_ds = MavicTBiBBDMDataset(
             task=self.cfg.task_name,
             split="train",
             resolution=self.cfg.resolution,
-            model_channels=self.cfg.model_channels,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
@@ -85,7 +98,8 @@ class BiBBDMTrainer:
                     task=self.cfg.task_name,
                     split="val",
                     resolution=self.cfg.resolution,
-                    model_channels=self.cfg.model_channels,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
                     with_target=False,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
@@ -94,11 +108,13 @@ class BiBBDMTrainer:
 
     # ----- model / scheduler -------------------------------------------------
 
-    def build_model(self):
+    def build_model(self, image_size: int | None = None):
         """Create the BiBBDM UNet model."""
         in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
+        if image_size is None:
+            image_size = self.cfg.resolution
         return create_model(
-            image_size=self.cfg.resolution,
+            image_size=image_size,
             in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
@@ -149,7 +165,11 @@ class BiBBDMTrainer:
         latent_target_encoder=None,
         lambda_latent=1.0,
         rep_alignment_module=None,
-        lambda_rep_alignment=1.0,
+        lambda_rep_alignment=0.1,
+        pixel_target=None,
+        pixel_source=None,
+        latent_decode_fn=None,
+        in_latent_space: bool = False,
     ):
         """Compute the BiBBDM training loss for one batch.
 
@@ -196,17 +216,28 @@ class BiBBDMTrainer:
 
         loss = weight_obj * obj_loss + weight_a_recon * a_rec_loss + weight_b_recon * b_rec_loss
 
+        decoded = None
+        if latent_decode_fn is not None and (mavic_criterion is not None or rep_alignment_module is not None):
+            decoded = latent_decode_fn(target_recon)
+            if pixel_target is not None and decoded.shape[1] != pixel_target.shape[1]:
+                if decoded.shape[1] == 3 and pixel_target.shape[1] == 1:
+                    decoded = decoded.mean(dim=1, keepdim=True)
+                elif decoded.shape[1] == 1 and pixel_target.shape[1] == 3:
+                    decoded = decoded.repeat(1, 3, 1, 1)
+
         # Optional metric-based loss (LPIPS + L1)
         if mavic_criterion is not None:
-            pred_01 = (target_recon + 1) * 0.5
-            tgt_01 = (target + 1) * 0.5
+            pred_for_metric = decoded if decoded is not None else target_recon
+            target_for_metric = pixel_target if pixel_target is not None else target
+            pred_01 = (pred_for_metric + 1) * 0.5
+            tgt_01 = (target_for_metric + 1) * 0.5
             pred_01 = pred_01.clamp(0, 1)
             tgt_01 = tgt_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, tgt_01)
             loss = loss + mavic_loss_weight * mavic_loss
 
         # Optional latent-space L2 loss
-        if latent_target_encoder is not None:
+        if latent_target_encoder is not None and not in_latent_space:
             latent_pred = latent_target_encoder.encode_with_grad(target_recon)
             with torch.no_grad():
                 latent_tgt = latent_target_encoder.encode(target).detach()
@@ -215,9 +246,11 @@ class BiBBDMTrainer:
 
         # Optional representation alignment loss (REPA)
         if rep_alignment_module is not None:
+            source_for_enc = pixel_source if pixel_source is not None else source
             with torch.no_grad():
-                enc_feats = rep_alignment_module.extract_features(source)
-            rep_loss = rep_alignment_module.compute_alignment_loss(target_recon, enc_feats)
+                enc_feats = rep_alignment_module.extract_features(source_for_enc)
+            rep_features = decoded if decoded is not None else target_recon
+            rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
 
         return loss
@@ -225,13 +258,13 @@ class BiBBDMTrainer:
     # ----- validation --------------------------------------------------------
 
     @torch.no_grad()
-    def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step):
+    def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
         """Run inference on the validation set and log FID.
 
         The official val set has no ground-truth targets, so only the
         no-reference FID (generated vs. source) is reported.
         """
-        from src.pipelines.bibbdm import BiBBDMPipeline
+        from src.pipelines.bibbdm import BiBBDMPipeline, BiBBDMLatentPipeline
         from src.utils.metrics import MetricCalculator
 
         logger.info("Running validation at step %d …", global_step)
@@ -240,7 +273,10 @@ class BiBBDMTrainer:
         unwrapped = accelerator.unwrap_model(model)
         unwrapped.eval()
 
-        pipeline = BiBBDMPipeline(unet=unwrapped, scheduler=scheduler)
+        if latent_target_encoder is not None:
+            pipeline = BiBBDMLatentPipeline(unet=unwrapped, scheduler=scheduler, vae=latent_target_encoder.vae)
+        else:
+            pipeline = BiBBDMPipeline(unet=unwrapped, scheduler=scheduler)
         pipeline = pipeline.to(accelerator.device)
 
         metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
@@ -258,9 +294,18 @@ class BiBBDMTrainer:
                     num_inference_steps=cfg.num_inference_steps,
                     clip_denoised=cfg.clip_denoised,
                     output_type="pt",
+                    target_channels=cfg.target_channels,
                 )
             generated = (result.images + 1) * 0.5
             generated = generated.clamp(0, 1)
+
+            # Ensure same number of channels for metric update
+            if generated.shape[1] != source_01.shape[1]:
+                if generated.shape[1] == 3 and source_01.shape[1] == 1:
+                    source_01 = source_01.repeat(1, 3, 1, 1)
+                elif generated.shape[1] == 1 and source_01.shape[1] == 3:
+                    generated = generated.repeat(1, 3, 1, 1)
+
             metric_calc.update(generated, source_01)
 
         results = metric_calc.compute()
@@ -317,10 +362,6 @@ class BiBBDMTrainer:
         if accelerator.is_main_process:
             os.makedirs(cfg.output_dir, exist_ok=True)
 
-        logger.info(f"[{cfg.task_name}] Creating model (channels={cfg.model_channels}, res={cfg.resolution})")
-        model = self.build_model()
-        scheduler = self.build_scheduler()
-
         mavic_criterion = None
         if cfg.use_mavic_loss:
             mavic_criterion = MavicCriterion(
@@ -330,10 +371,33 @@ class BiBBDMTrainer:
             logger.info(f"[{cfg.task_name}] Using MAVIC metric loss")
 
         latent_target_encoder = None
-        if cfg.use_latent_target and cfg.latent_vae_path:
+        latent_image_size = None
+        if cfg.use_latent_target:
+            if not cfg.latent_vae_path:
+                raise ValueError("use_latent_target=True requires latent_vae_path to be set.")
             from src.utils.latent_target import LatentTargetEncoder
             latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
-            logger.info(f"[{cfg.task_name}] Using latent target encoder from {cfg.latent_vae_path}")
+            vae_scale_factor = 2 ** (len(latent_target_encoder.vae.config.block_out_channels) - 1)
+            if cfg.resolution % vae_scale_factor != 0:
+                raise ValueError(
+                    f"Resolution {cfg.resolution} is not divisible by VAE scale factor "
+                    f"{vae_scale_factor} for latent training."
+                )
+            latent_image_size = cfg.resolution // vae_scale_factor
+            logger.info(
+                f"[{cfg.task_name}] Using latent target encoder from {cfg.latent_vae_path} "
+                f"(lambda={cfg.lambda_latent})"
+            )
+            logger.info(
+                f"[{cfg.task_name}] Latent resolution set to {latent_image_size} "
+                f"(vae_scale_factor={vae_scale_factor})"
+            )
+
+        model_in_ch = cfg.latent_channels if cfg.use_latent_target else cfg.model_channels
+        model_image_size = latent_image_size if latent_image_size is not None else cfg.resolution
+        logger.info(f"[{cfg.task_name}] Creating model (channels={model_in_ch}, res={model_image_size})")
+        model = self.build_model(image_size=model_image_size)
+        scheduler = self.build_scheduler()
 
         rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
@@ -439,6 +503,12 @@ class BiBBDMTrainer:
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
                     target, source = self.preprocess_batch(batch, accelerator.device)
+                    pixel_target = target
+                    pixel_source = source
+                    if cfg.use_latent_target and latent_target_encoder is not None:
+                        with torch.no_grad():
+                            target = latent_target_encoder.encode(pixel_target)
+                            source = latent_target_encoder.encode(pixel_source)
                     loss = self.compute_training_loss(
                         model, scheduler, target, source,
                         objective=cfg.objective,
@@ -452,6 +522,10 @@ class BiBBDMTrainer:
                         lambda_latent=cfg.lambda_latent,
                         rep_alignment_module=rep_alignment_module,
                         lambda_rep_alignment=cfg.lambda_rep_alignment,
+                        pixel_target=pixel_target if cfg.use_latent_target else None,
+                        pixel_source=pixel_source if cfg.use_latent_target else None,
+                        latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
+                        in_latent_space=cfg.use_latent_target,
                     )
 
                     accelerator.backward(loss)
@@ -478,7 +552,10 @@ class BiBBDMTrainer:
                         and global_step % cfg.validation_steps == 0
                         and accelerator.is_main_process
                     ):
-                        self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                        self.log_validation(
+                            model, scheduler, val_dataloader, accelerator, global_step,
+                            latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                        )
 
                     if (
                         checkpointing_steps is not None
@@ -508,7 +585,10 @@ class BiBBDMTrainer:
                 and (epoch + 1) % cfg.validation_epochs == 0
                 and accelerator.is_main_process
             ):
-                self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                self.log_validation(
+                    model, scheduler, val_dataloader, accelerator, global_step,
+                    latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                )
 
             # Save at epoch boundary
             if (

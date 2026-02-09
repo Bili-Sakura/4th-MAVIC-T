@@ -170,11 +170,23 @@ class DDBMTrainer:
         ``validation_steps`` is set.  If the val split is unavailable for
         the current task the dataset is silently set to *None*.
         """
+        # When training in latent space (Stage 1), we can load source and target
+        # with their task-native channel counts.  LatentTargetEncoder will
+        # handle the expansion to 3-ch if needed.
+        if self.cfg.use_latent_target:
+            src_ch = self.cfg.source_channels
+            tgt_ch = self.cfg.target_channels
+        else:
+            # In pixel space, DDBM expects symmetric channel counts
+            src_ch = self.cfg.model_channels
+            tgt_ch = self.cfg.model_channels
+
         train_ds = MavicTDDBMDataset(
             task=self.cfg.task_name,
             split="train",
             resolution=self.cfg.resolution,
-            model_channels=self.cfg.model_channels,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
@@ -187,7 +199,8 @@ class DDBMTrainer:
                     task=self.cfg.task_name,
                     split="val",
                     resolution=self.cfg.resolution,
-                    model_channels=self.cfg.model_channels,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
                     with_target=False,
                 )
             except (ValueError, FileNotFoundError, RuntimeError):
@@ -196,11 +209,13 @@ class DDBMTrainer:
 
     # ----- model / scheduler -------------------------------------------------
 
-    def build_model(self):
+    def build_model(self, image_size: int | None = None):
         """Create the DDBM UNet model."""
         in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
+        if image_size is None:
+            image_size = self.cfg.resolution
         return create_model(
-            image_size=self.cfg.resolution,
+            image_size=image_size,
             in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
@@ -236,7 +251,9 @@ class DDBMTrainer:
     def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp",
                               mavic_criterion=None, mavic_loss_weight=0.1,
                               latent_target_encoder=None, lambda_latent=1.0,
-                              rep_alignment_module=None, lambda_rep_alignment=1.0):
+                              rep_alignment_module=None, lambda_rep_alignment=0.1,
+                              pixel_target=None, pixel_source=None,
+                              latent_decode_fn=None, in_latent_space: bool = False):
         """Compute the DDBM denoising loss for one batch.
 
         When *mavic_criterion* is provided the loss is augmented with a
@@ -286,18 +303,29 @@ class DDBMTrainer:
         loss = F.mse_loss(denoised, x0, reduction="none")
         loss = (loss * weights).mean()
 
+        decoded = None
+        if latent_decode_fn is not None and (mavic_criterion is not None or rep_alignment_module is not None):
+            decoded = latent_decode_fn(denoised)
+            if pixel_target is not None and decoded.shape[1] != pixel_target.shape[1]:
+                if decoded.shape[1] == 3 and pixel_target.shape[1] == 1:
+                    decoded = decoded.mean(dim=1, keepdim=True)
+                elif decoded.shape[1] == 1 and pixel_target.shape[1] == 3:
+                    decoded = decoded.repeat(1, 3, 1, 1)
+
         # Optional metric-based loss (LPIPS + L1) on the denoised prediction
         if mavic_criterion is not None:
+            pred_for_metric = decoded if decoded is not None else denoised
+            target_for_metric = pixel_target if pixel_target is not None else x0
             # Re-scale from [-1, 1] to [0, 1] for the metric criterion
-            pred_01 = (denoised + 1) * 0.5
-            target_01 = (x0 + 1) * 0.5
+            pred_01 = (pred_for_metric + 1) * 0.5
+            target_01 = (target_for_metric + 1) * 0.5
             pred_01 = pred_01.clamp(0, 1)
             target_01 = target_01.clamp(0, 1)
             mavic_loss = mavic_criterion(pred_01, target_01)
             loss = loss + mavic_loss_weight * mavic_loss
 
         # Optional latent-space L2 loss on the denoised prediction
-        if latent_target_encoder is not None:
+        if latent_target_encoder is not None and not in_latent_space:
             latent_pred = latent_target_encoder.encode_with_grad(denoised)
             with torch.no_grad():
                 latent_tgt = latent_target_encoder.encode(x0).detach()
@@ -306,9 +334,11 @@ class DDBMTrainer:
 
         # Optional representation alignment loss (REPA)
         if rep_alignment_module is not None:
+            source_for_enc = pixel_source if pixel_source is not None else x_T
             with torch.no_grad():
-                enc_feats = rep_alignment_module.extract_features(x_T)
-            rep_loss = rep_alignment_module.compute_alignment_loss(denoised, enc_feats)
+                enc_feats = rep_alignment_module.extract_features(source_for_enc)
+            rep_features = decoded if decoded is not None else denoised
+            rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
 
         return loss
@@ -316,13 +346,13 @@ class DDBMTrainer:
     # ----- validation --------------------------------------------------------
 
     @torch.no_grad()
-    def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step):
+    def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
         """Run inference on the validation set and log FID.
 
         The official val set has no ground-truth targets, so only the
         no-reference FID (generated vs. source) is reported.
         """
-        from src.pipelines.ddbm import DDBMPipeline
+        from src.pipelines.ddbm import DDBMPipeline, DDBMLatentPipeline
         from src.utils.metrics import MetricCalculator
 
         logger.info("Running validation at step %d …", global_step)
@@ -331,7 +361,10 @@ class DDBMTrainer:
         unwrapped = accelerator.unwrap_model(model)
         unwrapped.eval()
 
-        pipeline = DDBMPipeline(unet=unwrapped, scheduler=scheduler)
+        if latent_target_encoder is not None:
+            pipeline = DDBMLatentPipeline(unet=unwrapped, scheduler=scheduler, vae=latent_target_encoder.vae)
+        else:
+            pipeline = DDBMPipeline(unet=unwrapped, scheduler=scheduler)
         pipeline = pipeline.to(accelerator.device)
 
         metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=True)
@@ -349,9 +382,18 @@ class DDBMTrainer:
                     guidance=cfg.guidance,
                     churn_step_ratio=cfg.churn_step_ratio,
                     output_type="pt",
+                    target_channels=cfg.target_channels,
                 )
             generated = (result.images + 1) * 0.5  # [-1,1] → [0,1]
             generated = generated.clamp(0, 1)
+
+            # Ensure same number of channels for metric update
+            if generated.shape[1] != source_01.shape[1]:
+                if generated.shape[1] == 3 and source_01.shape[1] == 1:
+                    source_01 = source_01.repeat(1, 3, 1, 1)
+                elif generated.shape[1] == 1 and source_01.shape[1] == 3:
+                    generated = generated.repeat(1, 3, 1, 1)
+
             metric_calc.update(generated, source_01)
 
         results = metric_calc.compute()
@@ -412,11 +454,6 @@ class DDBMTrainer:
         if accelerator.is_main_process:
             os.makedirs(cfg.output_dir, exist_ok=True)
 
-        # Build components
-        logger.info(f"[{cfg.task_name}] Creating model  (channels={cfg.model_channels}, res={cfg.resolution})")
-        model = self.build_model()
-        scheduler = self.build_scheduler()
-
         mavic_criterion = None
         if cfg.use_mavic_loss:
             mavic_criterion = MavicCriterion(
@@ -427,13 +464,36 @@ class DDBMTrainer:
                         f"(lpips_w={cfg.mavic_lpips_weight}, l1_w={cfg.mavic_l1_weight}, "
                         f"loss_w={cfg.mavic_loss_weight})")
 
-        # Latent target encoder (ablation)
+        # Latent target encoder (ablation / latent-space training)
         latent_target_encoder = None
-        if cfg.use_latent_target and cfg.latent_vae_path:
+        latent_image_size = None
+        if cfg.use_latent_target:
+            if not cfg.latent_vae_path:
+                raise ValueError("use_latent_target=True requires latent_vae_path to be set.")
             from src.utils.latent_target import LatentTargetEncoder
             latent_target_encoder = LatentTargetEncoder(cfg.latent_vae_path)
-            logger.info(f"[{cfg.task_name}] Using latent target encoder "
-                        f"from {cfg.latent_vae_path} (lambda={cfg.lambda_latent})")
+            vae_scale_factor = 2 ** (len(latent_target_encoder.vae.config.block_out_channels) - 1)
+            if cfg.resolution % vae_scale_factor != 0:
+                raise ValueError(
+                    f"Resolution {cfg.resolution} is not divisible by VAE scale factor "
+                    f"{vae_scale_factor} for latent training."
+                )
+            latent_image_size = cfg.resolution // vae_scale_factor
+            logger.info(
+                f"[{cfg.task_name}] Using latent target encoder from {cfg.latent_vae_path} "
+                f"(lambda={cfg.lambda_latent})"
+            )
+            logger.info(
+                f"[{cfg.task_name}] Latent resolution set to {latent_image_size} "
+                f"(vae_scale_factor={vae_scale_factor})"
+            )
+
+        # Build components
+        model_in_ch = cfg.latent_channels if cfg.use_latent_target else cfg.model_channels
+        model_image_size = latent_image_size if latent_image_size is not None else cfg.resolution
+        logger.info(f"[{cfg.task_name}] Creating model  (channels={model_in_ch}, res={model_image_size})")
+        model = self.build_model(image_size=model_image_size)
+        scheduler = self.build_scheduler()
 
         # Representation alignment (REPA)
         rep_alignment_module = None
@@ -545,6 +605,12 @@ class DDBMTrainer:
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
                     x0, x_T = self.preprocess_batch(batch, accelerator.device)
+                    pixel_x0 = x0
+                    pixel_x_T = x_T
+                    if cfg.use_latent_target and latent_target_encoder is not None:
+                        with torch.no_grad():
+                            x0 = latent_target_encoder.encode(pixel_x0)
+                            x_T = latent_target_encoder.encode(pixel_x_T)
                     loss = self.compute_training_loss(
                         model, scheduler, x0, x_T, pred_mode=cfg.pred_mode,
                         mavic_criterion=mavic_criterion,
@@ -553,6 +619,10 @@ class DDBMTrainer:
                         lambda_latent=cfg.lambda_latent,
                         rep_alignment_module=rep_alignment_module,
                         lambda_rep_alignment=cfg.lambda_rep_alignment,
+                        pixel_target=pixel_x0 if cfg.use_latent_target else None,
+                        pixel_source=pixel_x_T if cfg.use_latent_target else None,
+                        latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
+                        in_latent_space=cfg.use_latent_target,
                     )
 
                     accelerator.backward(loss)
@@ -579,7 +649,10 @@ class DDBMTrainer:
                         and global_step % cfg.validation_steps == 0
                         and accelerator.is_main_process
                     ):
-                        self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                        self.log_validation(
+                            model, scheduler, val_dataloader, accelerator, global_step,
+                            latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                        )
 
                     if (
                         checkpointing_steps is not None
@@ -609,7 +682,10 @@ class DDBMTrainer:
                 and (epoch + 1) % cfg.validation_epochs == 0
                 and accelerator.is_main_process
             ):
-                self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                self.log_validation(
+                    model, scheduler, val_dataloader, accelerator, global_step,
+                    latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                )
 
             # Save at epoch boundary
             if (

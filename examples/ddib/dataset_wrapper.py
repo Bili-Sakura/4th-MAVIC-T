@@ -135,13 +135,13 @@ class MavicTDDIBDataset(Dataset):
             kwargs["eval_root"] = eval_root
         loader = MavicTImageToImageDataset(**kwargs)
 
-        ds = loader.load(split=split, task=task, with_target=with_target)
+        ds = loader.load(split=split, task=task, with_target=with_target, load_images=False)
         self._records = list(ds)
 
         if use_augmented and split == "train" and not task.endswith("_crop_aug"):
             aug_task = f"{task}_crop_aug"
             try:
-                ds_aug = loader.load(split="train", task=aug_task, with_target=with_target)
+                ds_aug = loader.load(split="train", task=aug_task, with_target=with_target, load_images=False)
                 self._records.extend(list(ds_aug))
             except (ValueError, FileNotFoundError):
                 pass

@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
+
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
 LOG_FILE="${LOG_DIR}/train_stage1_rgb2ir.log"
@@ -40,9 +43,9 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=8
-EVAL_BATCH_SIZE=4
-NUM_EPOCHS=5
+TRAIN_BATCH_SIZE=2
+EVAL_BATCH_SIZE=2
+NUM_EPOCHS=2
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=1

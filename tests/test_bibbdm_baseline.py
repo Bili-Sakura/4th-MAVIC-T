@@ -82,7 +82,7 @@ class TestConfig:
         cfg = TaskConfig()
         assert cfg.use_rep_alignment is False
         assert cfg.rep_alignment_model_path is None
-        assert cfg.lambda_rep_alignment == 1.0
+        assert cfg.lambda_rep_alignment == 0.1
 
     def test_overrides_work(self):
         cfg = rgb2ir_config(use_latent_target=True, lambda_latent=0.5)

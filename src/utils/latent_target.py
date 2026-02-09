@@ -49,6 +49,15 @@ class LatentTargetEncoder(nn.Module):
             return images.repeat(1, 3, 1, 1)
         return images
 
+    @staticmethod
+    def _restore_channels(images: torch.Tensor, target_channels: int) -> torch.Tensor:
+        """Restore channel count after VAE decode."""
+        if target_channels == 1 and images.shape[1] == 3:
+            return images.mean(dim=1, keepdim=True)
+        if target_channels == 3 and images.shape[1] == 1:
+            return images.repeat(1, 3, 1, 1)
+        return images
+
     @torch.no_grad()
     def encode(self, images: torch.Tensor) -> torch.Tensor:
         """Encode images to latent means (no sampling noise).
@@ -90,3 +99,11 @@ class LatentTargetEncoder(nn.Module):
         images = self._adapt_channels(images)
         posterior = self.vae.encode(images).latent_dist
         return posterior.mean * self.scaling_factor
+
+    def decode(self, latents: torch.Tensor, target_channels: int | None = None) -> torch.Tensor:
+        """Decode latents back to pixel space (optionally restoring channels)."""
+        scaled = latents / self.scaling_factor
+        images = self.vae.decode(scaled).sample
+        if target_channels is not None:
+            images = self._restore_channels(images, target_channels)
+        return images

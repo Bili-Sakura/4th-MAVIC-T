@@ -61,4 +61,4 @@ and works with any baseline (Pix2Pix-Turbo, CUT, DDBM).
 **Alternative encoders:** SARCLIP (`./models/BiliSakura/SARCLIP-ViT-L-14`) can be used for SAR tasks, and DINOv3-sat (`./models/facebook/dinov3-vitl16-pretrain-sat493m`) can be used for RGB2IR task by overriding the `rep_alignment_model_path` config field.
 
 Enable via `use_rep_alignment=True` in the task config.  The alignment loss
-weight is controlled by `lambda_rep_alignment` (default 1.0).
+weight is controlled by `lambda_rep_alignment` (default 0.1).

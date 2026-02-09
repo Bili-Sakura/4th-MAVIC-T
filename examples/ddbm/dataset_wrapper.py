@@ -116,6 +116,8 @@ class MavicTDDBMDataset(Dataset):
         task: str,
         split: str = "train",
         resolution: int = 256,
+        source_channels: Optional[int] = None,
+        target_channels: Optional[int] = None,
         model_channels: int = 3,
         with_target: Optional[bool] = None,
         use_augmented: bool = False,
@@ -129,7 +131,8 @@ class MavicTDDBMDataset(Dataset):
         self.task = task
         self.split = split
         self.resolution = resolution
-        self.model_channels = model_channels
+        self.source_channels = source_channels or model_channels
+        self.target_channels = target_channels or model_channels
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
 
@@ -145,14 +148,14 @@ class MavicTDDBMDataset(Dataset):
         loader = MavicTImageToImageDataset(**kwargs)
 
         # Load the base dataset
-        ds = loader.load(split=split, task=task, with_target=with_target)
+        ds = loader.load(split=split, task=task, with_target=with_target, load_images=False)
         self._records = list(ds)
 
         # Optionally add augmented samples for training
         if use_augmented and split == "train" and not task.endswith("_crop_aug"):
             aug_task = f"{task}_crop_aug"
             try:
-                ds_aug = loader.load(split="train", task=aug_task, with_target=with_target)
+                ds_aug = loader.load(split="train", task=aug_task, with_target=with_target, load_images=False)
                 self._records.extend(list(ds_aug))
             except (ValueError, FileNotFoundError):
                 pass  # augmented variant may not exist for all tasks
@@ -184,12 +187,12 @@ class MavicTDDBMDataset(Dataset):
         """
         rec = self._records[idx]
 
-        source = _load_image_as_tensor(rec["input_path"], self.model_channels, self.resolution)
+        source = _load_image_as_tensor(rec["input_path"], self.source_channels, self.resolution)
 
         if self.with_target:
-            target = _load_image_as_tensor(rec["target_path"], self.model_channels, self.resolution)
+            target = _load_image_as_tensor(rec["target_path"], self.target_channels, self.resolution)
         else:
-            target = torch.zeros_like(source)
+            target = torch.zeros(self.target_channels, self.resolution, self.resolution)
 
         # Apply random flip augmentations consistently to both source and target
         if self.use_horizontal_flip and torch.rand(1).item() > 0.5:

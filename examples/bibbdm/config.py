@@ -113,7 +113,7 @@ class TaskConfig:
     # ---- representation alignment ----
     use_rep_alignment: bool = False
     rep_alignment_model_path: Optional[str] = None
-    lambda_rep_alignment: float = 1.0
+    lambda_rep_alignment: float = 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
         output_dir="./ckpt",
         train_batch_size=32,
         eval_batch_size=16,
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )
     for k, v in overrides.items():
@@ -151,7 +151,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB",
     )
     for k, v in overrides.items():
@@ -171,7 +171,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )
     for k, v in overrides.items():
@@ -191,7 +191,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         output_dir="./ckpt",
         train_batch_size=8,
         eval_batch_size=4,
-        latent_vae_path="./models/BiliSakura/VAEs",
+        latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR",
     )
     for k, v in overrides.items():

@@ -95,7 +95,7 @@ class TestCUTConfigDefaults:
         cfg = CutConfig()
         assert cfg.use_rep_alignment is False
         assert cfg.rep_alignment_model_path is None
-        assert cfg.lambda_rep_alignment == 1.0
+        assert cfg.lambda_rep_alignment == 0.1
 
     def test_overrides_work(self):
         cfg = cut_rgb2ir(use_latent_target=True, lambda_latent=0.5)
@@ -120,7 +120,7 @@ class TestDDBMConfigDefaults:
         cfg = DdbmConfig()
         assert cfg.use_rep_alignment is False
         assert cfg.rep_alignment_model_path is None
-        assert cfg.lambda_rep_alignment == 1.0
+        assert cfg.lambda_rep_alignment == 0.1
 
     def test_overrides_work(self):
         cfg = ddbm_rgb2ir(use_latent_target=True, lambda_latent=0.5)
@@ -317,7 +317,7 @@ class TestDDIBConfigDefaults:
         cfg = DdibConfig()
         assert cfg.use_rep_alignment is False
         assert cfg.rep_alignment_model_path is None
-        assert cfg.lambda_rep_alignment == 1.0
+        assert cfg.lambda_rep_alignment == 0.1
 
     def test_overrides_work(self):
         from examples.ddib.config import rgb2ir_config as ddib_rgb2ir

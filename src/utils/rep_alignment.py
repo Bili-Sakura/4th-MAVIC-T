@@ -220,10 +220,10 @@ class DINOv3SatAlignment(nn.Module):
 
 
 class MaRSRGBAlignment(nn.Module):
-    """Representation alignment using MaRS-RGB encoder (SwinV2 backbone).
+    """Representation alignment using MaRS-RGB encoder.
 
     Default encoder for the RGB2IR task.  Uses ``transformers`` to load a
-    Swinv2Model with pre-trained MaRS-RGB weights.
+    pre-trained MaRS-RGB weights via ``AutoModel``.
     """
 
     def __init__(
@@ -233,17 +233,17 @@ class MaRSRGBAlignment(nn.Module):
         encoder_dim: Optional[int] = None,
     ) -> None:
         super().__init__()
-        from transformers import AutoImageProcessor, Swinv2Model
+        from transformers import AutoImageProcessor, AutoModel
 
-        self.encoder = Swinv2Model.from_pretrained(model_path, trust_remote_code=False)
+        self.encoder = AutoModel.from_pretrained(model_path, trust_remote_code=False)
         self.encoder.requires_grad_(False)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.encoder.to(self.device)
         self.encoder.eval()
         self.image_processor = AutoImageProcessor.from_pretrained(model_path)
 
-        # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
-        self.encoder_dim = encoder_dim or self.encoder.config.hidden_size
+        # Use config hidden_size or specified encoder_dim
+        self.encoder_dim = encoder_dim or getattr(self.encoder.config, "hidden_size", 1024)
         self.projector_dim = projector_dim or (2 * self.encoder_dim)
         self.projector: Optional[nn.Module] = None
 
@@ -259,7 +259,7 @@ class MaRSRGBAlignment(nn.Module):
 
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
-        """Extract MaRS-RGB features (last-stage, global-average-pooled)."""
+        """Extract MaRS-RGB features (global-average-pooled)."""
         import numpy as np
         from PIL import Image
 
@@ -271,6 +271,11 @@ class MaRSRGBAlignment(nn.Module):
         pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
         pixel_values = pixel_values.to(self.device)
         outputs = self.encoder(pixel_values)
+        
+        # Prefer pooler_output if available, otherwise GAP of last_hidden_state
+        if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
+            return outputs.pooler_output
+            
         last_hidden = outputs.last_hidden_state
         if last_hidden.ndim == 4:
             return last_hidden.mean(dim=[2, 3])  # (B, C, H, W) -> GAP
@@ -292,11 +297,11 @@ class MaRSRGBAlignment(nn.Module):
 
 
 class MaRSSARAlignment(nn.Module):
-    """Representation alignment using MaRS-SAR encoder (SwinV2 backbone).
+    """Representation alignment using MaRS-SAR encoder.
 
     Default encoder for SAR2EO, SAR2IR, and SAR2RGB tasks.  Uses
-    ``transformers`` to load a Swinv2Model with pre-trained MaRS-SAR
-    weights.
+    ``transformers`` to load a pre-trained MaRS-SAR weights via
+    ``AutoModel``.
     """
 
     def __init__(
@@ -306,9 +311,9 @@ class MaRSSARAlignment(nn.Module):
         encoder_dim: Optional[int] = None,
     ) -> None:
         super().__init__()
-        from transformers import AutoImageProcessor, Swinv2Model
+        from transformers import AutoImageProcessor, AutoModel
 
-        self.encoder = Swinv2Model.from_pretrained(model_path, trust_remote_code=False)
+        self.encoder = AutoModel.from_pretrained(model_path, trust_remote_code=False)
         self.encoder.requires_grad_(False)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.encoder.to(self.device)
@@ -318,8 +323,8 @@ class MaRSSARAlignment(nn.Module):
             do_convert_rgb=False,
         )
 
-        # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
-        self.encoder_dim = encoder_dim or self.encoder.config.hidden_size
+        # Use config hidden_size or specified encoder_dim
+        self.encoder_dim = encoder_dim or getattr(self.encoder.config, "hidden_size", 1024)
         self.projector_dim = projector_dim or (2 * self.encoder_dim)
         self.projector: Optional[nn.Module] = None
 
@@ -335,7 +340,7 @@ class MaRSSARAlignment(nn.Module):
 
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
-        """Extract MaRS-SAR features (last-stage, global-average-pooled)."""
+        """Extract MaRS-SAR features (global-average-pooled)."""
         import numpy as np
         from PIL import Image
 
@@ -351,6 +356,11 @@ class MaRSSARAlignment(nn.Module):
         pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
         pixel_values = pixel_values.to(self.device)
         outputs = self.encoder(pixel_values)
+        
+        # Prefer pooler_output if available, otherwise GAP of last_hidden_state
+        if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
+            return outputs.pooler_output
+            
         last_hidden = outputs.last_hidden_state
         if last_hidden.ndim == 4:
             return last_hidden.mean(dim=[2, 3])  # (B, C, H, W) -> GAP

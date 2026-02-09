@@ -18,7 +18,9 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Union, get_args, get_origin, get_type_hints
 
+# Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -27,14 +29,37 @@ from .config import rgb2ir_config, TaskConfig  # noqa: E402
 from .trainer import DDBMTrainer  # noqa: E402
 
 
+def _bool_arg(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes")
+
+
+def _resolve_arg_type(field_name: str, field_val):
+    if isinstance(field_val, bool):
+        return _bool_arg
+    if field_val is not None:
+        return type(field_val)
+    
+    # Use get_type_hints to resolve string annotations (from __future__ import annotations)
+    hints = get_type_hints(TaskConfig)
+    annotation = hints.get(field_name, str)
+
+    origin = get_origin(annotation)
+    if origin is Union:
+        non_none = [arg for arg in get_args(annotation) if arg is not type(None)]
+        if len(non_none) == 1:
+            annotation = non_none[0]
+    if annotation is bool:
+        return _bool_arg
+    if annotation in (int, float, str):
+        return annotation
+    return str
+
+
 def parse_overrides() -> dict:
     parser = argparse.ArgumentParser(description="Train DDBM – rgb2ir")
     for field_name, field_val in vars(rgb2ir_config()).items():
-        ftype = type(field_val) if field_val is not None else str
-        if isinstance(field_val, bool):
-            parser.add_argument(f"--{field_name}", type=lambda v: v.lower() in ("true", "1", "yes"), default=field_val)
-        else:
-            parser.add_argument(f"--{field_name}", type=ftype, default=field_val)
+        ftype = _resolve_arg_type(field_name, field_val)
+        parser.add_argument(f"--{field_name}", type=ftype, default=field_val)
     args = parser.parse_args()
     return {k: v for k, v in vars(args).items() if v is not None}
 

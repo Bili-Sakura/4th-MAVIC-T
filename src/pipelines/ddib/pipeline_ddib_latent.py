@@ -291,6 +291,7 @@ class DDIBLatentPipeline(DiffusionPipeline):
         output_type: str = "pil",
         return_dict: bool = True,
         return_latent: bool = False,
+        target_channels: Optional[int] = None,
     ):
         """Translate a source image via DDIB in VAE latent space.
 
@@ -308,6 +309,8 @@ class DDIBLatentPipeline(DiffusionPipeline):
             output_type: Output format: ``"pil"`` | ``"np"`` | ``"pt"``.
             return_dict: If ``True`` return a :class:`DDIBLatentPipelineOutput`.
             return_latent: If ``True`` include the shared latent in the output.
+            target_channels: Number of channels for the output image. If not 
+                provided, defaults to the number of channels in source_image.
 
         Returns:
             :class:`DDIBLatentPipelineOutput` or tuple of images.
@@ -338,7 +341,7 @@ class DDIBLatentPipeline(DiffusionPipeline):
 
         # Decode from latent to pixel space
         images = self._decode(z_target)
-        images = self._restore_channels(images, orig_channels)
+        images = self._restore_channels(images, target_channels or orig_channels)
         images = images.clamp(-1, 1)
 
         # Post-process output

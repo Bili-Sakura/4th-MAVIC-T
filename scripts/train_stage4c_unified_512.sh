@@ -21,6 +21,9 @@
 
 set -euo pipefail
 
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
+
 NGPU="${NGPU:-1}"
 
 # --- Large config from configs/model_scaling_variants.yaml ---
