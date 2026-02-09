@@ -309,7 +309,7 @@ class CUTTrainer:
             pipeline = CUTPipeline(generator=unwrapped)
         pipeline = pipeline.to(accelerator.device)
 
-        sample_dir = Path(self.cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
+        sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
 
