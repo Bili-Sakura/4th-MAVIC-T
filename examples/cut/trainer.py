@@ -550,13 +550,6 @@ class CUTTrainer:
             tracker_config = {k: str(v) for k, v in vars(cfg).items()}
             accelerator.init_trackers(f"cut-{cfg.task_name}", config=tracker_config)
 
-        logger.info("***** Running CUT training *****")
-        logger.info(f"  Task             = {cfg.task_name}")
-        logger.info(f"  Num examples     = {len(train_dataset)}")
-        logger.info(f"  Num epochs       = {total_epochs}")
-        logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
-        logger.info(f"  Total opt steps  = {cfg.max_train_steps}")
-
         global_step = 0
         first_epoch = 0
         # optimizer_F is created after data-dependent initialisation of netF
@@ -577,6 +570,14 @@ class CUTTrainer:
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
+
+        num_epochs_this_run = total_epochs - first_epoch
+        logger.info("***** Running CUT training *****")
+        logger.info(f"  Task             = {cfg.task_name}")
+        logger.info(f"  Num examples     = {len(train_dataset)}")
+        logger.info(f"  Num epochs       = {num_epochs_this_run}")
+        logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
+        logger.info(f"  Total opt steps  = {cfg.max_train_steps}")
 
         progress_bar = tqdm(
             range(global_step, cfg.max_train_steps),

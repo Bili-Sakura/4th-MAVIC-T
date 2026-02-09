@@ -296,14 +296,6 @@ class DDIBTrainer:
             tracker_config = {k: str(v) for k, v in vars(cfg).items()}
             accelerator.init_trackers(f"ddib-{domain_label}-{cfg.task_name}", config=tracker_config)
 
-        logger.info(f"***** Training DDIB {domain_label} model *****")
-        logger.info(f"  Task             = {cfg.task_name}")
-        logger.info(f"  Domain           = {domain_label}")
-        logger.info(f"  Num examples     = {len(dataset)}")
-        logger.info(f"  Num epochs       = {num_epochs}")
-        logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
-        logger.info(f"  Total opt steps  = {local_max_train_steps}")
-
         global_step = 0
         first_epoch = 0
 
@@ -323,6 +315,15 @@ class DDIBTrainer:
                     global_step = int(Path(path).name.split("-")[1])
                     first_epoch = global_step // num_update_steps_per_epoch
                     logger.info(f"Resumed {domain_label} from {path}")
+
+        num_epochs_this_run = num_epochs - first_epoch
+        logger.info(f"***** Training DDIB {domain_label} model *****")
+        logger.info(f"  Task             = {cfg.task_name}")
+        logger.info(f"  Domain           = {domain_label}")
+        logger.info(f"  Num examples     = {len(dataset)}")
+        logger.info(f"  Num epochs       = {num_epochs_this_run}")
+        logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
+        logger.info(f"  Total opt steps  = {local_max_train_steps}")
 
         progress_bar = tqdm(
             range(global_step, local_max_train_steps),
