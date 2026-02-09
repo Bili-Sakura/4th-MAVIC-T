@@ -497,6 +497,13 @@ class Pix2PixTurboTrainer:
                         accelerator.unwrap_model(model).save_model(outf)
                         save_checkpoint_config_for(outf)
                         logger.info(f"Saved checkpoint to {outf}")
+                        if cfg.push_to_hub and cfg.hub_model_id:
+                            push_checkpoint_to_hub(
+                                outf,
+                                hub_model_id=cfg.hub_model_id,
+                                commit_message=f"img2img_turbo {cfg.task_name} step {global_step}",
+                                path_in_repo=f"img2img_turbo/{cfg.task_name}/checkpoints/model_{global_step}.pkl",
+                            )
 
                         if cfg.checkpoints_total_limit is not None:
                             ckpt_dir = os.path.join(cfg.output_dir, "checkpoints")
@@ -556,6 +563,13 @@ class Pix2PixTurboTrainer:
             accelerator.unwrap_model(model).save_model(outf)
             save_checkpoint_config_for(outf)
             logger.info(f"Saved final model to {outf}")
+            if cfg.push_to_hub and cfg.hub_model_id:
+                push_checkpoint_to_hub(
+                    outf,
+                    hub_model_id=cfg.hub_model_id,
+                    commit_message=f"img2img_turbo {cfg.task_name} final model",
+                    path_in_repo=f"img2img_turbo/{cfg.task_name}/checkpoints/model_final.pkl",
+                )
 
         accelerator.end_training()
         logger.info(f"[{cfg.task_name}] Training complete!")

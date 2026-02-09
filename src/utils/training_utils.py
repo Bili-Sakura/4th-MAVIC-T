@@ -315,12 +315,12 @@ def push_checkpoint_to_hub(
     token: Optional[str] = None,
     path_in_repo: Optional[str] = None,
 ) -> None:
-    """Upload a diffusers-style checkpoint directory to the Hugging Face Hub.
+    """Upload a checkpoint directory or file to the Hugging Face Hub.
 
     Parameters
     ----------
     save_dir : str
-        Local directory containing the checkpoint.
+        Local checkpoint path. Can be either a directory or a single file.
     hub_model_id : str
         Repository ID on the Hub (e.g. ``"user/model-name"``).
     commit_message : str
@@ -340,12 +340,26 @@ def push_checkpoint_to_hub(
         logger.warning("huggingface_hub is not installed – skipping push to hub.")
         return
 
+    save_path = Path(save_dir)
+    if not save_path.exists():
+        logger.warning("Checkpoint path does not exist – skipping push to hub: %s", save_dir)
+        return
+
     api = HfApi(token=token)
     api.create_repo(repo_id=hub_model_id, exist_ok=True)
-    api.upload_folder(
-        repo_id=hub_model_id,
-        folder_path=save_dir,
-        path_in_repo=path_in_repo,
-        commit_message=commit_message,
-    )
+    if save_path.is_dir():
+        api.upload_folder(
+            repo_id=hub_model_id,
+            folder_path=str(save_path),
+            path_in_repo=path_in_repo,
+            commit_message=commit_message,
+        )
+    else:
+        target_path = path_in_repo if path_in_repo is not None else save_path.name
+        api.upload_file(
+            repo_id=hub_model_id,
+            path_or_fileobj=str(save_path),
+            path_in_repo=target_path,
+            commit_message=commit_message,
+        )
     logger.info(f"Pushed checkpoint to hub: {hub_model_id} (path_in_repo={path_in_repo})")
