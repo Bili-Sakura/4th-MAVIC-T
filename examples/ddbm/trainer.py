@@ -713,6 +713,13 @@ class DDBMTrainer:
                         accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
+                        if cfg.push_to_hub and cfg.hub_model_id:
+                            push_checkpoint_to_hub(
+                                save_path,
+                                hub_model_id=cfg.hub_model_id,
+                                commit_message=f"ddbm {cfg.task_name} step {global_step}",
+                                path_in_repo=f"ddbm/{cfg.task_name}/checkpoint-{global_step}",
+                            )
 
                         if cfg.checkpoints_total_limit is not None:
                             ckpts = sorted(
