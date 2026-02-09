@@ -63,7 +63,7 @@ SEED=42
 OUTPUT_DIR="./ckpt/stage1_sar2ir"
 
 # --- Resume from checkpoint ---
-RESUME_FROM_CHECKPOINT="checkpoint-3000"
+RESUME_FROM_CHECKPOINT="latest"
 
 COMMON_ARGS=(
   --num_channels "${NUM_CHANNELS}"
