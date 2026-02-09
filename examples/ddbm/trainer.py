@@ -338,6 +338,11 @@ class DDBMTrainer:
             with torch.no_grad():
                 enc_feats = rep_alignment_module.extract_features(source_for_enc)
             rep_features = decoded if decoded is not None else denoised
+            if rep_features.shape[1] != source_for_enc.shape[1]:
+                if rep_features.shape[1] == 3 and source_for_enc.shape[1] == 1:
+                    rep_features = rep_features.mean(dim=1, keepdim=True)
+                elif rep_features.shape[1] == 1 and source_for_enc.shape[1] == 3:
+                    rep_features = rep_features.repeat(1, 3, 1, 1)
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
 
@@ -422,8 +427,10 @@ class DDBMTrainer:
 
         checkpointing_steps = cfg.checkpointing_steps
         save_model_epochs = cfg.save_model_epochs
+        if save_model_epochs is not None and save_model_epochs <= 0:
+            save_model_epochs = None
         if checkpointing_steps is not None and save_model_epochs is not None:
-            logger.warning(
+            logging.getLogger(__name__).warning(
                 "checkpointing_steps is set while save_model_epochs is enabled; "
                 "epoch checkpoints take priority and step checkpoints will be skipped. "
                 "Set save_model_epochs=None to enable step-based checkpointing."

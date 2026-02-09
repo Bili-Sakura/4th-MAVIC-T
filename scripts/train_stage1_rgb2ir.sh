@@ -50,7 +50,7 @@ NUM_EPOCHS=2
 MAX_TRAIN_STEPS=10000
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
-SAVE_MODEL_EPOCHS=""
+SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=1000
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS="1000"
@@ -83,6 +83,8 @@ COMMON_ARGS=(
   --max_train_steps "${MAX_TRAIN_STEPS}"
   --gradient_accumulation_steps "${GRADIENT_ACCUMULATION_STEPS}"
   --use_ema "${USE_EMA}"
+  --save_model_epochs "${SAVE_MODEL_EPOCHS}"
+  --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
   --push_to_hub "${PUSH_TO_HUB}"
   --mixed_precision "${MIXED_PRECISION}"
@@ -96,12 +98,6 @@ if [ -n "${VALIDATION_STEPS}" ]; then
 fi
 if [ -n "${VALIDATION_EPOCHS}" ]; then
   COMMON_ARGS+=(--validation_epochs "${VALIDATION_EPOCHS}")
-fi
-if [ -n "${SAVE_MODEL_EPOCHS}" ]; then
-  COMMON_ARGS+=(--save_model_epochs "${SAVE_MODEL_EPOCHS}")
-fi
-if [ -n "${CHECKPOINTING_STEPS}" ]; then
-  COMMON_ARGS+=(--checkpointing_steps "${CHECKPOINTING_STEPS}")
 fi
 
 if [ "${NGPU}" -gt 1 ]; then
