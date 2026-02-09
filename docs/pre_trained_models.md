@@ -16,13 +16,13 @@ Vision-language model (ViT-L/14) fine-tuned for SAR (Synthetic Aperture Radar) i
 
 **Path:** `models/BiliSakura/MaRS-Base-SAR`
 
-SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for SAR (Synthetic Aperture Radar) imagery. Used as the default encoder for representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks. Loaded via `timm` library.
+SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for SAR (Synthetic Aperture Radar) imagery. Used as the default encoder for representation alignment in SAR2EO, SAR2IR, and SAR2RGB tasks. Loaded via `transformers`.
 
 ### 3. MaRS-RGB
 
 **Path:** `models/BiliSakura/MaRS-Base-RGB`
 
-SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for RGB imagery. Used as the default encoder for representation alignment in the RGB2IR task. Loaded via `timm` library.
+SwinV2-based image encoder (swinv2_base_window8_256) pre-trained for RGB imagery. Used as the default encoder for representation alignment in the RGB2IR task. Loaded via `transformers`.
 
 ### 4. DINOv3-sat
 

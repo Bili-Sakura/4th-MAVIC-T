@@ -4,6 +4,9 @@
 #
 # Usage:
 #   bash scripts/train_stage2_sar2ir.sh
+#   # run on a specific GPU (e.g., cuda:0):
+#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage2_sar2ir.sh
+#   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
 #   NGPU=4 bash scripts/train_stage2_sar2ir.sh
 
@@ -23,7 +26,7 @@ CHANNEL_MULT="1,2,4,4"
 
 # --- Latent-space settings ---
 USE_LATENT_TARGET=true
-LATENT_VAE_PATH="./models/BiliSakura/VAEs"  # FLUX2-VAE or SD21-VAE
+LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=true

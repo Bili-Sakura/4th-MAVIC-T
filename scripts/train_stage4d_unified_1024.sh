@@ -11,6 +11,9 @@
 #
 # Usage:
 #   bash scripts/train_stage4d_unified_1024.sh
+#   # run on a specific GPU (e.g., cuda:0):
+#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage4d_unified_1024.sh
+#   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
 #   NGPU=4 bash scripts/train_stage4d_unified_1024.sh
 #

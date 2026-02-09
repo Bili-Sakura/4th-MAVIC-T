@@ -4,6 +4,9 @@
 #
 # Usage:
 #   bash scripts/train_stage3_sar2rgb.sh
+#   # run on a specific GPU (e.g., cuda:0):
+#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage3_sar2rgb.sh
+#   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
 #   NGPU=4 bash scripts/train_stage3_sar2rgb.sh
 

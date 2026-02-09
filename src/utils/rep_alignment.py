@@ -12,12 +12,12 @@ Four concrete strategies are provided:
 
 * **MaRS-RGB alignment** (default for RGB2IR) – A frozen MaRS-RGB SwinV2
   image encoder extracts features from the input RGB image.  Loaded via
-  ``timm`` with ``swinv2_base_window8_256``.
+  ``transformers`` as a Swinv2Model.
   Checkpoint: ``models/BiliSakura/MaRS-Base-RGB``.
 
 * **MaRS-SAR alignment** (default for SAR2EO, SAR2IR, SAR2RGB) – A frozen
   MaRS-SAR SwinV2 image encoder extracts features from the input SAR
-  image.  Loaded via ``timm`` with ``swinv2_base_window8_256``.
+  image.  Loaded via ``transformers`` as a Swinv2Model.
   Checkpoint: ``models/BiliSakura/MaRS-Base-SAR``.
 
 * **SARCLIP alignment** – for SAR2EO, SAR2IR, SAR2RGB tasks.  A frozen
@@ -90,6 +90,8 @@ class SARCLIPAlignment(nn.Module):
             self.encoder = CLIPVisionModel.from_pretrained(model_path, trust_remote_code=False)
         
         self.encoder.requires_grad_(False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoder.to(self.device)
         self.encoder.eval()
         
         # Load image processor
@@ -130,7 +132,7 @@ class SARCLIPAlignment(nn.Module):
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
         """Extract SARCLIP features from images."""
-        x = self._preprocess(images).to(next(self.encoder.parameters()).device)
+        x = self._preprocess(images).to(self.device)
         outputs = self.encoder(x)
         return outputs.image_embeds if hasattr(outputs, 'image_embeds') else outputs.last_hidden_state[:, 0]
 
@@ -166,6 +168,8 @@ class DINOv3SatAlignment(nn.Module):
         
         self.encoder = AutoModel.from_pretrained(model_path, trust_remote_code=False)
         self.encoder.requires_grad_(False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoder.to(self.device)
         self.encoder.eval()
         
         self.image_processor = AutoImageProcessor.from_pretrained(model_path)
@@ -195,7 +199,7 @@ class DINOv3SatAlignment(nn.Module):
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
         """Extract DINOv3-sat features from images."""
-        x = self._preprocess(images).to(next(self.encoder.parameters()).device)
+        x = self._preprocess(images).to(self.device)
         outputs = self.encoder(x)
         # Use pooler_output if available (as per official README), otherwise CLS token
         return outputs.pooler_output if hasattr(outputs, 'pooler_output') and outputs.pooler_output is not None else outputs.last_hidden_state[:, 0]
@@ -218,8 +222,8 @@ class DINOv3SatAlignment(nn.Module):
 class MaRSRGBAlignment(nn.Module):
     """Representation alignment using MaRS-RGB encoder (SwinV2 backbone).
 
-    Default encoder for the RGB2IR task.  Uses ``timm`` to load a
-    ``swinv2_base_window8_256`` model with pre-trained MaRS-RGB weights.
+    Default encoder for the RGB2IR task.  Uses ``transformers`` to load a
+    Swinv2Model with pre-trained MaRS-RGB weights.
     """
 
     def __init__(
@@ -227,25 +231,19 @@ class MaRSRGBAlignment(nn.Module):
         model_path: str = "./models/BiliSakura/MaRS-Base-RGB",
         projector_dim: Optional[int] = None,
         encoder_dim: Optional[int] = None,
-        timm_model_name: str = "swinv2_base_window8_256",
-        img_size: int = 512,
     ) -> None:
         super().__init__()
-        import timm as _timm
+        from transformers import AutoImageProcessor, Swinv2Model
 
-        self.encoder = _timm.create_model(
-            timm_model_name,
-            pretrained=False,
-            features_only=True,
-            in_chans=3,
-            img_size=img_size,
-            checkpoint_path=model_path,
-        )
+        self.encoder = Swinv2Model.from_pretrained(model_path, trust_remote_code=False)
         self.encoder.requires_grad_(False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoder.to(self.device)
         self.encoder.eval()
+        self.image_processor = AutoImageProcessor.from_pretrained(model_path)
 
         # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
-        self.encoder_dim = encoder_dim or 1024
+        self.encoder_dim = encoder_dim or self.encoder.config.hidden_size
         self.projector_dim = projector_dim or (2 * self.encoder_dim)
         self.projector: Optional[nn.Module] = None
 
@@ -262,11 +260,21 @@ class MaRSRGBAlignment(nn.Module):
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
         """Extract MaRS-RGB features (last-stage, global-average-pooled)."""
+        import numpy as np
+        from PIL import Image
+
         x = adapt_channels(normalize_to_01(images))
-        x = x.to(next(self.encoder.parameters()).device)
-        feats = self.encoder(x)  # list of multi-scale feature maps
-        last_feat = feats[-1]  # deepest stage: (B, C, H, W)
-        return last_feat.mean(dim=[2, 3])  # GAP → (B, C)
+        pil_images = [
+            Image.fromarray((x[i].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8))
+            for i in range(x.shape[0])
+        ]
+        pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
+        pixel_values = pixel_values.to(self.device)
+        outputs = self.encoder(pixel_values)
+        last_hidden = outputs.last_hidden_state
+        if last_hidden.ndim == 4:
+            return last_hidden.mean(dim=[2, 3])  # (B, C, H, W) -> GAP
+        return last_hidden.mean(dim=1)  # (B, L, C) -> token mean
 
     def compute_alignment_loss(
         self,
@@ -286,8 +294,8 @@ class MaRSRGBAlignment(nn.Module):
 class MaRSSARAlignment(nn.Module):
     """Representation alignment using MaRS-SAR encoder (SwinV2 backbone).
 
-    Default encoder for SAR2EO, SAR2IR, and SAR2RGB tasks.  Uses ``timm``
-    to load a ``swinv2_base_window8_256`` model with pre-trained MaRS-SAR
+    Default encoder for SAR2EO, SAR2IR, and SAR2RGB tasks.  Uses
+    ``transformers`` to load a Swinv2Model with pre-trained MaRS-SAR
     weights.
     """
 
@@ -296,25 +304,22 @@ class MaRSSARAlignment(nn.Module):
         model_path: str = "./models/BiliSakura/MaRS-Base-SAR",
         projector_dim: Optional[int] = None,
         encoder_dim: Optional[int] = None,
-        timm_model_name: str = "swinv2_base_window8_256",
-        img_size: int = 512,
     ) -> None:
         super().__init__()
-        import timm as _timm
+        from transformers import AutoImageProcessor, Swinv2Model
 
-        self.encoder = _timm.create_model(
-            timm_model_name,
-            pretrained=False,
-            features_only=True,
-            in_chans=1,
-            img_size=img_size,
-            checkpoint_path=model_path,
-        )
+        self.encoder = Swinv2Model.from_pretrained(model_path, trust_remote_code=False)
         self.encoder.requires_grad_(False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoder.to(self.device)
         self.encoder.eval()
+        self.image_processor = AutoImageProcessor.from_pretrained(
+            model_path,
+            do_convert_rgb=False,
+        )
 
         # SwinV2-Base last-stage feature dim: embed_dim * 2^3 = 128 * 8 = 1024
-        self.encoder_dim = encoder_dim or 1024
+        self.encoder_dim = encoder_dim or self.encoder.config.hidden_size
         self.projector_dim = projector_dim or (2 * self.encoder_dim)
         self.projector: Optional[nn.Module] = None
 
@@ -331,15 +336,25 @@ class MaRSSARAlignment(nn.Module):
     @torch.no_grad()
     def extract_features(self, images: torch.Tensor) -> torch.Tensor:
         """Extract MaRS-SAR features (last-stage, global-average-pooled)."""
+        import numpy as np
+        from PIL import Image
+
         x = normalize_to_01(images)
         # Keep 1-channel for SAR; do NOT expand to 3-ch
         if x.shape[1] == 3:
             logger.warning("MaRS-SAR encoder received 3-channel input; using first channel only")
-            x = x[:, :1]  # take first channel if RGB passed by mistake
-        x = x.to(next(self.encoder.parameters()).device)
-        feats = self.encoder(x)  # list of multi-scale feature maps
-        last_feat = feats[-1]  # deepest stage: (B, C, H, W)
-        return last_feat.mean(dim=[2, 3])  # GAP → (B, C)
+            x = x[:, :1]
+        pil_images = [
+            Image.fromarray((x[i, 0].cpu().numpy() * 255).astype(np.uint8), mode="L")
+            for i in range(x.shape[0])
+        ]
+        pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
+        pixel_values = pixel_values.to(self.device)
+        outputs = self.encoder(pixel_values)
+        last_hidden = outputs.last_hidden_state
+        if last_hidden.ndim == 4:
+            return last_hidden.mean(dim=[2, 3])  # (B, C, H, W) -> GAP
+        return last_hidden.mean(dim=1)  # (B, L, C) -> token mean
 
     def compute_alignment_loss(
         self,

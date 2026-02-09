@@ -19,7 +19,22 @@ IMAGE_EXTS = (".png", ".tif", ".tiff")
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
+
+
+def _resolve_dataset_root(root: Path) -> Path:
+    if root.exists():
+        return root
+    root_str = str(root)
+    if root_str.startswith("/mnt/data/"):
+        alt = Path("/data") / Path(root_str).relative_to("/mnt/data")
+        if alt.exists():
+            return alt
+    if root_str.startswith("/data/"):
+        alt = Path("/mnt/data") / Path(root_str).relative_to("/data")
+        if alt.exists():
+            return alt
+    return root
 
 
 DEFAULT_REFINED_ROOT = _repo_root() / "datasets/BiliSakura/MACIV-T-2025-Structure-Refined"
@@ -54,11 +69,15 @@ class MavicTImageToImageDataset:
         original_root: str | Path | None = None,
         eval_root: str | Path | None = None,
     ) -> None:
-        self.refined_root = Path(refined_root)
+        self.refined_root = _resolve_dataset_root(Path(refined_root))
         if eval_root is None:
             eval_root = original_root if original_root is not None else DEFAULT_EVAL_ROOT
-        self.eval_root = Path(eval_root)
-        self.original_root = Path(original_root) if original_root is not None else self.eval_root
+        self.eval_root = _resolve_dataset_root(Path(eval_root))
+        self.original_root = (
+            _resolve_dataset_root(Path(original_root))
+            if original_root is not None
+            else self.eval_root
+        )
 
     def load(
         self,
