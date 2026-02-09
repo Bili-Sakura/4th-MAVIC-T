@@ -521,8 +521,9 @@ class DDBMTrainer:
             else:
                 # Default for SAR2EO, SAR2IR, SAR2RGB: MaRS-SAR alignment
                 rep_alignment_module = MaRSSARAlignment(cfg.rep_alignment_model_path)
-            # Build projector with source_channels since channel adaptation makes rep_features match source channels
-            rep_alignment_module.build_projector(cfg.source_channels)
+            # Projector input dim: MaRSSAR expects 1-channel features (we adapt rep_features to 1 ch); MaRSRGB uses source_channels
+            proj_in_dim = 1 if isinstance(rep_alignment_module, MaRSSARAlignment) else cfg.source_channels
+            rep_alignment_module.build_projector(proj_in_dim)
             logger.info(
                 f"[{cfg.task_name}] Representation alignment enabled "
                 f"(model={cfg.rep_alignment_model_path}, "
@@ -615,6 +616,11 @@ class DDBMTrainer:
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
+                # Clear optimizer state when REPA is used: projector may have changed (e.g. 3→1)
+                # to avoid Prodigy "size of tensor a (6144) must match size of tensor b (2048)"
+                if rep_alignment_module is not None:
+                    optimizer.state.clear()
+                    logger.info("Cleared optimizer state (REPA projector shape may have changed)")
 
         progress_bar = tqdm(range(global_step, cfg.max_train_steps), disable=not accelerator.is_local_main_process, desc=f"Training {cfg.task_name}")
 
