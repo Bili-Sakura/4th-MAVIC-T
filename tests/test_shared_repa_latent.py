@@ -137,29 +137,33 @@ class TestCUTTaskConfigPaths:
 
     def test_rgb2ir_has_vae_path(self):
         cfg = cut_rgb2ir()
-        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
+        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE"
 
-    def test_rgb2ir_has_mars_rgb_path(self):
+    def test_rgb2ir_no_repa_path(self):
+        """RGB2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = cut_rgb2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2eo_has_mars_sar_path(self):
+    def test_sar2eo_no_repa_path(self):
+        """SAR2EO has no REPA encoder (no pre-trained EO encoder)."""
         cfg = cut_sar2eo()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2ir_has_mars_sar_path(self):
+    def test_sar2ir_no_repa_path(self):
+        """SAR2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = cut_sar2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2rgb_has_mars_sar_path(self):
+    def test_sar2rgb_has_mars_rgb_path(self):
+        """SAR2RGB uses MaRS-Base-RGB to encode the RGB target."""
         cfg = cut_sar2rgb()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
 
     def test_all_tasks_have_vae_path(self):
         """All CUT tasks should have latent_vae_path set for optional latent modeling."""
         for fn in (cut_sar2eo, cut_sar2ir, cut_sar2rgb, cut_rgb2ir):
             cfg = fn()
-            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs", (
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE", (
                 f"{fn.__name__} should set latent_vae_path"
             )
 
@@ -173,29 +177,33 @@ class TestDDBMTaskConfigPaths:
 
     def test_rgb2ir_has_vae_path(self):
         cfg = ddbm_rgb2ir()
-        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
+        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE"
 
-    def test_rgb2ir_has_mars_rgb_path(self):
+    def test_rgb2ir_no_repa_path(self):
+        """RGB2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = ddbm_rgb2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2eo_has_mars_sar_path(self):
+    def test_sar2eo_no_repa_path(self):
+        """SAR2EO has no REPA encoder (no pre-trained EO encoder)."""
         cfg = ddbm_sar2eo()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2ir_has_mars_sar_path(self):
+    def test_sar2ir_no_repa_path(self):
+        """SAR2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = ddbm_sar2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2rgb_has_mars_sar_path(self):
+    def test_sar2rgb_has_mars_rgb_path(self):
+        """SAR2RGB uses MaRS-Base-RGB to encode the RGB target."""
         cfg = ddbm_sar2rgb()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
 
     def test_all_tasks_have_vae_path(self):
         """All DDBM tasks should have latent_vae_path set for optional latent modeling."""
         for fn in (ddbm_sar2eo, ddbm_sar2ir, ddbm_sar2rgb, ddbm_rgb2ir):
             cfg = fn()
-            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs", (
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE", (
                 f"{fn.__name__} should set latent_vae_path"
             )
 
@@ -333,25 +341,29 @@ class TestDDIBConfigDefaults:
 class TestDDIBTaskConfigPaths:
     """DDIB pre-built task configs set the expected model paths."""
 
-    def test_rgb2ir_has_mars_rgb_path(self):
+    def test_rgb2ir_no_repa_path(self):
+        """RGB2IR has no REPA encoder (no pre-trained IR encoder)."""
         from examples.ddib.config import rgb2ir_config as ddib_rgb2ir
         cfg = ddib_rgb2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2eo_has_mars_sar_path(self):
+    def test_sar2eo_no_repa_path(self):
+        """SAR2EO has no REPA encoder (no pre-trained EO encoder)."""
         from examples.ddib.config import sar2eo_config as ddib_sar2eo
         cfg = ddib_sar2eo()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2ir_has_mars_sar_path(self):
+    def test_sar2ir_no_repa_path(self):
+        """SAR2IR has no REPA encoder (no pre-trained IR encoder)."""
         from examples.ddib.config import sar2ir_config as ddib_sar2ir
         cfg = ddib_sar2ir()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2rgb_has_mars_sar_path(self):
+    def test_sar2rgb_has_mars_rgb_path(self):
+        """SAR2RGB uses MaRS-Base-RGB to encode the RGB target."""
         from examples.ddib.config import sar2rgb_config as ddib_sar2rgb
         cfg = ddib_sar2rgb()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
 
 
 # ---------------------------------------------------------------------------

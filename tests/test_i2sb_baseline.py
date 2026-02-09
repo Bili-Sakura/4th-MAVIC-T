@@ -49,10 +49,20 @@ class TestConfig:
     @pytest.mark.parametrize("builder", [
         sar2eo_config, rgb2ir_config, sar2ir_config, sar2rgb_config,
     ])
-    def test_latent_and_rep_paths(self, builder):
+    def test_latent_paths(self, builder):
         cfg = builder()
         assert cfg.latent_vae_path is not None
-        assert cfg.rep_alignment_model_path is not None
+
+    def test_sar2rgb_has_repa_path(self):
+        """Only SAR2RGB has a REPA model path (MaRS-Base-RGB for target encoding)."""
+        cfg = sar2rgb_config()
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
+
+    @pytest.mark.parametrize("builder", [sar2eo_config, rgb2ir_config, sar2ir_config])
+    def test_no_repa_path_for_unsupported_tasks(self, builder):
+        """SAR2EO, RGB2IR, SAR2IR have no REPA model path."""
+        cfg = builder()
+        assert cfg.rep_alignment_model_path is None
 
 
 # ---------------------------------------------------------------------------

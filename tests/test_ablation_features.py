@@ -49,29 +49,33 @@ class TestTaskConfigPaths:
 
     def test_rgb2ir_has_vae_path(self):
         cfg = rgb2ir_config()
-        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
+        assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE"
 
-    def test_rgb2ir_has_mars_rgb_path(self):
+    def test_rgb2ir_no_repa_path(self):
+        """RGB2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = rgb2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2eo_has_mars_sar_path(self):
+    def test_sar2eo_no_repa_path(self):
+        """SAR2EO has no REPA encoder (no pre-trained EO encoder)."""
         cfg = sar2eo_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2ir_has_mars_sar_path(self):
+    def test_sar2ir_no_repa_path(self):
+        """SAR2IR has no REPA encoder (no pre-trained IR encoder)."""
         cfg = sar2ir_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path is None
 
-    def test_sar2rgb_has_mars_sar_path(self):
+    def test_sar2rgb_has_mars_rgb_path(self):
+        """SAR2RGB uses MaRS-Base-RGB to encode the RGB target."""
         cfg = sar2rgb_config()
-        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-SAR"
+        assert cfg.rep_alignment_model_path == "./models/BiliSakura/MaRS-Base-RGB"
 
     def test_all_tasks_have_vae_path(self):
         """All tasks should have latent_vae_path set for optional latent modeling."""
         for fn in (sar2eo_config, sar2ir_config, sar2rgb_config, rgb2ir_config):
             cfg = fn()
-            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs"
+            assert cfg.latent_vae_path == "./models/BiliSakura/VAEs/FLUX2-VAE"
 
     def test_overrides_work(self):
         cfg = rgb2ir_config(use_latent_target=True, lambda_latent=0.5)

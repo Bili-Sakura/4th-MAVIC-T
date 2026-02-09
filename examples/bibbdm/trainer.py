@@ -252,10 +252,11 @@ class BiBBDMTrainer:
             extras["loss_latent"] = loss_latent.detach()
 
         # Optional representation alignment loss (REPA)
+        # REPA teacher encodes the *target* (ground-truth) image, not source.
         if rep_alignment_module is not None:
-            source_for_enc = pixel_source if pixel_source is not None else source
+            target_for_enc = pixel_target if pixel_target is not None else target
             with torch.no_grad():
-                enc_feats = rep_alignment_module.extract_features(source_for_enc)
+                enc_feats = rep_alignment_module.extract_features(target_for_enc)
             rep_features = decoded if decoded is not None else target_recon
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
@@ -407,18 +408,23 @@ class BiBBDMTrainer:
         model = self.build_model(image_size=model_image_size)
         scheduler = self.build_scheduler()
 
+        # Representation alignment (REPA)
+        # NOTE: REPA encodes the *target* (ground-truth) image, not the source.
+        # Only SAR2RGB is currently supported (MaRS-Base-RGB encodes the RGB target).
         rep_alignment_module = None
         if cfg.use_rep_alignment and cfg.rep_alignment_model_path:
-            from src.utils.rep_alignment import MaRSRGBAlignment, MaRSSARAlignment
-            if cfg.task_name == "rgb2ir":
-                # Default for RGB2IR: MaRS-RGB alignment
+            from src.utils.rep_alignment import MaRSRGBAlignment
+            if cfg.task_name == "sar2rgb":
                 rep_alignment_module = MaRSRGBAlignment(cfg.rep_alignment_model_path)
             else:
-                # Default for SAR2EO, SAR2IR, SAR2RGB: MaRS-SAR alignment
-                rep_alignment_module = MaRSSARAlignment(cfg.rep_alignment_model_path)
-            # Build projector with source_channels since features are aligned to match source encoder
-            rep_alignment_module.build_projector(cfg.source_channels)
-            logger.info(f"[{cfg.task_name}] Representation alignment enabled")
+                logger.warning(
+                    "REPA is not applicable for task '%s' – no pre-trained "
+                    "encoder for the target domain; skipping.", cfg.task_name,
+                )
+            if rep_alignment_module is not None:
+                # Build projector with target_channels (features aligned to target encoder)
+                rep_alignment_module.build_projector(cfg.target_channels)
+                logger.info(f"[{cfg.task_name}] Representation alignment enabled")
 
         ema_model = None
         if cfg.use_ema:

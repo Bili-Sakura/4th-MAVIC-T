@@ -46,19 +46,25 @@ A collection of Variational Autoencoders (VAEs) used for latent space encoding/d
 
 ## Representation Alignment (REPA)
 
-The representation alignment technique (inspired by [REPA](vendor/REPA/)) uses the
-frozen pre-trained encoders above to inject semantic knowledge into the
-translation model during training.  The technique is **architecture-agnostic**
-and works with any baseline (Pix2Pix-Turbo, CUT, DDBM).
+The representation alignment technique (inspired by [REPA](vendor/REPA/)) uses a
+frozen pre-trained encoder to extract features from the **target (ground-truth)**
+image, while a trainable projection head maps the translation model's output
+features into the same embedding space.  A negative-cosine-similarity loss
+encourages the model to produce outputs whose representations match the clean
+target as seen by the encoder.
 
-| Task | Default Encoder | Config field |
-|------|-----------------|-------------|
-| `sar2eo` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
-| `sar2ir` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
-| `sar2rgb` | MaRS-SAR | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-SAR"` |
-| `rgb2ir` | MaRS-RGB | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB"` |
+> **Important:** Following the original REPA formulation, the teacher encoder
+> must process the **target** image (the clean ground-truth), *not* the source
+> input.  This means REPA is only applicable when a pre-trained encoder exists
+> for the **target domain**.
 
-**Alternative encoders:** SARCLIP (`./models/BiliSakura/SARCLIP-ViT-L-14`) can be used for SAR tasks, and DINOv3-sat (`./models/facebook/dinov3-vitl16-pretrain-sat493m`) can be used for RGB2IR task by overriding the `rep_alignment_model_path` config field.
+| Task | REPA Support | Default Encoder | Config field |
+|------|:---:|-----------------|-------------|
+| `sar2rgb` | ✅ | MaRS-RGB | `rep_alignment_model_path="./models/BiliSakura/MaRS-Base-RGB"` |
+| `sar2eo` | ❌ | — | No pre-trained EO encoder available |
+| `rgb2ir` | ❌ | — | No pre-trained IR encoder available |
+| `sar2ir` | ❌ | — | No pre-trained IR encoder available |
 
 Enable via `use_rep_alignment=True` in the task config.  The alignment loss
-weight is controlled by `lambda_rep_alignment` (default 0.1).
+weight is controlled by `lambda_rep_alignment` (default 0.1).  For unsupported
+tasks, enabling REPA will log a warning and skip the alignment loss.
