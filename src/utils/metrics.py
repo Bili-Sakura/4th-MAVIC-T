@@ -36,7 +36,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-# LPIPS (torchmetrics hides it under image.lpip)
+# LPIPS (torchmetrics exposes it under torchmetrics.image.lpip)
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
 # FID (optional – requires torchvision for InceptionV3 weights)
@@ -249,7 +249,7 @@ class MetricCalculator:
         predictions = predictions.clamp(0, 1)
         targets = targets.clamp(0, 1)
 
-        # L1 – accumulate weighted by batch size to avoid per-batch bias
+        # L1 - accumulate weighted by batch size to avoid per-batch bias
         batch_size = predictions.shape[0]
         self._l1_total += F.l1_loss(predictions, targets, reduction="sum").item()
         self._num_samples += batch_size
