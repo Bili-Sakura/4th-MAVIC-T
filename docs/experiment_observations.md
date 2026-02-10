@@ -25,7 +25,7 @@
 | SAR → RGB | `(128, 128, 32)` | medium    | ~120 M  |
 | SAR → EO  | `(32, 32, 32)`   | small     | ~20 M   |
 
-**Observation**: Pure noise even after 5000 steps of training.
+**Observation**: Pure noise even after 5000 steps of training. **Status**: Failed.
 
 **Assumptions** (to investigate):
 
@@ -46,13 +46,12 @@
 | SAR → RGB | `(512, 512)`   | large    | ~56.5 M |
 | SAR → EO  | `(256, 256)`   | medium   | ~14.1 M |
 
-**Observation**: Appealing results even at 1000 steps.
+**Observation**: GAN collapse / under-fitting observed. **Status**: Failed.
 
 **Takeaways**:
 
-- Pixel-space CUT converges much faster than latent-space DDBM in this setup.
-- Fewer parameters (~56.5 M vs ~120 M) but better practical performance at early steps.
-- Good candidate for quick iteration and baseline comparisons.
+- Pixel-space CUT converges faster than latent-space DDBM in this setup, but exhibited failure modes.
+- Fewer parameters (~56.5 M vs ~120 M) but did not yield stable, usable results.
 
 ---
 
@@ -60,8 +59,8 @@
 
 | Approach          | Steps tested | Result              |
 |-------------------|--------------|---------------------|
-| DDBM latent       | 5000         | Pure noise          |
-| CUT pixel-space   | 1000         | Appealing results   |
+| DDBM latent       | 5000         | Failed (pure noise) |
+| CUT pixel-space   | 1000         | Failed (GAN collapse / under-fitting) |
 
 ---
 
