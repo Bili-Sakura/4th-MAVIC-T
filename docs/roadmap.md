@@ -72,6 +72,27 @@ bash scripts/train_stage1_sar2rgb.sh
 bash scripts/train_stage1_sar2eo.sh
 ```
 
+### CUT Ablation (Stage 1)
+
+**Goal**: Compare CUT (GAN-based, pixel-space) against DDBM. CUT params are much smaller
+than DDBM, so we use **aggressive** tier choices matched to recommended resolution
+(`configs/model_scaling_variants.yaml`). 1024 px tasks train at 512 px crop for faster iteration.
+
+| Task | Pixel shape | CUT config tier | ~Params | Notes |
+|------|-------------|----------------|---------|-------|
+| RGB → IR  | `(512, 512)` crop | **large**  | ~56.5 M | large: 256–512 |
+| SAR → IR  | `(512, 512)` crop | **large**  | ~56.5 M | large: 256–512 |
+| SAR → RGB | `(512, 512)` crop | **large**  | ~56.5 M | large: 256–512 |
+| SAR → EO  | `(256, 256)`      | **medium** | ~14.1 M | medium: 128–256 |
+
+```bash
+# Run all Stage-1 CUT ablation jobs
+bash scripts/train_stage1_cut_rgb2ir.sh
+bash scripts/train_stage1_cut_sar2ir.sh
+bash scripts/train_stage1_cut_sar2rgb.sh
+bash scripts/train_stage1_cut_sar2eo.sh
+```
+
 ---
 
 ## Stage 2 — Latent-Space Modelling with Scaled-Up Models
@@ -92,6 +113,25 @@ bash scripts/train_stage2_rgb2ir.sh
 bash scripts/train_stage2_sar2ir.sh
 bash scripts/train_stage2_sar2rgb.sh
 bash scripts/train_stage2_sar2eo.sh
+```
+
+### CUT Ablation (Stage 2)
+
+**Goal**: Scale up CUT to huge tier for 1024 px tasks; large for 256 px.
+
+| Task | Pixel shape | CUT config tier | ~Params | Notes |
+|------|-------------|----------------|---------|-------|
+| RGB → IR  | `(512, 512)` crop | **huge**   | ~293 M | huge: 512–1024 |
+| SAR → IR  | `(512, 512)` crop | **huge**   | ~293 M | huge: 512–1024 |
+| SAR → RGB | `(512, 512)` crop | **huge**   | ~293 M | huge: 512–1024 |
+| SAR → EO  | `(256, 256)`      | **large**  | ~56.5 M | large: 256–512 |
+
+```bash
+# Run all Stage-2 CUT ablation jobs
+bash scripts/train_stage2_cut_rgb2ir.sh
+bash scripts/train_stage2_cut_sar2ir.sh
+bash scripts/train_stage2_cut_sar2rgb.sh
+bash scripts/train_stage2_cut_sar2eo.sh
 ```
 
 ---
@@ -115,6 +155,25 @@ bash scripts/train_stage3_rgb2ir.sh
 bash scripts/train_stage3_sar2ir.sh
 bash scripts/train_stage3_sar2rgb.sh
 bash scripts/train_stage3_sar2eo.sh
+```
+
+### CUT Ablation (Stage 3)
+
+**Goal**: Full 1024 px resolution for 1024 tasks; huge tier for SAR→EO.
+
+| Task | Pixel shape | CUT config tier | ~Params | Notes |
+|------|-------------|----------------|---------|-------|
+| RGB → IR  | `(1024, 1024)` | **huge**  | ~293 M | huge: 512–1024 |
+| SAR → IR  | `(1024, 1024)` | **huge**  | ~293 M | huge: 512–1024 |
+| SAR → RGB | `(1024, 1024)` | **huge**  | ~293 M | huge: 512–1024 |
+| SAR → EO  | `(256, 256)`   | **huge**  | ~293 M | aggressive (huge: 512–1024) |
+
+```bash
+# Run all Stage-3 CUT ablation jobs
+bash scripts/train_stage3_cut_rgb2ir.sh
+bash scripts/train_stage3_cut_sar2ir.sh
+bash scripts/train_stage3_cut_sar2rgb.sh
+bash scripts/train_stage3_cut_sar2eo.sh
 ```
 
 ---
@@ -199,8 +258,11 @@ bash scripts/train_stage4d_unified_1024.sh
 | Stage | Space | Pipeline | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
 |-------|-------|----------|--------|---------------------------|----------|
 | 1 | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Fast baseline |
+| 1 (CUT) | Pixel | CUT (ResNet + PatchGAN) | medium | large (512 crop) | GAN ablation, resolution-matched |
 | 2 | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Scale model |
+| 2 (CUT) | Pixel | CUT (ResNet + PatchGAN) | large | huge (512 crop) | GAN ablation scaled |
 | 3 | Pixel | `DDBMPipeline` | medium | large | Drop VAE bottleneck |
+| 3 (CUT) | Pixel | CUT (ResNet + PatchGAN) | huge | huge | GAN ablation, full resolution |
 | 4b | Latent (RS-VAE) | `DDBMLatentPipeline` | large (unified, 256px) | large (unified, 256px crop) | Base foundation model |
 | 4c | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 512px crop) | Fine-tune |
 | 4d | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 1024px) | Optional full-resolution fine-tune |

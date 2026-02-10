@@ -31,10 +31,10 @@
 # * Conditional models (DDBM, BiBBDM, I2SB) double input channels via
 #   concatenation, so param counts are slightly higher than unconditional
 #   variants at the same width.
-# * BiBBDM with the default "dlns" objective outputs 2× channels, adding a
+# * BiBBDM with the default "dlns" objective outputs 2 \times channels, adding a
 #   tiny number of extra output-layer params compared to DDBM/I2SB.
 # * DDIB trains *two* independent unconditional UNets (one per domain); its
-#   total param count is 2× the single-model count.
+#   total param count is 2 \times the single-model count.
 # * Img2Img-Turbo uses a frozen pretrained SD-Turbo base (~865 M params).
 #   Only LoRA adapter weights are trainable; the "size" is controlled by
 #   LoRA rank.
@@ -56,7 +56,7 @@ diffusion_unet:
   # -------------------------------------------------------
   # Small / Tiny   (~20 M parameters)
   # -------------------------------------------------------
-  # Good for low-resolution tasks (32×32–128×128), fast prototyping,
+  # Good for low-resolution tasks (32 \times32-128 \times128), fast prototyping,
   # or limited-VRAM environments.
   small:
     num_channels: 64
@@ -68,7 +68,7 @@ diffusion_unet:
     exact_params_3ch: 20020611       # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 20017730
     exact_params_bibbdm_3ch: 20022342
-    recommended_resolution: "32–128"
+    recommended_resolution: "32-128"
     notes: >
       Minimal model for rapid iteration.  No attention layers keep
       memory low.  Uses a gradual channel expansion (1,2,3,4) rather
@@ -78,7 +78,7 @@ diffusion_unet:
   # Medium / Base   (~120 M parameters)
   #   *** current default ***
   # -------------------------------------------------------
-  # Balanced for mid-resolution tasks (128–256).  This is the default
+  # Balanced for mid-resolution tasks (128-256).  This is the default
   # configuration already used in each baseline's config.py.
   medium:
     num_channels: 128
@@ -90,15 +90,15 @@ diffusion_unet:
     exact_params_3ch: 120253315      # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 120247554
     exact_params_bibbdm_3ch: 120256774
-    recommended_resolution: "128–256"
+    recommended_resolution: "128-256"
     notes: >
-      Current project default (~120 M for sar2eo at 256×256).
+      Current project default (~120 M for sar2eo at 256 \times256).
       Good balance of quality and training cost for the MAVIC-T dataset.
 
   # -------------------------------------------------------
   # Large           (~404 M parameters)
   # -------------------------------------------------------
-  # Standard for high-quality generation at 256–512 resolution.
+  # Standard for high-quality generation at 256-512 resolution.
   # Inspired by Stable Diffusion v1.x UNet sizing.
   large:
     num_channels: 256
@@ -110,9 +110,9 @@ diffusion_unet:
     exact_params_3ch: 404297987      # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 404286466
     exact_params_bibbdm_3ch: 404304902
-    recommended_resolution: "256–512"
+    recommended_resolution: "256-512"
     notes: >
-      Significantly wider backbone.  Expect ~3× the training time and
+      Significantly wider backbone.  Expect ~3 \times the training time and
       VRAM of "medium".  Recommended when the medium variant plateaus
       and higher fidelity is needed.
 
@@ -131,7 +131,7 @@ diffusion_unet:
     exact_params_3ch: 909518211      # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 909500930
     exact_params_bibbdm_3ch: 909528582
-    recommended_resolution: "512–1024"
+    recommended_resolution: "512-1024"
     notes: >
       Very large model; requires multi-GPU training and ≥40 GB VRAM
       per device.  Consider gradient checkpointing and bf16/fp16.
@@ -151,7 +151,7 @@ diffusion_unet:
       resolution: 256
       recommended_size: "medium"
       notes: >
-        256×256 single-channel task.  "medium" is sufficient for
+        256 \times256 single-channel task.  "medium" is sufficient for
         current dataset size.  Scale to "large" only if quality
         plateaus.
 
@@ -172,7 +172,7 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "medium or large"
       notes: >
-        1024×1024 single-channel cross-modality.  Similar guidance
+        1024 \times1024 single-channel cross-modality.  Similar guidance
         to rgb2ir.
 
     sar2rgb:
@@ -182,7 +182,7 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "medium or large"
       notes: >
-        1024×1024 with 3-channel output.  Wider output head benefits
+        1024 \times1024 with 3-channel output.  Wider output head benefits
         from "large" if VRAM allows.
 
 
@@ -192,7 +192,7 @@ diffusion_unet:
 # DDIB trains two independent unconditional diffusion models (one
 # per domain) and translates via DDIM encode→decode.  Each model
 # uses the same UNet architecture as above but without conditioning.
-# Total parameter count is 2× the per-model count.
+# Total parameter count is 2 \times the per-model count.
 #
 # Exact parameter counts (sar2eo, 1ch):
 #   per-model: small=20,016,577  medium=120,245,249  large=404,281,857  huge=909,494,017
@@ -209,7 +209,7 @@ ddib:
     exact_params_per_model_3ch: 20018883
     exact_params_total_1ch: 40033154
     exact_params_total_3ch: 40037766
-    recommended_resolution: "32–128"
+    recommended_resolution: "32-128"
     notes: >
       Two small unconditional UNets.  For fast prototyping only.
 
@@ -223,7 +223,7 @@ ddib:
     exact_params_per_model_3ch: 120249859
     exact_params_total_1ch: 240490498
     exact_params_total_3ch: 240499718
-    recommended_resolution: "128–256"
+    recommended_resolution: "128-256"
     notes: >
       Current project default (~120 M per model, ~240 M total).
 
@@ -237,7 +237,7 @@ ddib:
     exact_params_per_model_3ch: 404291075
     exact_params_total_1ch: 808563714
     exact_params_total_3ch: 808582150
-    recommended_resolution: "256–512"
+    recommended_resolution: "256-512"
     notes: >
       Two large UNets; requires substantial VRAM for both models
       during training.
@@ -252,7 +252,7 @@ ddib:
     exact_params_per_model_3ch: 909507843
     exact_params_total_1ch: 1818988034
     exact_params_total_3ch: 1819015686
-    recommended_resolution: "512–1024"
+    recommended_resolution: "512-1024"
     notes: >
       Very large dual-model setup.  Multi-GPU mandatory.
 
@@ -313,7 +313,7 @@ cut:
     exact_gen_params_1ch: 1958785
     exact_disc_params_1ch: 166625
     exact_total_params_1ch: 2125410
-    recommended_resolution: "64–128"
+    recommended_resolution: "64-128"
     notes: >
       Lightweight generator for quick experiments.  Fewer residual
       blocks and narrower filters.
@@ -327,7 +327,7 @@ cut:
     exact_gen_params_1ch: 11365633
     exact_disc_params_1ch: 2762689
     exact_total_params_1ch: 14128322
-    recommended_resolution: "128–256"
+    recommended_resolution: "128-256"
     notes: >
       Current project default (~14.1 M total).  Standard CUT
       configuration from the original paper.
@@ -341,10 +341,10 @@ cut:
     exact_gen_params_1ch: 45439489
     exact_disc_params_1ch: 11030401
     exact_total_params_1ch: 56469890
-    recommended_resolution: "256–512"
+    recommended_resolution: "256-512"
     notes: >
       Doubled filter widths.  Better detail capture at higher
-      resolutions, but ~4× the compute of "medium".
+      resolutions, but ~4 \times the compute of "medium".
 
   huge:
     ngf: 256
@@ -355,7 +355,7 @@ cut:
     exact_gen_params_1ch: 181711873
     exact_disc_params_1ch: 111191809
     exact_total_params_1ch: 292903682
-    recommended_resolution: "512–1024"
+    recommended_resolution: "512-1024"
     notes: >
       Very wide generator and deeper discriminator (4 layers vs default
       3).  Uses the standard 9 residual blocks; the CUT factory
@@ -497,9 +497,9 @@ img2img_turbo:
 # ---------------------------------------------------------------------------
 #  Tier    | Single Model VRAM | Notes
 # ---------|-------------------|-------
-#  small   |  2–4 GB           | Consumer GPU (RTX 3060)
-#  medium  |  6–12 GB          | Mid-range GPU (RTX 3090 / A5000)
-#  large   |  16–24 GB         | High-end GPU (A100-40G)
+#  small   |  2-4 GB           | Consumer GPU (RTX 3060)
+#  medium  |  6-12 GB          | Mid-range GPU (RTX 3090 / A5000)
+#  large   |  16-24 GB         | High-end GPU (A100-40G)
 #  huge    |  40+ GB           | Multi-GPU (A100-80G)
 #
 # ---------------------------------------------------------------------------
