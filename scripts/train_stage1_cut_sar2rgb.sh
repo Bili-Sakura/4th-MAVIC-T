@@ -4,7 +4,7 @@
 #
 # Usage:
 #   bash scripts/train_stage1_cut_sar2rgb.sh
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage1_cut_sar2rgb.sh
+#   CUDA_VISIBLE_DEVICES=3 bash scripts/train_stage1_cut_sar2rgb.sh
 #   NGPU=4 bash scripts/train_stage1_cut_sar2rgb.sh
 
 set -euo pipefail

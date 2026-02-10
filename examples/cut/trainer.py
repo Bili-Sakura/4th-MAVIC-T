@@ -320,7 +320,7 @@ class CUTTrainer:
         saved = 0
 
         for batch in val_dataloader:
-            _zeros, source = batch
+            source, _ = batch  # CUT dataset returns (source, target); target is zeros for test split
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
 
@@ -373,10 +373,17 @@ class CUTTrainer:
     def train(self):
         """Run the full CUT training loop."""
         cfg = self.cfg
+
+        # Auto-structure checkpoint directory with method/task subfolders (same as DDBM).
+        if cfg.task_name:
+            cfg.output_dir = os.path.join(cfg.output_dir, "cut", cfg.task_name)
+
         checkpointing_steps = cfg.checkpointing_steps
         save_model_epochs = cfg.save_model_epochs
+        if save_model_epochs is not None and save_model_epochs <= 0:
+            save_model_epochs = None
         if checkpointing_steps is not None and save_model_epochs is not None:
-            logger.warning(
+            logging.warning(
                 "checkpointing_steps is set while save_model_epochs is enabled; "
                 "epoch checkpoints take priority and step checkpoints will be skipped. "
                 "Set save_model_epochs=None to enable step-based checkpointing."
@@ -521,6 +528,9 @@ class CUTTrainer:
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
         if cfg.max_train_steps is None:
             cfg.max_train_steps = total_epochs * num_update_steps_per_epoch
+        elif total_epochs == 0:
+            # Step-based training (n_epochs=0, max_train_steps set): derive epochs from steps
+            total_epochs = max(1, math.ceil(cfg.max_train_steps / num_update_steps_per_epoch))
 
         # LR schedulers
         if cfg.lr_policy == "linear":

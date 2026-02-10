@@ -4,7 +4,7 @@
 #
 # Usage:
 #   bash scripts/train_stage1_cut_sar2eo.sh
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/train_stage1_cut_sar2eo.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/train_stage1_cut_sar2eo.sh
 #   NGPU=4 bash scripts/train_stage1_cut_sar2eo.sh
 
 set -euo pipefail
@@ -37,7 +37,7 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=16
+TRAIN_BATCH_SIZE=64
 EVAL_BATCH_SIZE=4
 N_EPOCHS=0
 N_EPOCHS_DECAY=0
