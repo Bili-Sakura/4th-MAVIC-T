@@ -30,6 +30,7 @@ CHANNEL_MULT="1,1,2,2,4,4"
 # --- Pixel-space DDBM (no VAE) ---
 USE_LATENT_TARGET=false
 RESOLUTION=512
+OUTPUT_RESOLUTION=1024  # inference: load 1024, run 512-trained model → 1024 output (no upscale)
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=false
@@ -45,7 +46,7 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=16
-EVAL_BATCH_SIZE=4
+EVAL_BATCH_SIZE=1
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=10000
 GRADIENT_ACCUMULATION_STEPS=1
@@ -102,6 +103,9 @@ COMMON_ARGS=(
   --num_inference_steps "${NUM_INFERENCE_STEPS}"
 )
 
+if [ -n "${OUTPUT_RESOLUTION}" ]; then
+  COMMON_ARGS+=(--output_resolution "${OUTPUT_RESOLUTION}")
+fi
 if [ -n "${VALIDATION_STEPS}" ]; then
   COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
 fi

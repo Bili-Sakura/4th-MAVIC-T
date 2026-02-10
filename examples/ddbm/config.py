@@ -95,6 +95,7 @@ class TaskConfig:
     num_inference_steps: int = 40
     guidance: float = 1.0
     churn_step_ratio: float = 0.33
+    output_resolution: Optional[int] = None  # if set, load & infer at this resolution (e.g. 1024 when trained at 512)
 
     # ---- latent modeling ablation ----
     use_latent_target: bool = False

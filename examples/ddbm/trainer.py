@@ -200,10 +200,11 @@ class DDBMTrainer:
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
             try:
+                val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
                 val_ds = MavicTDDBMDataset(
                     task=self.cfg.task_name,
                     split="test",
-                    resolution=self.cfg.resolution,
+                    resolution=val_resolution,
                     source_channels=src_ch,
                     target_channels=tgt_ch,
                     with_target=False,

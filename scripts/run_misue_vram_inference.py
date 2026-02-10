@@ -70,6 +70,12 @@ def main():
     )
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--output_resolution",
+        type=int,
+        default=None,
+        help="Load & infer at this resolution (e.g. 1024 when trained at 512). Overrides config.",
+    )
     args = parser.parse_args()
 
     checkpoint_dir = Path(args.checkpoint)
@@ -130,10 +136,12 @@ def main():
     pipeline = pipeline.to(device)
 
     # Load test dataset (first 4 samples)
+    # Use output_resolution for loading when set (512-trained model → 1024 inference)
+    load_resolution = args.output_resolution or cfg.get("output_resolution") or resolution
     val_ds = MavicTDDBMDataset(
         task=task_name,
         split="test",
-        resolution=resolution,
+        resolution=load_resolution,
         source_channels=source_channels,
         target_channels=target_channels,
         with_target=False,
