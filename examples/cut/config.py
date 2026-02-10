@@ -87,6 +87,7 @@ class TaskConfig:
     # ---- validation ----
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
+    validation_resolution: Optional[int] = None  # inference resolution for validation (default: same as resolution)
 
     # ---- hub ----
     push_to_hub: bool = True

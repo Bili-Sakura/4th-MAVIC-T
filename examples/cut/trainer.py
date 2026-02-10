@@ -95,10 +95,11 @@ class CUTTrainer:
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
             try:
+                val_res = self.cfg.validation_resolution if self.cfg.validation_resolution is not None else self.cfg.resolution
                 val_ds = MavicTCUTDataset(
                     task=self.cfg.task_name,
                     split="test",
-                    resolution=self.cfg.resolution,
+                    resolution=val_res,
                     load_size=self.cfg.load_size,
                     model_channels=self.cfg.model_channels,
                     with_target=False,

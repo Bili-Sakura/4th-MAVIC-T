@@ -24,6 +24,7 @@ NDF=64
 N_LAYERS_D=3
 NET_G="resnet_9blocks"
 RESOLUTION=256
+VALIDATION_RESOLUTION=256  # competition task resolution
 
 # --- CUT is always pixel-space (no VAE) ---
 USE_LATENT_TARGET=false
@@ -63,6 +64,7 @@ COMMON_ARGS=(
   --n_layers_D "${N_LAYERS_D}"
   --netG "${NET_G}"
   --resolution "${RESOLUTION}"
+  --validation_resolution "${VALIDATION_RESOLUTION}"
   --use_latent_target "${USE_LATENT_TARGET}"
   --use_augmented "${USE_AUGMENTED}"
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
