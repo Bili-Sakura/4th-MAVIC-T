@@ -20,7 +20,6 @@ Supported UNet types (via ``unet_type`` in :func:`create_model`):
 
 from __future__ import annotations
 
-import math
 from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
