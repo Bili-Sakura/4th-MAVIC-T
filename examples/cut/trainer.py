@@ -390,18 +390,21 @@ class CUTTrainer:
             gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
             batch_images = []
+            batch_size = len(src_uint8)
             for src_arr, gen_arr in zip(src_uint8, gen_uint8):
                 if src_arr.shape[2] == 1:
                     src_arr = src_arr.squeeze(2)
                 if gen_arr.shape[2] == 1:
                     gen_arr = gen_arr.squeeze(2)
-                batch_images.extend([Image.fromarray(src_arr), Image.fromarray(gen_arr)])
-                saved += 1
+                batch_images.extend(
+                    [Image.fromarray(src_arr).convert("RGB"), Image.fromarray(gen_arr).convert("RGB")]
+                )
 
-            grid = make_image_grid(batch_images, rows=len(src_uint8), cols=2)
+            grid = make_image_grid(batch_images, rows=batch_size, cols=2)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            saved += batch_size
 
-        logger.info("Saved %d test samples to %s", saved, sample_dir)
+        logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
 
         if was_training:
             unwrapped.train()
