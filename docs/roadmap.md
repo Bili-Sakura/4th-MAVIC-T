@@ -1,10 +1,10 @@
 # Competition Roadmap
 
 > **Baseline method**: DDBM (`diffusion_unet` in `configs/model_scaling_variants.yaml`).
-> For latent-space modelling stages we use the **DDBM Latent Pipeline**
-> (`DDBMLatentPipeline`) which wraps the DDBM diffusion process with a
-> frozen pre-trained VAE.  Other baselines (BiBBDM, I2SB, DDIB, CUT,
-> Img2Img-Turbo) are left for future exploration.
+> **Stage 1 main**: DDBM directly on pixel space (no VAE). Latent-space
+> modelling with pre-trained VAE is kept as **supplementary** (see experiment
+> observations).  Other baselines (BiBBDM, I2SB, DDIB, CUT, Img2Img-Turbo) are
+> left for future exploration.
 
 We progressively increase training compute across four stages. Each stage
 builds on the previous one and the corresponding training scripts live in
@@ -49,11 +49,33 @@ even without retraining on remote-sensing data.
 
 ---
 
-## Stage 1 — Latent-Space Modelling with Pre-trained VAE (Baseline)
+## Stage 1 — Pixel-Space DDBM (Main)
 
-**Goal**: Quick iteration using frozen pre-trained VAEs borrowed from the RGB
-domain (FLUX2-VAE with spatial compression ratio 8, latent channels 32; or
-SD21-VAE).
+**Goal**: Quick iteration using DDBM directly on pixel space (no VAE). 1024 px
+tasks train at 512 px crop for faster iteration.
+
+**Pipeline**: `DDBMPipeline` (DDBM in pixel space, no VAE).
+
+| Task | Pixel shape | DDBM config tier | ~Params |
+|------|-------------|------------------|---------|
+| RGB → IR  | `(512, 512)` crop | **medium** | ~120 M |
+| SAR → IR  | `(512, 512)` crop | **medium** | ~120 M |
+| SAR → RGB | `(512, 512)` crop | **medium** | ~120 M |
+| SAR → EO  | `(256, 256)`      | **small**  | ~20 M  |
+
+```bash
+# Run all Stage-1 (main) training jobs — pixel-space DDBM
+bash scripts/train_stage1_pixel_rgb2ir.sh
+bash scripts/train_stage1_pixel_sar2ir.sh
+bash scripts/train_stage1_pixel_sar2rgb.sh
+bash scripts/train_stage1_pixel_sar2eo.sh
+```
+
+### DDBM Latent (Supplementary)
+
+**Goal**: Latent-space modelling with frozen pre-trained VAE (kept for reference;
+see [experiment_observations.md](experiment_observations.md) — yielded pure noise
+in initial runs).
 
 **Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE).
 
@@ -65,7 +87,7 @@ SD21-VAE).
 | SAR → EO  | `(32, 32, 32)`   | **small**  | ~20 M  |
 
 ```bash
-# Run all Stage-1 training jobs
+# Run Stage-1 (sup) — latent-space DDBM (existing scripts preserved)
 bash scripts/train_stage1_rgb2ir.sh
 bash scripts/train_stage1_sar2ir.sh
 bash scripts/train_stage1_sar2rgb.sh
@@ -95,9 +117,31 @@ bash scripts/train_stage1_cut_sar2eo.sh
 
 ---
 
-## Stage 2 — Latent-Space Modelling with Scaled-Up Models
+## Stage 2 — Pixel-Space DDBM with Scaled-Up Models (Main)
 
-**Goal**: Increase model capacity while still operating in latent space.
+**Goal**: Increase model capacity while still operating in pixel space (no VAE).
+1024 px tasks train at 512 px crop.
+
+**Pipeline**: `DDBMPipeline` (DDBM in pixel space, no VAE).
+
+| Task | Pixel shape | DDBM config tier | ~Params |
+|------|-------------|------------------|---------|
+| RGB → IR  | `(512, 512)` crop | **large**  | ~404 M |
+| SAR → IR  | `(512, 512)` crop | **large**  | ~404 M |
+| SAR → RGB | `(512, 512)` crop | **large**  | ~404 M |
+| SAR → EO  | `(256, 256)`      | **medium** | ~120 M |
+
+```bash
+# Run all Stage-2 (main) training jobs — pixel-space DDBM
+bash scripts/train_stage2_pixel_rgb2ir.sh
+bash scripts/train_stage2_pixel_sar2ir.sh
+bash scripts/train_stage2_pixel_sar2rgb.sh
+bash scripts/train_stage2_pixel_sar2eo.sh
+```
+
+### DDBM Latent (Supplementary)
+
+**Goal**: Latent-space modelling with frozen pre-trained VAE (kept for reference).
 
 **Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE).
 
@@ -109,6 +153,7 @@ bash scripts/train_stage1_cut_sar2eo.sh
 | SAR → EO  | `(32, 32, 32)`   | **medium** | ~120 M |
 
 ```bash
+# Run Stage-2 (sup) — latent-space DDBM (existing scripts preserved)
 bash scripts/train_stage2_rgb2ir.sh
 bash scripts/train_stage2_sar2ir.sh
 bash scripts/train_stage2_sar2rgb.sh
@@ -257,9 +302,11 @@ bash scripts/train_stage4d_unified_1024.sh
 
 | Stage | Space | Pipeline | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
 |-------|-------|----------|--------|---------------------------|----------|
-| 1 | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Fast baseline |
+| 1 | Pixel | `DDBMPipeline` | small | medium (512 crop) | Fast baseline (no VAE) |
+| 1 (sup) | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Supplementary; see experiment_observations |
 | 1 (CUT) | Pixel | CUT (ResNet + PatchGAN) | medium | large (512 crop) | GAN ablation, resolution-matched |
-| 2 | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Scale model |
+| 2 | Pixel | `DDBMPipeline` | medium | large (512 crop) | Scale model (no VAE) |
+| 2 (sup) | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Supplementary |
 | 2 (CUT) | Pixel | CUT (ResNet + PatchGAN) | large | huge (512 crop) | GAN ablation scaled |
 | 3 | Pixel | `DDBMPipeline` | medium | large | Drop VAE bottleneck |
 | 3 (CUT) | Pixel | CUT (ResNet + PatchGAN) | huge | huge | GAN ablation, full resolution |
