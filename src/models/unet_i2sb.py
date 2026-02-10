@@ -11,8 +11,11 @@ the underlying ``UNet2DModel``, so the rest of the training / sampling code
 can call ``model(x, t, cond=source)`` just like the vendor code.
 
 Supported UNet types (via ``unet_type`` in :func:`create_model`):
-- ``adm``: ADM-style diffusers UNet2DModel (default, implemented).
-- ``edm``, ``edm2``, ``vdm``, ``sid``: placeholders (see :mod:`src.models.unet_ddbm`).
+- ``adm``: ADM-style diffusers UNet2DModel (default).
+- ``edm``: EDM/DDPM++ style with Fourier time embedding.
+- ``edm2``: EDM2 with Fourier embedding and preconditioning.
+- ``vdm``: VDM with logSNR time normalization.
+- ``sid``: Simple Diffusion using UNet2DModel.
 """
 
 from __future__ import annotations
@@ -27,7 +30,12 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from .unet_ddbm import (
     SUPPORTED_UNET_TYPES,
     UNET_TYPE_ADM,
-    _raise_unet_placeholder,
+    UNET_TYPE_EDM,
+    UNET_TYPE_EDM2,
+    UNET_TYPE_VDM,
+    UNET_TYPE_SID,
+    _build_block_types,
+    _parse_create_model_args,
 )
 
 
@@ -92,32 +100,16 @@ class I2SBUNet(ModelMixin, ConfigMixin):
             channel_mult = _channel_mult_for_resolution(image_size)
 
         unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-
-        # Build block_out_channels from model_channels and channel_mult
         block_out_channels = tuple(model_channels * m for m in channel_mult)
-
-        # Convert attention_resolutions to down_block indices
-        down_block_types = []
-        for i in range(len(channel_mult)):
-            if i in attention_resolutions:
-                down_block_types.append("AttnDownBlock2D")
-            else:
-                down_block_types.append("DownBlock2D")
-
-        up_block_types = []
-        for i in range(len(channel_mult)):
-            if (len(channel_mult) - 1 - i) in attention_resolutions:
-                up_block_types.append("AttnUpBlock2D")
-            else:
-                up_block_types.append("UpBlock2D")
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
         self.unet = UNet2DModel(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
             block_out_channels=block_out_channels,
-            down_block_types=tuple(down_block_types),
-            up_block_types=tuple(up_block_types),
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
             layers_per_block=num_res_blocks,
             dropout=dropout,
         )
@@ -149,6 +141,205 @@ class I2SBUNet(ModelMixin, ConfigMixin):
         return self.unet(x, timestep).sample
 
 
+class EDMI2SBUNet(ModelMixin, ConfigMixin):
+    """EDM-style I2SB UNet with Fourier time embedding."""
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=in_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+            time_embedding_type="fourier",
+        )
+
+    def forward(self, x, timestep, cond=None):
+        if self.condition_mode == "concat" and cond is not None:
+            x = torch.cat([x, cond], dim=1)
+        return self.unet(x, timestep).sample
+
+
+class EDM2I2SBUNet(ModelMixin, ConfigMixin):
+    """EDM2-style I2SB UNet with Fourier embedding and preconditioning."""
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        sigma_data: float = 0.5,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+        self.sigma_data = sigma_data
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=in_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+            time_embedding_type="fourier",
+        )
+
+    def forward(self, x, timestep, cond=None):
+        sigma = timestep.float().reshape(-1, 1, 1, 1)
+        sd2 = self.sigma_data ** 2
+        c_skip = sd2 / (sigma ** 2 + sd2)
+        c_out = sigma * self.sigma_data / (sigma ** 2 + sd2).sqrt()
+        c_in = 1.0 / (sd2 + sigma ** 2).sqrt()
+        c_noise = sigma.flatten().log() / 4.0
+
+        x_precond = c_in * x
+        if self.condition_mode == "concat" and cond is not None:
+            x_precond = torch.cat([x_precond, cond], dim=1)
+        F_x = self.unet(x_precond, c_noise).sample
+        return c_skip * x + c_out * F_x
+
+
+class VDMI2SBUNet(ModelMixin, ConfigMixin):
+    """VDM-style I2SB UNet with logSNR time normalization."""
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        gamma_min: float = -13.3,
+        gamma_max: float = 5.0,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+        self.gamma_min = gamma_min
+        self.gamma_max = gamma_max
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=in_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+        )
+
+    def forward(self, x, timestep, cond=None):
+        t_normalized = (timestep.float() - self.gamma_min) / (self.gamma_max - self.gamma_min)
+        if self.condition_mode == "concat" and cond is not None:
+            x = torch.cat([x, cond], dim=1)
+        return self.unet(x, t_normalized).sample
+
+
+class SiDI2SBUNet(ModelMixin, ConfigMixin):
+    """Simple Diffusion I2SB UNet using native UNet2DModel."""
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=in_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+        )
+
+    def forward(self, x, timestep, cond=None):
+        if self.condition_mode == "concat" and cond is not None:
+            x = torch.cat([x, cond], dim=1)
+        return self.unet(x, timestep).sample
+
+
+_I2SB_CLASS_MAP = {
+    UNET_TYPE_ADM: I2SBUNet,
+    UNET_TYPE_EDM: EDMI2SBUNet,
+    UNET_TYPE_EDM2: EDM2I2SBUNet,
+    UNET_TYPE_VDM: VDMI2SBUNet,
+    UNET_TYPE_SID: SiDI2SBUNet,
+}
+
+
 def create_model(
     image_size: int = 256,
     in_channels: int = 3,
@@ -160,57 +351,28 @@ def create_model(
     channel_mult: str = "",
     unet_type: str = UNET_TYPE_ADM,
     **kwargs: Any,
-) -> Union[I2SBUNet, nn.Module]:
-    """Factory for :class:`I2SBUNet`.
+) -> nn.Module:
+    """Factory for I2SB-compatible UNet models.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
-    into the tuples that :class:`I2SBUNet` expects.
+    into the tuples that the wrapper classes expect.
 
     Parameters
     ----------
     unet_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
-        ``vdm``, ``sid``. Only ``adm`` is implemented; others raise
-        :exc:`NotImplementedError`.
+        ``vdm``, ``sid``.
     """
     if unet_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
             f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
         )
-    if unet_type != UNET_TYPE_ADM:
-        _raise_unet_placeholder("I2SB", unet_type)
 
-    # Parse attention_resolutions → down-block indices
-    attn_indices: Tuple[int, ...] = ()
-    if attention_resolutions:
-        if isinstance(attention_resolutions, str):
-            attn_res_list = [int(r) for r in attention_resolutions.split(",")]
-        else:
-            attn_res_list = list(attention_resolutions)
+    attn_indices, cm_tuple = _parse_create_model_args(
+        image_size, attention_resolutions, channel_mult
+    )
 
-        # Determine channel_mult to know the number of blocks
-        cm = None
-        if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
-            cm = tuple(int(c) for c in channel_mult.split(","))
-        elif channel_mult and isinstance(channel_mult, tuple):
-            cm = channel_mult
-        else:
-            cm = _channel_mult_for_resolution(image_size)
-
-        # Map resolution to block index: block i has resolution image_size / 2^i
-        attn_indices = tuple(
-            i for i in range(len(cm))
-            if image_size // (2 ** i) in attn_res_list
-        )
-
-    # Parse channel_mult
-    cm_tuple: Optional[Tuple[int, ...]] = None
-    if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
-        cm_tuple = tuple(int(c) for c in channel_mult.split(","))
-    elif isinstance(channel_mult, tuple) and channel_mult:
-        cm_tuple = channel_mult
-
-    return I2SBUNet(
+    common_kwargs = dict(
         image_size=image_size,
         in_channels=in_channels,
         model_channels=num_channels,
@@ -220,3 +382,16 @@ def create_model(
         condition_mode=condition_mode,
         channel_mult=cm_tuple,
     )
+
+    cls = _I2SB_CLASS_MAP[unet_type]
+
+    if unet_type == UNET_TYPE_EDM2:
+        if "sigma_data" in kwargs:
+            common_kwargs["sigma_data"] = kwargs["sigma_data"]
+    elif unet_type == UNET_TYPE_VDM:
+        if "gamma_min" in kwargs:
+            common_kwargs["gamma_min"] = kwargs["gamma_min"]
+        if "gamma_max" in kwargs:
+            common_kwargs["gamma_max"] = kwargs["gamma_max"]
+
+    return cls(**common_kwargs)
