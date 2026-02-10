@@ -9,16 +9,26 @@ the Hugging Face *diffusers* library.  A thin wrapper class
 :class:`I2SBUNet` concatenates source and noisy sample before forwarding to
 the underlying ``UNet2DModel``, so the rest of the training / sampling code
 can call ``model(x, t, cond=source)`` just like the vendor code.
+
+Supported UNet types (via ``unet_type`` in :func:`create_model`):
+- ``adm``: ADM-style diffusers UNet2DModel (default, implemented).
+- ``edm``, ``edm2``, ``vdm``, ``sid``: placeholders (see :mod:`src.models.unet_ddbm`).
 """
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
+
+from .unet_ddbm import (
+    SUPPORTED_UNET_TYPES,
+    UNET_TYPE_ADM,
+    _raise_unet_placeholder,
+)
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
@@ -148,13 +158,28 @@ def create_model(
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
-    **kwargs,
-) -> I2SBUNet:
-    """Factory matching the vendor ``create_model`` signature.
+    unet_type: str = UNET_TYPE_ADM,
+    **kwargs: Any,
+) -> Union[I2SBUNet, nn.Module]:
+    """Factory for :class:`I2SBUNet`.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
     into the tuples that :class:`I2SBUNet` expects.
+
+    Parameters
+    ----------
+    unet_type : str
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
+        ``vdm``, ``sid``. Only ``adm`` is implemented; others raise
+        :exc:`NotImplementedError`.
     """
+    if unet_type not in SUPPORTED_UNET_TYPES:
+        raise ValueError(
+            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+        )
+    if unet_type != UNET_TYPE_ADM:
+        _raise_unet_placeholder("I2SB", unet_type)
+
     # Parse attention_resolutions → down-block indices
     attn_indices: Tuple[int, ...] = ()
     if attention_resolutions:

@@ -31,6 +31,7 @@ class TaskConfig:
     exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"  # path to txt of bad image paths to skip
 
     # ---- model ----
+    # Backbone: adm (default, implemented) | edm | edm2 | vdm | sid (placeholders)
     unet_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2

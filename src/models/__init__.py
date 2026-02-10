@@ -1,7 +1,16 @@
 """Model architectures for MAVIC-T baselines."""
 
-from .unet_ddbm import DDBMUNet
-from .unet_ddbm import create_model as create_ddbm_model
+from .unet_ddbm import (
+    DDBMUNet,
+    create_model as create_ddbm_model,
+    get_unet_type_config,
+    SUPPORTED_UNET_TYPES,
+    UNET_TYPE_ADM,
+    UNET_TYPE_EDM,
+    UNET_TYPE_EDM2,
+    UNET_TYPE_VDM,
+    UNET_TYPE_SID,
+)
 from .unet_bibbdm import BiBBDMUNet
 from .unet_bibbdm import create_model as create_bibbdm_model
 from .unet_ddib import DDIBUNet
@@ -29,6 +38,13 @@ from .cyclegan_turbo import (
 
 __all__ = [
     "DDBMUNet", "create_ddbm_model",
+    "get_unet_type_config",
+    "SUPPORTED_UNET_TYPES",
+    "UNET_TYPE_ADM",
+    "UNET_TYPE_EDM",
+    "UNET_TYPE_EDM2",
+    "UNET_TYPE_VDM",
+    "UNET_TYPE_SID",
     "BiBBDMUNet", "create_bibbdm_model",
     "DDIBUNet", "create_ddib_model",
     "I2SBUNet", "create_i2sb_model",

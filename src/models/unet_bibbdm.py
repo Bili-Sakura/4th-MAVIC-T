@@ -7,16 +7,26 @@ noisy sample and ``context`` is an optional conditioning signal.  With
 
 For dual-learning objectives (``dlns``, ``dlab``, ``dlgab``), the model
 outputs ``2 * in_channels`` to predict both components simultaneously.
+
+Supported UNet types (via ``unet_type`` in :func:`create_model`):
+- ``adm``: ADM-style diffusers UNet2DModel (default, implemented).
+- ``edm``, ``edm2``, ``vdm``, ``sid``: placeholders (see :mod:`src.models.unet_ddbm`).
 """
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
+
+from .unet_ddbm import (
+    SUPPORTED_UNET_TYPES,
+    UNET_TYPE_ADM,
+    _raise_unet_placeholder,
+)
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
@@ -157,13 +167,28 @@ def create_model(
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
     objective: str = "dlns",
-    **kwargs,
-) -> BiBBDMUNet:
+    unet_type: str = UNET_TYPE_ADM,
+    **kwargs: Any,
+) -> Union[BiBBDMUNet, nn.Module]:
     """Factory for :class:`BiBBDMUNet`.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
     into tuples and infers ``out_channels`` from the *objective*.
+
+    Parameters
+    ----------
+    unet_type : str
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
+        ``vdm``, ``sid``. Only ``adm`` is implemented; others raise
+        :exc:`NotImplementedError`.
     """
+    if unet_type not in SUPPORTED_UNET_TYPES:
+        raise ValueError(
+            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+        )
+    if unet_type != UNET_TYPE_ADM:
+        _raise_unet_placeholder("BiBBDM", unet_type)
+
     out_channels = _out_channels_for_objective(objective, in_channels)
 
     # Parse attention_resolutions → down-block indices

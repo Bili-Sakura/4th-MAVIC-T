@@ -9,16 +9,177 @@ the Hugging Face *diffusers* library.  A thin wrapper class
 :class:`DDBMUNet` concatenates source and noisy sample before forwarding to
 the underlying ``UNet2DModel``, so the rest of the training / sampling code
 can call ``model(x, t, xT=source)`` just like the vendor code.
+
+Supported UNet types (via ``unet_type`` in :func:`create_model`):
+- ``adm``: ADM-style diffusers UNet2DModel (default, implemented).
+- ``edm``: EDM/DDPM++ style from libs/DDBM (SongUNet), placeholder.
+- ``edm2``: EDM2 magnitude-preserving UNet from libs/edm2, placeholder.
+- ``vdm``: Variational Diffusion Model from libs/vdm, placeholder.
+- ``sid``: Simple Diffusion from libs/simpleDiffusion, placeholder.
 """
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
+
+
+# ---------------------------------------------------------------------------
+# UNet type registry and config placeholders
+# ---------------------------------------------------------------------------
+
+UNET_TYPE_ADM = "adm"
+UNET_TYPE_EDM = "edm"
+UNET_TYPE_EDM2 = "edm2"
+UNET_TYPE_VDM = "vdm"
+UNET_TYPE_SID = "sid"
+
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_EDM2, UNET_TYPE_VDM, UNET_TYPE_SID)
+
+
+def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
+    """Return a config hint dict for the given UNet type.
+
+    Used for documentation and validation. Actual implementations may
+    require additional parameters.
+    """
+    configs = {
+        UNET_TYPE_ADM: {
+            "source": "diffusers.UNet2DModel",
+            "description": "ADM-style UNet with positional/sinusoidal time embedding, GroupNorm, ResNet blocks.",
+            "implemented": True,
+        },
+        UNET_TYPE_EDM: {
+            "source": "libs/DDBM/ddbm/models/edm_unet.SongUNet",
+            "description": "EDM/DDPM++/NCSN++ UNetBlock with Fourier embedding, [1,3,3,1] resample filter.",
+            "implemented": False,
+        },
+        UNET_TYPE_EDM2: {
+            "source": "libs/edm2/training/networks_edm2.UNet",
+            "description": "EDM2 magnitude-preserving UNet with MPConv, mp_silu, Precond wrapper.",
+            "implemented": False,
+        },
+        UNET_TYPE_VDM: {
+            "source": "libs/vdm/model_vdm.py",
+            "description": "Variational Diffusion Model (logSNR = f(t)), Jax/Flax reference.",
+            "implemented": False,
+        },
+        UNET_TYPE_SID: {
+            "source": "libs/simpleDiffusion/nets/unet.py",
+            "description": "Simple Diffusion UNet with shifted cosine schedule, wavelet decomposition.",
+            "implemented": False,
+        },
+    }
+    if unet_type not in configs:
+        raise ValueError(
+            f"Unknown unet_type '{unet_type}'. Supported: {tuple(configs.keys())}"
+        )
+    return configs[unet_type].copy()
+
+
+def _raise_unet_placeholder(baseline: str, unet_type: str) -> None:
+    """Raise NotImplementedError for unimplemented unet_type in a given baseline.
+
+    Shared by DDBM, BiBBDM, I2SB to avoid duplicating placeholder logic.
+    """
+    config = get_unet_type_config(unet_type)
+    raise NotImplementedError(
+        f"{unet_type.upper()} UNet not yet implemented for {baseline}. "
+        f"See {config['source']}. Only ADM (unet_type='adm') is supported."
+    )
+
+
+def _create_model_edm(
+    image_size: int,
+    in_channels: int,
+    num_channels: int,
+    num_res_blocks: int,
+    attention_resolutions: str,
+    dropout: float,
+    condition_mode: Optional[str],
+    channel_mult: str,
+    **kwargs: Any,
+) -> None:
+    """Placeholder: EDM-style UNet (SongUNet) from libs/DDBM.
+
+    See libs/DDBM/ddbm/models/edm_unet.SongUNet and script_util.create_model(unet_type='edm').
+    """
+    raise NotImplementedError(
+        "EDM (SongUNet) UNet not yet implemented in this codebase. "
+        "Use libs/DDBM/ddbm.utils.script_util.create_model(unet_type='edm') "
+        "or port SongUNet into src/models/unet_ddbm.py."
+    )
+
+
+def _create_model_edm2(
+    image_size: int,
+    in_channels: int,
+    num_channels: int,
+    num_res_blocks: int,
+    attention_resolutions: str,
+    dropout: float,
+    condition_mode: Optional[str],
+    channel_mult: str,
+    **kwargs: Any,
+) -> None:
+    """Placeholder: EDM2 magnitude-preserving UNet from libs/edm2.
+
+    See libs/edm2/training/networks_edm2.UNet and Precond. Requires adaptation
+    for bridge (xT conditioning) and DDBM preconditioning.
+    """
+    raise NotImplementedError(
+        "EDM2 UNet not yet implemented in this codebase. "
+        "See libs/edm2/training/networks_edm2.py. Adapt for bridge conditioning "
+        "and DDBM c_skip/c_out/c_in preconditioning."
+    )
+
+
+def _create_model_vdm(
+    image_size: int,
+    in_channels: int,
+    num_channels: int,
+    num_res_blocks: int,
+    attention_resolutions: str,
+    dropout: float,
+    condition_mode: Optional[str],
+    channel_mult: str,
+    **kwargs: Any,
+) -> None:
+    """Placeholder: Variational Diffusion Model from libs/vdm.
+
+    See libs/vdm/model_vdm.py. VDM uses continuous-time formulation with
+    logSNR = f(t). Reference implementation is Jax/Flax.
+    """
+    raise NotImplementedError(
+        "VDM UNet not yet implemented in this codebase. "
+        "See libs/vdm and README. Reference is Jax/Flax; PyTorch port needed."
+    )
+
+
+def _create_model_sid(
+    image_size: int,
+    in_channels: int,
+    num_channels: int,
+    num_res_blocks: int,
+    attention_resolutions: str,
+    dropout: float,
+    condition_mode: Optional[str],
+    channel_mult: str,
+    **kwargs: Any,
+) -> None:
+    """Placeholder: Simple Diffusion UNet from libs/simpleDiffusion.
+
+    See libs/simpleDiffusion/nets/unet.py. SiD uses shifted cosine schedule
+    and optional wavelet decomposition. UNet/U-ViT backbones available.
+    """
+    raise NotImplementedError(
+        "Simple Diffusion (SiD) UNet not yet implemented in this codebase. "
+        "See libs/simpleDiffusion/nets/unet.py and diffusion/simple_diffusion.py."
+    )
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
@@ -148,14 +309,77 @@ def create_model(
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
-    **kwargs,
-) -> DDBMUNet:
-    """Factory matching the vendor ``create_model`` signature.
+    unet_type: str = UNET_TYPE_ADM,
+    **kwargs: Any,
+) -> Union[DDBMUNet, nn.Module]:
+    """Factory for DDBM-compatible UNet models.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
     into the tuples that :class:`DDBMUNet` expects.
+
+    Parameters
+    ----------
+    unet_type : str
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
+        ``vdm``, ``sid``. Only ``adm`` is implemented; others raise
+        :exc:`NotImplementedError` with guidance.
     """
-    # Parse attention_resolutions → down-block indices
+    if unet_type not in SUPPORTED_UNET_TYPES:
+        raise ValueError(
+            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+        )
+
+    # Route to placeholder implementations for non-ADM types
+    if unet_type == UNET_TYPE_EDM:
+        _create_model_edm(
+            image_size=image_size,
+            in_channels=in_channels,
+            num_channels=num_channels,
+            num_res_blocks=num_res_blocks,
+            attention_resolutions=attention_resolutions,
+            dropout=dropout,
+            condition_mode=condition_mode,
+            channel_mult=channel_mult,
+            **kwargs,
+        )
+    elif unet_type == UNET_TYPE_EDM2:
+        _create_model_edm2(
+            image_size=image_size,
+            in_channels=in_channels,
+            num_channels=num_channels,
+            num_res_blocks=num_res_blocks,
+            attention_resolutions=attention_resolutions,
+            dropout=dropout,
+            condition_mode=condition_mode,
+            channel_mult=channel_mult,
+            **kwargs,
+        )
+    elif unet_type == UNET_TYPE_VDM:
+        _create_model_vdm(
+            image_size=image_size,
+            in_channels=in_channels,
+            num_channels=num_channels,
+            num_res_blocks=num_res_blocks,
+            attention_resolutions=attention_resolutions,
+            dropout=dropout,
+            condition_mode=condition_mode,
+            channel_mult=channel_mult,
+            **kwargs,
+        )
+    elif unet_type == UNET_TYPE_SID:
+        _create_model_sid(
+            image_size=image_size,
+            in_channels=in_channels,
+            num_channels=num_channels,
+            num_res_blocks=num_res_blocks,
+            attention_resolutions=attention_resolutions,
+            dropout=dropout,
+            condition_mode=condition_mode,
+            channel_mult=channel_mult,
+            **kwargs,
+        )
+
+    # ADM (default): diffusers UNet2DModel via DDBMUNet
     attn_indices: Tuple[int, ...] = ()
     if attention_resolutions:
         if isinstance(attention_resolutions, str):
@@ -163,7 +387,6 @@ def create_model(
         else:
             attn_res_list = list(attention_resolutions)
 
-        # Determine channel_mult to know the number of blocks
         cm = None
         if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
             cm = tuple(int(c) for c in channel_mult.split(","))
@@ -172,13 +395,11 @@ def create_model(
         else:
             cm = _channel_mult_for_resolution(image_size)
 
-        # Map resolution to block index: block i has resolution image_size / 2^i
         attn_indices = tuple(
             i for i in range(len(cm))
             if image_size // (2 ** i) in attn_res_list
         )
 
-    # Parse channel_mult
     cm_tuple: Optional[Tuple[int, ...]] = None
     if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
         cm_tuple = tuple(int(c) for c in channel_mult.split(","))

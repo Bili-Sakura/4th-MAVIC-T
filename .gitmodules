@@ -29,3 +29,15 @@
 [submodule "libs/ddib"]
 	path = libs/ddib
 	url = https://github.com/suxuann/ddib
+
+[submodule "libs/edm2"]
+	path = libs/edm2
+	url = https://github.com/NVlabs/edm2
+
+[submodule "libs/vdm"]
+	path = libs/vdm
+	url = https://github.com/google-research/vdm
+
+[submodule "libs/simpleDiffusion"]
+	path = libs/simpleDiffusion
+	url = https://github.com/faverogian/simpleDiffusion

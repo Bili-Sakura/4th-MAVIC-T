@@ -106,6 +106,7 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> I2SBPi
             dropout=0.0,
             condition_mode=cfg.condition_mode,
             channel_mult=cfg.channel_mult,
+            unet_type=getattr(cfg, "unet_type", "adm"),
         )
         if str(path).endswith(".safetensors"):
             from safetensors.torch import load_file
