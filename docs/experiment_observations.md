@@ -67,3 +67,18 @@
 ## Future Notes
 
 Add new observations as experiments continue.
+
+---
+
+## Stage 1 — Pixel-Space DDBM (Next)
+
+**Config**: DDBM in pixel space (no VAE). Per [roadmap § Stage 1 — Pixel-Space DDBM](roadmap.md#stage-1--pixel-space-ddbm-main).
+
+| Task      | Pixel shape    | DDBM tier | ~Params |
+|-----------|----------------|-----------|---------|
+| RGB → IR  | `(512, 512)`   | medium    | ~120 M  |
+| SAR → IR  | `(512, 512)`   | medium    | ~120 M  |
+| SAR → RGB | `(512, 512)`   | medium    | ~120 M  |
+| SAR → EO  | `(256, 256)`   | small     | ~20 M   |
+
+**Status**: Ready to run. Scripts updated: `train_stage1_rgb2ir.sh`, `train_stage1_sar2ir.sh`, `train_stage1_sar2rgb.sh`, `train_stage1_sar2eo.sh`.

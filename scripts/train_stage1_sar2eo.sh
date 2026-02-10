@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stage 1 — SAR→EO — Latent-space modelling with frozen pre-trained VAE
-# DDBM small config for latent shape (32, 32, 32)
+# Stage 1 — SAR→EO — Pixel-space DDBM (no VAE)
+# DDBM small config, (256, 256) per roadmap
 #
 # Usage:
 #   bash scripts/train_stage1_sar2eo.sh
@@ -27,9 +27,9 @@ NUM_RES_BLOCKS=2
 ATTENTION_RESOLUTIONS=""
 CHANNEL_MULT="1,2,3,4"
 
-# --- Latent-space settings ---
-USE_LATENT_TARGET=true
-LATENT_VAE_PATH="./models/BiliSakura/VAEs/FLUX2-VAE"  # FLUX2-VAE
+# --- Pixel-space DDBM (no VAE) ---
+USE_LATENT_TARGET=false
+RESOLUTION=256
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=false
@@ -44,7 +44,7 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=384
+TRAIN_BATCH_SIZE=48
 EVAL_BATCH_SIZE=4
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=10000
@@ -55,13 +55,15 @@ CHECKPOINTING_STEPS=1000
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS="1000"
 VALIDATION_EPOCHS=""
+MAX_VALIDATION_BATCHES=2
+NUM_INFERENCE_STEPS=1000
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-OUTPUT_DIR="./ckpt/stage1_sar2eo"
+OUTPUT_DIR="./ckpt/exp3/stage1_sar2eo"
 
 # --- Resume from checkpoint ---
 RESUME_FROM_CHECKPOINT="latest"
@@ -72,7 +74,7 @@ COMMON_ARGS=(
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
   --channel_mult "${CHANNEL_MULT}"
   --use_latent_target "${USE_LATENT_TARGET}"
-  --latent_vae_path "${LATENT_VAE_PATH}"
+  --resolution "${RESOLUTION}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
   --use_augmented "${USE_AUGMENTED}"
@@ -97,6 +99,7 @@ COMMON_ARGS=(
   --seed "${SEED}"
   --output_dir "${OUTPUT_DIR}"
   --resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}"
+  --num_inference_steps "${NUM_INFERENCE_STEPS}"
 )
 
 if [ -n "${VALIDATION_STEPS}" ]; then
@@ -104,6 +107,9 @@ if [ -n "${VALIDATION_STEPS}" ]; then
 fi
 if [ -n "${VALIDATION_EPOCHS}" ]; then
   COMMON_ARGS+=(--validation_epochs "${VALIDATION_EPOCHS}")
+fi
+if [ -n "${MAX_VALIDATION_BATCHES}" ]; then
+  COMMON_ARGS+=(--max_validation_batches "${MAX_VALIDATION_BATCHES}")
 fi
 
 if [ "${NGPU}" -gt 1 ]; then

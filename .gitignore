@@ -81,6 +81,7 @@
 #poetry.lock
 #poetry.toml
 #uv.lock
+temp
 *$py.class
 **/__pycache__/
 *.acn

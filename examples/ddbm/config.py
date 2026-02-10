@@ -74,6 +74,7 @@ class TaskConfig:
     # ---- validation ----
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
+    max_validation_batches: Optional[int] = None  # cap validation batches (None = no limit)
 
     # ---- hub ----
     push_to_hub: bool = True

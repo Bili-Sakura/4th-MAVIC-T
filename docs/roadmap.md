@@ -65,34 +65,20 @@ tasks train at 512 px crop for faster iteration.
 
 ```bash
 # Run all Stage-1 (main) training jobs — pixel-space DDBM
-bash scripts/train_stage1_pixel_rgb2ir.sh
-bash scripts/train_stage1_pixel_sar2ir.sh
-bash scripts/train_stage1_pixel_sar2rgb.sh
-bash scripts/train_stage1_pixel_sar2eo.sh
-```
-
-### DDBM Latent (Supplementary)
-
-**Goal**: Latent-space modelling with frozen pre-trained VAE (kept for reference;
-see [experiment_observations.md](experiment_observations.md) — yielded pure noise
-in initial runs).
-
-**Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE).
-
-| Task | Latent shape | DDBM config tier | ~Params |
-|------|-------------|------------------|---------|
-| RGB → IR  | `(128, 128, 32)` | **medium** | ~120 M |
-| SAR → IR  | `(128, 128, 32)` | **medium** | ~120 M |
-| SAR → RGB | `(128, 128, 32)` | **medium** | ~120 M |
-| SAR → EO  | `(32, 32, 32)`   | **small**  | ~20 M  |
-
-```bash
-# Run Stage-1 (sup) — latent-space DDBM (existing scripts preserved)
 bash scripts/train_stage1_rgb2ir.sh
 bash scripts/train_stage1_sar2ir.sh
 bash scripts/train_stage1_sar2rgb.sh
 bash scripts/train_stage1_sar2eo.sh
 ```
+
+### DDBM Latent (Supplementary — deprecated)
+
+**Goal**: Latent-space modelling with frozen pre-trained VAE (kept for reference;
+see [experiment_observations.md](experiment_observations.md) — yielded pure noise
+in initial runs).
+
+**Pipeline**: `DDBMLatentPipeline` (DDBM + frozen VAE). To revert to latent:
+set `USE_LATENT_TARGET=true`, `LATENT_VAE_PATH`, and remove `RESOLUTION` override.
 
 ### CUT Ablation (Stage 1)
 

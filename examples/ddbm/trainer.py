@@ -387,6 +387,8 @@ class DDBMTrainer:
         saved = 0
 
         for batch_idx, batch in enumerate(val_dataloader):
+            if cfg.max_validation_batches is not None and batch_idx >= cfg.max_validation_batches:
+                break
             _zeros, source = batch
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1  # [0,1] → [-1,1]
