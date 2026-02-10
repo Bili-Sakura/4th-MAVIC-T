@@ -85,6 +85,7 @@ class CUTTrainer:
             task=self.cfg.task_name,
             split="train",
             resolution=self.cfg.resolution,
+            load_size=self.cfg.load_size,
             model_channels=self.cfg.model_channels,
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
@@ -98,6 +99,7 @@ class CUTTrainer:
                     task=self.cfg.task_name,
                     split="test",
                     resolution=self.cfg.resolution,
+                    load_size=self.cfg.load_size,
                     model_channels=self.cfg.model_channels,
                     with_target=False,
                 )

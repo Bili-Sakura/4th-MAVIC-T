@@ -18,7 +18,8 @@ LOG_FILE="${LOG_DIR}/train_stage2_cut_rgb2ir.log"
 
 mkdir -p "${LOG_DIR}"
 
-# --- Huge config (512–1024) + 512 crop ---
+# --- Huge config (512–1024) + 512 random crop from 1024 (direct crop, no resize) ---
+# Optional: --load_size 572 for resize-then-crop mode (not used in our experiments)
 NGF=256
 NDF=256
 N_LAYERS_D=4

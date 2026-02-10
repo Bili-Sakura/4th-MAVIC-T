@@ -18,7 +18,8 @@ LOG_FILE="${LOG_DIR}/train_stage3_cut_rgb2ir.log"
 
 mkdir -p "${LOG_DIR}"
 
-# --- Huge config (512–1024) + full 1024 resolution ---
+# --- Huge config (512–1024) + full 1024 (direct crop from 1024 or resize if smaller) ---
+# Optional: --load_size 1090 for resize-then-crop mode (not used in our experiments)
 NGF=256
 NDF=256
 N_LAYERS_D=4

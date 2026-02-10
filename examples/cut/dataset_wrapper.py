@@ -6,7 +6,10 @@ This module bridges the HuggingFace ``datasets.Dataset`` returned by
 
 It handles:
 * Reading images lazily from disk (via the path columns).
-* Resizing to the model resolution.
+* Random crop (training): direct crop from original image at native scale—no resize.
+  Optional: when load_size > resolution, resize to load_size then random crop
+  (resize-and-crop mode; not used in our experiments).
+* Resize (val/test or when image smaller than resolution): resize to resolution.
 * Channel adaptation (expanding/repeating channels to ``model_channels``).
 * Normalising pixel values to [0, 1] as float32 tensors.
 """
@@ -14,6 +17,7 @@ It handles:
 from __future__ import annotations
 
 import logging
+import random
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
@@ -34,10 +38,40 @@ if str(_PROJECT_ROOT) not in sys.path:
 from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
 
 
-def _load_image_as_tensor(path: str, channels: int, resolution: int) -> torch.Tensor:
-    """Load an image from *path*, resize, and return a ``(C, H, W)`` float32 tensor in [0, 1]."""
+def _load_image_as_tensor(
+    path: str,
+    channels: int,
+    resolution: int,
+    crop_pos: Optional[Tuple[int, int]] = None,
+    use_random_crop: bool = False,
+    load_size: Optional[int] = None,
+) -> torch.Tensor:
+    """Load an image from *path*, return ``(C, H, W)`` float32 in [0, 1].
+
+    Modes:
+    - use_random_crop + crop_pos, load_size=None: direct crop from original (preserves scale).
+    - use_random_crop + crop_pos, load_size>resolution: resize to load_size, then crop.
+    - load_size set and load_size<resolution: resize to load_size, then resize to resolution.
+    - otherwise: resize to resolution.
+    """
     img = Image.open(path)
-    img = img.resize((resolution, resolution), Image.BILINEAR)
+    w, h = img.size
+
+    if load_size is not None and load_size != resolution:
+        # Resize mode: always resize to load_size first (works for both > and < resolution).
+        img = img.resize((load_size, load_size), Image.BILINEAR)
+        if load_size > resolution and use_random_crop and crop_pos is not None:
+            x, y = crop_pos
+            img = img.crop((x, y, x + resolution, y + resolution))
+        else:
+            img = img.resize((resolution, resolution), Image.BILINEAR)
+    elif use_random_crop and crop_pos is not None and w >= resolution and h >= resolution:
+        # Direct crop from original (no resize).
+        x, y = crop_pos
+        img = img.crop((x, y, x + resolution, y + resolution))
+    else:
+        img = img.resize((resolution, resolution), Image.BILINEAR)
+
     arr = np.array(img, dtype=np.float32)
 
     # Normalise to [0, 1]
@@ -93,7 +127,11 @@ class MavicTCUTDataset(Dataset):
     split : str
         ``"train"``, ``"val"`` or ``"test"``.
     resolution : int
-        Spatial resolution to resize images to.
+        Spatial resolution (crop size) of output images.
+    load_size : int or None
+        If set (training only): resize to load_size first. Then: if load_size>resolution,
+        random crop to resolution; if load_size<resolution, resize to resolution.
+        Not used in our experiments.
     model_channels : int
         Number of channels the model operates in.
     with_target : bool or None
@@ -117,6 +155,7 @@ class MavicTCUTDataset(Dataset):
         task: str,
         split: str = "train",
         resolution: int = 256,
+        load_size: Optional[int] = None,
         source_channels: Optional[int] = None,
         target_channels: Optional[int] = None,
         model_channels: int = 3,
@@ -132,6 +171,7 @@ class MavicTCUTDataset(Dataset):
         self.task = task
         self.split = split
         self.resolution = resolution
+        self.load_size = load_size
         self.source_channels = source_channels or model_channels
         self.target_channels = target_channels or model_channels
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
@@ -188,10 +228,54 @@ class MavicTCUTDataset(Dataset):
         """
         rec = self._records[idx]
 
-        source = _load_image_as_tensor(rec["input_path"], self.source_channels, self.resolution)
+        use_random_crop = self.split == "train"
+        use_resize_mode = self.load_size is not None and self.load_size != self.resolution
+        use_resize_and_crop = use_resize_mode and self.load_size > self.resolution
+
+        if use_random_crop:
+            if use_resize_and_crop:
+                # Resize-and-crop: crop from load_size x load_size
+                max_offset = self.load_size - self.resolution
+                crop_x = random.randint(0, max_offset)
+                crop_y = random.randint(0, max_offset)
+                crop_pos = (crop_x, crop_y)
+            elif not use_resize_mode:
+                # Direct crop: get image size for crop bounds (assume source/target same size)
+                with Image.open(rec["input_path"]) as tmp:
+                    w, h = tmp.size
+                if w >= self.resolution and h >= self.resolution:
+                    crop_x = random.randint(0, w - self.resolution)
+                    crop_y = random.randint(0, h - self.resolution)
+                    crop_pos = (crop_x, crop_y)
+                else:
+                    crop_pos = None
+                    use_random_crop = False
+            else:
+                # use_resize_mode and load_size < resolution: resize only, no crop
+                crop_pos = None
+                use_random_crop = False
+        else:
+            crop_pos = None
+
+        load_sz = self.load_size if use_resize_mode else None
+        source = _load_image_as_tensor(
+            rec["input_path"],
+            self.source_channels,
+            self.resolution,
+            crop_pos=crop_pos,
+            use_random_crop=use_random_crop,
+            load_size=load_sz,
+        )
 
         if self.with_target:
-            target = _load_image_as_tensor(rec["target_path"], self.target_channels, self.resolution)
+            target = _load_image_as_tensor(
+                rec["target_path"],
+                self.target_channels,
+                self.resolution,
+                crop_pos=crop_pos,
+                use_random_crop=use_random_crop,
+                load_size=load_sz,
+            )
         else:
             target = torch.zeros(self.target_channels, self.resolution, self.resolution)
 

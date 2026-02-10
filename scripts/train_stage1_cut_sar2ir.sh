@@ -18,7 +18,8 @@ LOG_FILE="${LOG_DIR}/train_stage1_cut_sar2ir.log"
 
 mkdir -p "${LOG_DIR}"
 
-# --- Large config (256–512) + 512 crop for faster iteration ---
+# --- Large config (256–512) + 512 random crop from 1024 (direct crop, no resize) ---
+# Optional: --load_size 572 for resize-then-crop mode (not used in our experiments)
 NGF=128
 NDF=128
 N_LAYERS_D=3
