@@ -194,43 +194,16 @@ bash scripts/train_stage4d_unified_1024.sh
 
 ---
 
-## Representation Alignment (REPA)
-
-All four training stages support **REPA** (REPresentation Alignment).
-Following the original REPA formulation, a frozen pre-trained encoder extracts
-features from the **target (ground-truth)** image, while a trainable projection
-head maps the translation model's output features into the same embedding
-space.  A negative-cosine-similarity loss encourages the model to produce
-outputs whose representations match the clean target as seen by the encoder.
-
-> **Important:** REPA requires a pre-trained encoder for the **target domain**.
-> Currently only the **SAR → RGB** task is supported (using MaRS-Base-RGB to
-> encode the RGB target).  For SAR → EO, RGB → IR, and SAR → IR, no suitable
-> target-domain encoder is available, so REPA is **not applicable**.
-
-| Task | REPA Support | Default encoder |
-|------|:---:|-----------------|
-| SAR → RGB | ✅ | MaRS-RGB (SwinV2) |
-| SAR → EO | ❌ | — |
-| SAR → IR | ❌ | — |
-| RGB → IR | ❌ | — |
-
-REPA is enabled via `--use_rep_alignment true` in training scripts.
-The encoder checkpoint path is pre-configured in each task's
-`TaskConfig` preset (only `sar2rgb` has a default path).
-
----
-
 ## Summary
 
 | Stage | Space | Pipeline | SAR→EO | RGB→IR / SAR→IR / SAR→RGB | Key idea |
 |-------|-------|----------|--------|---------------------------|----------|
-| 1 | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Fast baseline + REPA |
-| 2 | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Scale model + REPA |
-| 3 | Pixel | `DDBMPipeline` | medium | large | Drop VAE bottleneck + REPA |
-| 4b | Latent (RS-VAE) | `DDBMLatentPipeline` | large (unified, 256px) | large (unified, 256px crop) | Base foundation model + REPA |
-| 4c | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 512px crop) | Fine-tune + REPA |
-| 4d | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 1024px) | Optional full-resolution fine-tune + REPA |
+| 1 | Latent (frozen VAE) | `DDBMLatentPipeline` | small | medium | Fast baseline |
+| 2 | Latent (frozen VAE) | `DDBMLatentPipeline` | medium | large | Scale model |
+| 3 | Pixel | `DDBMPipeline` | medium | large | Drop VAE bottleneck |
+| 4b | Latent (RS-VAE) | `DDBMLatentPipeline` | large (unified, 256px) | large (unified, 256px crop) | Base foundation model |
+| 4c | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 512px crop) | Fine-tune |
+| 4d | Latent (RS-VAE) | `DDBMLatentPipeline` | — | large (unified, 1024px) | Optional full-resolution fine-tune |
 
 ---
 
@@ -259,19 +232,7 @@ VAE) against pixel-space modelling (`DDBMPipeline` — Stage 3) at matched model
 capacity, to quantify the effect of the VAE bottleneck on reconstruction
 fidelity and training efficiency.
 
-### 4. Advanced REPA Variants
-
-Evaluate improved representation alignment techniques beyond the baseline
-negative-cosine-similarity REPA loss:
-
-* **REG** (Representation-Enhanced Generation) — *placeholder*
-* **Multi-scale REPA** — *placeholder*
-* **Contrastive REPA** — *placeholder*
-
-> ⚠️ Implementation details will be added once the baseline REPA results
-> are available.
-
-### 5. Dataset Pruning / Distillation
+### 4. Dataset Pruning / Distillation
 
 Investigate data-efficiency strategies:
 
@@ -282,7 +243,7 @@ Investigate data-efficiency strategies:
 
 > ⚠️ *Placeholder — experimental design to be finalised.*
 
-### 6. Model Distillation for Acceleration
+### 5. Model Distillation for Acceleration
 
 Compress the large teacher model (Stage 2 or Stage 4) into a smaller,
 faster student model via knowledge distillation to reduce inference cost

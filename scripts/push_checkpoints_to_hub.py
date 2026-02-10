@@ -69,7 +69,7 @@ def push_checkpoint(
 def main():
     """Main entry point."""
     hub_model_id = "BiliSakura/4th-MAVIC-T-ckpt"
-    step = 1000
+    step = 3000
     
     # Checkpoint directories
     checkpoints = [
