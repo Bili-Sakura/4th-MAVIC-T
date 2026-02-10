@@ -496,8 +496,22 @@ class Pix2PixTurboTrainer:
                     ):
                         checkpoints_dir = os.path.join(cfg.output_dir, "checkpoints")
                         outf = os.path.join(checkpoints_dir, f"model_{global_step}.pkl")
-                        accelerator.unwrap_model(model).save_model(outf)
+                        unwrapped_for_ckpt = accelerator.unwrap_model(model)
+                        unwrapped_for_ckpt.save_model(outf)
                         save_checkpoint_config_for(outf)
+                        # Also save diffusers-style structure for pipeline.from_pretrained()
+                        diffusers_dir = os.path.join(checkpoints_dir, f"diffusers-{global_step}")
+                        save_checkpoint_diffusers(
+                            diffusers_dir,
+                            unwrapped_for_ckpt.unet,
+                            scheduler=unwrapped_for_ckpt.sched,
+                            model_name="unet",
+                            extra_state_dicts={
+                                "vae": {k: v for k, v in unwrapped_for_ckpt.vae.state_dict().items()
+                                        if "lora" in k or "skip" in k},
+                            },
+                        )
+                        save_training_config(cfg, diffusers_dir)
                         logger.info(f"Saved checkpoint to {outf}")
                         if cfg.push_to_hub and cfg.hub_model_id:
                             push_checkpoint_to_hub(

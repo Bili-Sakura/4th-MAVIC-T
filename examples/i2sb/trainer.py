@@ -590,6 +590,25 @@ class I2SBTrainer:
                     ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
+                        # Also save diffusers-style structure for pipeline.from_pretrained()
+                        unwrapped_for_ckpt = accelerator.unwrap_model(model)
+                        extra_sd_ckpt = {}
+                        if cfg.use_ema and ema_model is not None:
+                            model_param_names = list(unwrapped_for_ckpt.state_dict().keys())
+                            shadow_params = ema_model.shadow_params
+                            if len(model_param_names) == len(shadow_params):
+                                extra_sd_ckpt["ema_unet"] = {
+                                    name: param.clone().detach()
+                                    for name, param in zip(model_param_names, shadow_params)
+                                }
+                        save_checkpoint_diffusers(
+                            save_path,
+                            unwrapped_for_ckpt,
+                            scheduler=scheduler,
+                            model_name="unet",
+                            pipeline_class_name="I2SBPipeline",
+                            extra_state_dicts=extra_sd_ckpt if extra_sd_ckpt else None,
+                        )
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:
