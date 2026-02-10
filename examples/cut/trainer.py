@@ -86,6 +86,8 @@ class CUTTrainer:
             split="train",
             resolution=self.cfg.resolution,
             load_size=self.cfg.load_size,
+            source_channels=self.cfg.source_channels,
+            target_channels=self.cfg.target_channels,
             model_channels=self.cfg.model_channels,
             use_augmented=self.cfg.use_augmented,
             use_horizontal_flip=self.cfg.use_horizontal_flip,
@@ -101,6 +103,8 @@ class CUTTrainer:
                     split="test",
                     resolution=val_res,
                     load_size=self.cfg.load_size,
+                    source_channels=self.cfg.source_channels,
+                    target_channels=self.cfg.target_channels,
                     model_channels=self.cfg.model_channels,
                     with_target=False,
                 )
@@ -112,10 +116,15 @@ class CUTTrainer:
 
     def build_generator(self):
         """Create the CUT generator."""
-        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
+        if self.cfg.use_latent_target:
+            in_ch = self.cfg.latent_channels
+            out_ch = in_ch
+        else:
+            in_ch = self.cfg.source_channels
+            out_ch = self.cfg.target_channels
         return create_generator(
             input_nc=in_ch,
-            output_nc=in_ch,
+            output_nc=out_ch,
             ngf=self.cfg.ngf,
             netG=self.cfg.netG,
             norm_type=self.cfg.normG,
@@ -128,7 +137,10 @@ class CUTTrainer:
 
     def build_discriminator(self):
         """Create the CUT PatchGAN discriminator."""
-        in_ch = self.cfg.latent_channels if self.cfg.use_latent_target else self.cfg.model_channels
+        if self.cfg.use_latent_target:
+            in_ch = self.cfg.latent_channels
+        else:
+            in_ch = self.cfg.target_channels
         return create_discriminator(
             input_nc=in_ch,
             ndf=self.cfg.ndf,
@@ -179,6 +191,7 @@ class CUTTrainer:
         rep_alignment_module=None, lambda_rep_alignment=0.1,
         pixel_target=None, pixel_source=None,
         latent_decode_fn=None, in_latent_space: bool = False,
+        source_channels: int = 3, target_channels: int = 3,
     ):
         """Compute generator loss (GAN + NCE + optional identity NCE + optional MAVIC + optional latent + optional REPA).
 
@@ -204,6 +217,7 @@ class CUTTrainer:
         if lambda_NCE > 0.0:
             loss_NCE = CUTTrainer._calculate_NCE_loss(
                 netG, netF, nce_criteria, real_A, fake_B, nce_layers, lambda_NCE, num_patches,
+                source_channels=source_channels, target_channels=target_channels,
             )
         else:
             loss_NCE = torch.tensor(0.0, device=real_A.device)
@@ -211,10 +225,17 @@ class CUTTrainer:
         # Identity NCE loss
         loss_NCE_Y = torch.tensor(0.0, device=real_A.device)
         if nce_idt and lambda_NCE > 0.0:
-            # Pass real_B through generator to get identity output
-            idt_B = netG(real_B)
+            # Pass real_B through generator; adapt real_B to source_channels when different
+            real_B_for_G = real_B
+            if not in_latent_space and real_B.shape[1] != source_channels:
+                if target_channels < source_channels:
+                    real_B_for_G = real_B.repeat(1, source_channels // target_channels, 1, 1)
+                else:
+                    real_B_for_G = real_B.mean(dim=1, keepdim=True)
+            idt_B = netG(real_B_for_G)
             loss_NCE_Y = CUTTrainer._calculate_NCE_loss(
-                netG, netF, nce_criteria, real_B, idt_B, nce_layers, lambda_NCE, num_patches,
+                netG, netF, nce_criteria, real_B_for_G, idt_B, nce_layers, lambda_NCE, num_patches,
+                source_channels=source_channels, target_channels=target_channels,
             )
             loss_NCE_both = (loss_NCE + loss_NCE_Y) * 0.5
         else:
@@ -271,8 +292,23 @@ class CUTTrainer:
         return loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y, extras
 
     @staticmethod
-    def _calculate_NCE_loss(netG, netF, nce_criteria, src, tgt, nce_layers, lambda_NCE, num_patches):
-        """Compute contrastive loss across multiple encoder layers."""
+    def _adapt_for_encoder(x: torch.Tensor, actual_ch: int, encoder_ch: int) -> torch.Tensor:
+        """Adapt tensor to encoder's expected channel count (for encode_only path)."""
+        if actual_ch == encoder_ch:
+            return x
+        if actual_ch < encoder_ch:
+            return x.repeat(1, encoder_ch // actual_ch, 1, 1)
+        return x.mean(dim=1, keepdim=True)
+
+    @staticmethod
+    def _calculate_NCE_loss(netG, netF, nce_criteria, src, tgt, nce_layers, lambda_NCE, num_patches,
+                            source_channels: int = 3, target_channels: int = 3):
+        """Compute contrastive loss across multiple encoder layers.
+        Encoder expects source_channels; adapt src/tgt when channel counts differ."""
+        if src.shape[1] != source_channels:
+            src = CUTTrainer._adapt_for_encoder(src, src.shape[1], source_channels)
+        if tgt.shape[1] != source_channels:
+            tgt = CUTTrainer._adapt_for_encoder(tgt, tgt.shape[1], source_channels)
         n_layers = len(nce_layers)
         feat_q = netG(tgt, nce_layers, encode_only=True)
         feat_k = netG(src, nce_layers, encode_only=True)
@@ -337,6 +373,9 @@ class CUTTrainer:
 
             src_vis = source_01
             gen_vis = generated
+            # Collapse 3ch → 1ch when target is 1 channel (e.g. rgb2ir, sar2ir)
+            if cfg.target_channels == 1 and gen_vis.shape[1] == 3:
+                gen_vis = gen_vis.mean(dim=1, keepdim=True)
             if gen_vis.shape[1] != src_vis.shape[1]:
                 if gen_vis.shape[1] == 3 and src_vis.shape[1] == 1:
                     src_vis = src_vis.repeat(1, 3, 1, 1)
@@ -451,9 +490,12 @@ class CUTTrainer:
                 f"(vae_scale_factor={vae_scale_factor})"
             )
 
-        model_in_ch = cfg.latent_channels if cfg.use_latent_target else cfg.model_channels
+        if cfg.use_latent_target:
+            ch_info = f"latent={cfg.latent_channels}"
+        else:
+            ch_info = f"in={cfg.source_channels}, out={cfg.target_channels}"
         model_image_size = latent_image_size if latent_image_size is not None else cfg.resolution
-        logger.info(f"[{cfg.task_name}] Creating CUT models (channels={model_in_ch}, res={model_image_size})")
+        logger.info(f"[{cfg.task_name}] Creating CUT models ({ch_info}, res={model_image_size})")
         netG = self.build_generator()
         netD = self.build_discriminator()
         netF = self.build_patch_sample_mlp()
@@ -624,7 +666,10 @@ class CUTTrainer:
                 if not netF.mlp_init:
                     with torch.no_grad():
                         fake_B_init = netG(real_A)
-                        feat_init = netG(fake_B_init, nce_layers, encode_only=True)
+                        fake_B_for_enc = CUTTrainer._adapt_for_encoder(
+                            fake_B_init, cfg.target_channels, cfg.source_channels
+                        )
+                        feat_init = netG(fake_B_for_enc, nce_layers, encode_only=True)
                         netF(feat_init, cfg.num_patches, None)
                     optimizer_F = create_optimizer(
                         netF.parameters(),
@@ -663,6 +708,8 @@ class CUTTrainer:
                         pixel_source=pixel_real_A if cfg.use_latent_target else None,
                         latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
                         in_latent_space=cfg.use_latent_target,
+                        source_channels=cfg.source_channels,
+                        target_channels=cfg.target_channels,
                     )
                     accelerator.backward(loss_G)
                     optimizer_G.step()

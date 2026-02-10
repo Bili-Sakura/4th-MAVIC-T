@@ -93,8 +93,8 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> CUTPip
         # ---- legacy single-file checkpoint ----
         logger.info("Loading generator from legacy checkpoint: %s", path)
         netG = create_generator(
-            input_nc=cfg.model_channels,
-            output_nc=cfg.model_channels,
+            input_nc=cfg.source_channels,
+            output_nc=cfg.target_channels,
             ngf=cfg.ngf,
             netG=cfg.netG,
             norm_type=cfg.normG,
@@ -133,6 +133,8 @@ def main():
         task=args.task,
         split=args.split,
         resolution=cfg.resolution,
+        source_channels=cfg.source_channels,
+        target_channels=cfg.target_channels,
         model_channels=cfg.model_channels,
         with_target=False,
     )
