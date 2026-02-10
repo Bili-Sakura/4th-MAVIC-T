@@ -760,6 +760,18 @@ class CUTTrainer:
                     ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
+                        # Also save diffusers-style structure for pipeline.from_pretrained()
+                        save_checkpoint_diffusers(
+                            save_path,
+                            accelerator.unwrap_model(netG),
+                            scheduler=None,
+                            model_name="generator",
+                            pipeline_class_name="CUTPipeline",
+                            extra_state_dicts={
+                                "discriminator": accelerator.unwrap_model(netD).state_dict(),
+                                "feature_network": netF.state_dict(),
+                            },
+                        )
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:
