@@ -24,6 +24,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from PIL import Image
+from diffusers.utils import make_image_grid
 
 from accelerate import Accelerator, InitProcessGroupKwargs
 from accelerate.logging import get_logger
@@ -294,7 +295,7 @@ class BiBBDMTrainer:
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
 
-        for batch in val_dataloader:
+        for batch_idx, batch in enumerate(val_dataloader):
             _zeros, source = batch
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
@@ -326,21 +327,22 @@ class BiBBDMTrainer:
             src_uint8 = src_uint8.permute(0, 2, 3, 1).cpu().numpy()
             gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
+            batch_images = []
+            batch_size = len(src_uint8)
             for src_arr, gen_arr in zip(src_uint8, gen_uint8):
-                if saved >= 4:
-                    break
                 if src_arr.shape[2] == 1:
                     src_arr = src_arr.squeeze(2)
                 if gen_arr.shape[2] == 1:
                     gen_arr = gen_arr.squeeze(2)
-                concat = np.concatenate([src_arr, gen_arr], axis=1)
-                Image.fromarray(concat).save(sample_dir / f"sample_{saved:02d}.png")
-                saved += 1
+                batch_images.extend(
+                    [Image.fromarray(src_arr).convert("RGB"), Image.fromarray(gen_arr).convert("RGB")]
+                )
 
-            if saved >= 4:
-                break
+            grid = make_image_grid(batch_images, rows=batch_size, cols=2)
+            grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            saved += batch_size
 
-        logger.info("Saved %d test samples to %s", saved, sample_dir)
+        logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
 
         if was_training:
             unwrapped.train()
