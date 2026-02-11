@@ -437,12 +437,16 @@ class CUTTrainer:
 
         # Accelerator setup
         logging_dir = os.path.join(cfg.output_dir, "logs")
+        # log_with: "tensorboard" | "swanlab" | "wandb" | "all" | "tensorboard,swanlab" etc.
+        log_with = cfg.log_with
+        if isinstance(log_with, str) and "," in log_with:
+            log_with = [s.strip() for s in log_with.split(",") if s.strip()]
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
         kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
             mixed_precision=cfg.mixed_precision,
-            log_with=cfg.log_with,
+            log_with=log_with,
             project_config=project_config,
             kwargs_handlers=kwargs_handlers,
         )

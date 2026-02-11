@@ -24,6 +24,18 @@ accelerate launch -m examples.img2img_turbo.train_sar2ir --train_batch_size 4
 
 Every config field can be overridden on the command line (see `examples/img2img_turbo/config.py`). Checkpoints are written to the chosen `--output_dir`.
 
+### Experiment tracking (SwanLab / TensorBoard / WandB)
+
+All trainers use `accelerate.log_with` for experiment tracking. **SwanLab** is supported with a one-line integration (compatible with HuggingFace Accelerate):
+
+```bash
+# SwanLab (pip install swanlab)
+python -m examples.img2img_turbo.train_sar2ir --log_with swanlab
+
+# Use both TensorBoard and SwanLab
+python -m examples.ddbm.train_sar2rgb --log_with "tensorboard,swanlab"
+```
+
 > [!IMPORTANT]
 > **Negative Training Loss**
 > When training with **Representation Alignment (REPA)** enabled (`--use_rep_alignment true`), it is normal and expected for the total loss to become **negative**. This happens because the alignment loss is calculated as **negative cosine similarity** (ranging from -1 to 1). As the model successfully aligns its features with the pre-trained encoder, this component will move toward -1.0, often pushing the total loss below zero. This indicates healthy convergence.

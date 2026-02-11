@@ -82,6 +82,8 @@ class TaskConfig:
     ema_decay: float = 0.9999
 
     # ---- logging / checkpointing ----
+    # Accelerate log_with: "tensorboard" | "wandb" | "swanlab" | "all" | comma-separated
+    # SwanLab: one-line integration via log_with="swanlab" (pip install swanlab)
     log_with: str = "tensorboard"
     save_model_epochs: Optional[int] = 1
     checkpointing_steps: Optional[int] = None

@@ -17,6 +17,17 @@ Usage (pretrained directory — recommended)::
         --num_inference_steps 250 \
         --device cuda:1 &
 
+Multi-GPU (DataParallel, splits batch across GPUs)::
+
+    python -m examples.ddbm.sample \
+        --task sar2eo \
+        --pretrained_model_name_or_path ./ckpt/exp3/stage1_sar2eo/ddbm/sar2eo/checkpoint-10000 \
+        --split test \
+        --model_name ddbm \
+        --batch_size 64 \
+        --num_inference_steps 250 \
+        --device cuda:0 cuda:1
+
 Use ``--batch_size`` to control inference batch size (default 32). Larger values
 are faster but require more GPU memory.
 
@@ -129,7 +140,13 @@ def parse_args():
         help="Use deterministic sampling (churn_step_ratio=0, faster, no stochastic churn). "
         "Note: Can cause large quality degradation vs default; use for speed/reproducibility only.",
     )
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Device(s) for inference. Single: 'cuda:0'. Multi-GPU: 'cuda:0' 'cuda:1'. Uses DataParallel for multi-GPU.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--skip_existing",
@@ -159,10 +176,21 @@ def parse_args():
     if args.deterministic:
         # churn=0: faster (~33% fewer model calls) but reported large quality degradation
         args.churn_step_ratio = 0.0
+    # Normalize device: default single device, or list when multi-GPU
+    if args.device is None:
+        args.device = ["cuda"] if torch.cuda.is_available() else ["cpu"]
+    primary_device = args.device[0] if isinstance(args.device, list) else args.device
+    args.primary_device = primary_device
+    args.use_multi_gpu = len(args.device) > 1 and all(d.startswith("cuda") for d in args.device)
     return args
 
 
-def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPipeline:
+def _load_pipeline(
+    pretrained_path: str,
+    cfg: TaskConfig,
+    primary_device: str,
+    device_ids: list[int] | None = None,
+) -> DDBMPipeline:
     """Load the DDBM pipeline from a pretrained directory or legacy file.
 
     Parameters
@@ -173,8 +201,10 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPi
         single-file checkpoint.
     cfg : TaskConfig
         Task-specific configuration (used only for legacy loading).
-    device : str
-        Target device.
+    primary_device : str
+        Primary/target device (e.g. cuda:0).
+    device_ids : list[int] | None
+        If provided, wrap UNet with DataParallel using these GPU indices.
     """
     path = Path(pretrained_path)
 
@@ -218,7 +248,10 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPi
         )
         pipeline = DDBMPipeline(unet=model, scheduler=scheduler)
 
-    pipeline = pipeline.to(device)
+    pipeline = pipeline.to(primary_device)
+    if device_ids is not None and len(device_ids) > 1:
+        pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
+        logger.info("Using DataParallel on GPUs %s", device_ids)
     return pipeline
 
 
@@ -256,7 +289,18 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device)
+    device_ids = None
+    if args.use_multi_gpu:
+        device_ids = [
+            int(d.split(":")[1]) if ":" in d else i
+            for i, d in enumerate(args.device)
+        ]
+    pipeline = _load_pipeline(
+        args.pretrained_model_name_or_path,
+        cfg,
+        args.primary_device,
+        device_ids=device_ids,
+    )
 
     # Load evaluation data
     dataset = MavicTDDBMDataset(
@@ -304,7 +348,7 @@ def main():
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
             # batch = (zeros_target, source)
-            source = batch[1].to(args.device) * 2 - 1  # [0,1] → [-1,1]
+            source = batch[1].to(args.primary_device) * 2 - 1  # [0,1] → [-1,1]
 
             result = pipeline(
                 source_image=source,
@@ -329,7 +373,7 @@ def main():
 
     total_elapsed = time.perf_counter() - total_start
     runtime_per_image = total_elapsed / len(dataset) if len(dataset) > 0 else 0.0
-    use_gpu = args.device.startswith("cuda")
+    use_gpu = args.primary_device.startswith("cuda")
 
     # Write readme.txt per official submission format
     _write_readme(

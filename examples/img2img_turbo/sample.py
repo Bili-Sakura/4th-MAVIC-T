@@ -64,7 +64,13 @@ def parse_args():
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Device(s) for inference. Single: 'cuda:0'. Multi-GPU: 'cuda:0' 'cuda:1'. Uses DataParallel for multi-GPU.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--skip_existing",
@@ -80,7 +86,13 @@ def parse_args():
         help="Use deterministic sampling (fixed seed for reproducibility).",
     )
     parser.add_argument("--use_fp16", action="store_true", help="Use FP16 for faster inference.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    # Normalize device: default single device, or list when multi-GPU
+    if args.device is None:
+        args.device = ["cuda"] if torch.cuda.is_available() else ["cpu"]
+    args.primary_device = args.device[0] if isinstance(args.device, list) else args.device
+    args.use_multi_gpu = len(args.device) > 1 and all(d.startswith("cuda") for d in args.device)
+    return args
 
 
 def main():
@@ -99,13 +111,20 @@ def main():
         pretrained_path=args.model_path,
         pretrained_model_name_or_path=cfg.pretrained_model_name_or_path,
     )
-    model = model.to(args.device)
+    model = model.to(args.primary_device)
     model.set_eval()
+    if args.use_multi_gpu:
+        device_ids = [
+            int(d.split(":")[1]) if ":" in d else i
+            for i, d in enumerate(args.device)
+        ]
+        model = torch.nn.DataParallel(model, device_ids=device_ids)
+        logger.info("Using DataParallel on GPUs %s", device_ids)
     if args.use_fp16:
         model.half()
 
     # Encode prompt
-    prompt_embeds = model.encode_prompt(cfg.prompt, torch.device(args.device))
+    prompt_embeds = model.encode_prompt(cfg.prompt, torch.device(args.primary_device))
     if args.use_fp16:
         prompt_embeds = prompt_embeds.half()
 
@@ -144,7 +163,7 @@ def main():
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
-            source = batch["conditioning_pixel_values"].to(args.device)
+            source = batch["conditioning_pixel_values"].to(args.primary_device)
             if args.use_fp16:
                 source = source.half()
 

@@ -90,7 +90,13 @@ def parse_args():
         "May trade quality for speed/reproducibility.",
     )
     parser.add_argument("--clip_denoise", action="store_true")
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Device(s) for inference. Single: 'cuda:0'. Multi-GPU: 'cuda:0' 'cuda:1'. Uses DataParallel for multi-GPU.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--skip_existing",
@@ -104,10 +110,20 @@ def parse_args():
     if args.deterministic:
         # ot_ode=True: deterministic path; may affect quality vs stochastic
         args.ot_ode = True
+    # Normalize device: default single device, or list when multi-GPU
+    if args.device is None:
+        args.device = ["cuda"] if torch.cuda.is_available() else ["cpu"]
+    args.primary_device = args.device[0] if isinstance(args.device, list) else args.device
+    args.use_multi_gpu = len(args.device) > 1 and all(d.startswith("cuda") for d in args.device)
     return args
 
 
-def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> I2SBPipeline:
+def _load_pipeline(
+    pretrained_path: str,
+    cfg: TaskConfig,
+    primary_device: str,
+    device_ids: list[int] | None = None,
+) -> I2SBPipeline:
     """Load the I2SB pipeline from a pretrained directory or legacy file."""
     path = Path(pretrained_path)
 
@@ -148,7 +164,10 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> I2SBPi
         )
         pipeline = I2SBPipeline(unet=model, scheduler=scheduler)
 
-    pipeline = pipeline.to(device)
+    pipeline = pipeline.to(primary_device)
+    if device_ids is not None and len(device_ids) > 1:
+        pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
+        logger.info("Using DataParallel on GPUs %s", device_ids)
     return pipeline
 
 
@@ -162,7 +181,18 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device)
+    device_ids = None
+    if args.use_multi_gpu:
+        device_ids = [
+            int(d.split(":")[1]) if ":" in d else i
+            for i, d in enumerate(args.device)
+        ]
+    pipeline = _load_pipeline(
+        args.pretrained_model_name_or_path,
+        cfg,
+        args.primary_device,
+        device_ids=device_ids,
+    )
 
     # Load evaluation data
     dataset = MavicTI2SBDataset(
@@ -212,7 +242,7 @@ def main():
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
             # batch = (zeros_target, source)
-            source = batch[1].to(args.device) * 2 - 1  # [0,1] → [-1,1]
+            source = batch[1].to(args.primary_device) * 2 - 1  # [0,1] → [-1,1]
 
             result = pipeline(
                 source_image=source,

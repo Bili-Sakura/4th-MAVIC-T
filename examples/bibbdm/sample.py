@@ -90,7 +90,13 @@ def parse_args():
         help="Use deterministic sampling (eta=0, no stochastic noise in steps). "
         "May trade quality for speed/reproducibility.",
     )
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Device(s) for inference. Single: 'cuda:0'. Multi-GPU: 'cuda:0' 'cuda:1'. Uses DataParallel for multi-GPU.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--skip_existing",
@@ -100,10 +106,22 @@ def parse_args():
     )
     parser.add_argument("--no_skip_existing", dest="skip_existing", action="store_false")
     parser.add_argument("--save_npz", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    # Normalize device: default single device, or list when multi-GPU
+    if args.device is None:
+        args.device = ["cuda"] if torch.cuda.is_available() else ["cpu"]
+    args.primary_device = args.device[0] if isinstance(args.device, list) else args.device
+    args.use_multi_gpu = len(args.device) > 1 and all(d.startswith("cuda") for d in args.device)
+    return args
 
 
-def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str, num_inference_steps: int) -> BiBBDMPipeline:
+def _load_pipeline(
+    pretrained_path: str,
+    cfg: TaskConfig,
+    primary_device: str,
+    num_inference_steps: int,
+    device_ids: list[int] | None = None,
+) -> BiBBDMPipeline:
     """Load the BiBBDM pipeline from a pretrained directory or legacy file."""
     path = Path(pretrained_path)
 
@@ -151,7 +169,10 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str, num_infer
         )
         pipeline = BiBBDMPipeline(unet=model, scheduler=scheduler)
 
-    pipeline = pipeline.to(device)
+    pipeline = pipeline.to(primary_device)
+    if device_ids is not None and len(device_ids) > 1:
+        pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
+        logger.info("Using DataParallel on GPUs %s", device_ids)
     return pipeline
 
 
@@ -165,7 +186,19 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device, args.num_inference_steps)
+    device_ids = None
+    if args.use_multi_gpu:
+        device_ids = [
+            int(d.split(":")[1]) if ":" in d else i
+            for i, d in enumerate(args.device)
+        ]
+    pipeline = _load_pipeline(
+        args.pretrained_model_name_or_path,
+        cfg,
+        args.primary_device,
+        args.num_inference_steps,
+        device_ids=device_ids,
+    )
 
     if args.deterministic:
         # eta=0: no stochastic noise in Brownian Bridge steps
@@ -207,7 +240,7 @@ def main():
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
-            source = batch[1].to(args.device) * 2 - 1  # [0,1] → [-1,1]
+            source = batch[1].to(args.primary_device) * 2 - 1  # [0,1] → [-1,1]
 
             result = pipeline(
                 source_image=source,

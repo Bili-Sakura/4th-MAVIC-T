@@ -63,6 +63,7 @@ class TaskConfig:
     lambda_lpips: float = 5.0
 
     # ---- logging / checkpointing ----
+    # Accelerate log_with: "tensorboard" | "wandb" | "swanlab" | "all" | comma-separated
     log_with: str = "tensorboard"
     save_model_epochs: Optional[int] = 1
     checkpointing_steps: Optional[int] = None

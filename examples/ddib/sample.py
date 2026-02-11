@@ -110,7 +110,13 @@ def parse_args():
         help="Use deterministic DDIM sampling (eta=0). "
         "DDIM is typically deterministic by default; eta=0 ensures no stochasticity.",
     )
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Device(s) for inference. Single: 'cuda:0'. Multi-GPU: 'cuda:0' 'cuda:1'. Uses DataParallel for multi-GPU.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--skip_existing",
@@ -124,6 +130,11 @@ def parse_args():
     if args.deterministic:
         # eta=0: fully deterministic DDIM (DDIB default is already 0)
         args.eta = 0.0
+    # Normalize device: default single device, or list when multi-GPU
+    if args.device is None:
+        args.device = ["cuda"] if torch.cuda.is_available() else ["cpu"]
+    args.primary_device = args.device[0] if isinstance(args.device, list) else args.device
+    args.use_multi_gpu = len(args.device) > 1 and all(d.startswith("cuda") for d in args.device)
     return args
 
 
@@ -169,6 +180,13 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    device_ids = None
+    if args.use_multi_gpu:
+        device_ids = [
+            int(d.split(":")[1]) if ":" in d else i
+            for i, d in enumerate(args.device)
+        ]
+
     # Load pipeline
     if args.pretrained_model_name_or_path:
         # ---- combined pipeline directory ----
@@ -181,14 +199,23 @@ def main():
         if (pp / "target_ema_unet").is_dir():
             logger.info("Loading target EMA UNet")
             pipeline.target_unet = DDIBUNet.from_pretrained(str(pp), subfolder="target_ema_unet")
-        pipeline = pipeline.to(args.device)
+        pipeline = pipeline.to(args.primary_device)
+        if device_ids is not None and len(device_ids) > 1:
+            pipeline.source_unet = torch.nn.DataParallel(pipeline.source_unet, device_ids=device_ids)
+            pipeline.target_unet = torch.nn.DataParallel(pipeline.target_unet, device_ids=device_ids)
+            logger.info("Using DataParallel on GPUs %s", device_ids)
     elif args.source_pretrained_path and args.target_pretrained_path:
         # ---- separate source/target paths ----
         source_model = _load_unet(args.source_pretrained_path, cfg, cfg.source_channels)
-        source_model = source_model.to(args.device).eval()
+        source_model = source_model.to(args.primary_device).eval()
 
         target_model = _load_unet(args.target_pretrained_path, cfg, cfg.target_channels)
-        target_model = target_model.to(args.device).eval()
+        target_model = target_model.to(args.primary_device).eval()
+
+        if device_ids is not None and len(device_ids) > 1:
+            source_model = torch.nn.DataParallel(source_model, device_ids=device_ids)
+            target_model = torch.nn.DataParallel(target_model, device_ids=device_ids)
+            logger.info("Using DataParallel on GPUs %s", device_ids)
 
         # Prefer loading scheduler from a pretrained directory if available
         source_path = Path(args.source_pretrained_path)
@@ -249,7 +276,7 @@ def main():
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="DDIB Translation"):
             # batch = (zeros_target, source)
-            source = batch[1].to(args.device) * 2 - 1  # [0,1] → [-1,1]
+            source = batch[1].to(args.primary_device) * 2 - 1  # [0,1] → [-1,1]
 
             result = pipeline(
                 source_image=source,

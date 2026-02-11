@@ -3,18 +3,12 @@
 > Record of observations and thinking from model training experiments.
 > Add entries as experiments progress.
 
----
-
-## Stage 1 — DDBM Latent Baseline vs CUT Ablation
-
-### Order of Experiments
-
-1. **DDBM latent-space baseline** (see [roadmap § Stage 1 — Latent-Space Modelling](roadmap.md#stage-1--latent-space-modelling-with-pre-trained-vae-baseline))
-2. **CUT ablation** (see [roadmap § CUT Ablation (Stage 1)](roadmap.md#cut-ablation-stage-1))
 
 ---
 
 ### Experiment 1: DDBM Latent Baseline (DDBMLatentPipeline)
+
+**DDBM latent-space baseline** (see [roadmap § Stage 1 — Latent-Space Modelling](roadmap.md#stage-1--latent-space-modelling-with-pre-trained-vae-baseline))
 
 **Config**: Frozen pre-trained VAE (FLUX2-VAE / SD21-VAE), DDBM in latent space.
 
@@ -27,6 +21,8 @@
 
 **Observation**: Pure noise even after 5000 steps of training. **Status**: Failed.
 
+**Checkpoint**: <https://huggingface.co/BiliSakura/4th-MAVIC-T-ckpt-failed>
+
 **Assumptions** (to investigate):
 
 - Latent space of pre-trained RGB VAE may not align well with IR/SAR/EO modalities despite channel-repeat / channel-average.
@@ -37,6 +33,7 @@
 
 ### Experiment 2: CUT Ablation (Stage 1)
 
+**CUT ablation** (see [roadmap § CUT Ablation (Stage 1)](roadmap.md#cut-ablation-stage-1))
 **Config**: GAN-based, pixel-space, no VAE. 512 px crop for 1024 px tasks.
 
 | Task      | Pixel shape    | CUT tier | ~Params |
@@ -48,6 +45,8 @@
 
 **Observation**: GAN collapse / under-fitting observed. **Status**: Failed.
 
+**Checkpoint**: <https://huggingface.co/BiliSakura/4th-MAVIC-T-ckpt-failed>
+
 **Takeaways**:
 
 - Pixel-space CUT converges faster than latent-space DDBM in this setup, but exhibited failure modes.
@@ -55,24 +54,9 @@
 
 ---
 
-## Summary
+### Experiment 3: Pixel-Space DDBM
 
-| Approach          | Steps tested | Result              |
-|-------------------|--------------|---------------------|
-| DDBM latent       | 5000         | Failed (pure noise) |
-| CUT pixel-space   | 1000         | Failed (GAN collapse / under-fitting) |
-
----
-
-## Future Notes
-
-Add new observations as experiments continue.
-
----
-
-## Stage 1 — Pixel-Space DDBM (Next)
-
-**Config**: DDBM in pixel space (no VAE). Per [roadmap § Stage 1 — Pixel-Space DDBM](roadmap.md#stage-1--pixel-space-ddbm-main).
+**Config**: DDBM in pixel space (no VAE). Per [roadmap § Stage 1 — Pixel-Space DDBM](roadmap.md#stage-1--pixel-space-ddbm-main). Trained all 4 tasks for 10,000 steps.
 
 | Task      | Pixel shape    | DDBM tier | ~Params |
 |-----------|----------------|-----------|---------|
@@ -81,4 +65,6 @@ Add new observations as experiments continue.
 | SAR → RGB | `(512, 512)`   | medium    | ~120 M  |
 | SAR → EO  | `(256, 256)`   | small     | ~20 M   |
 
-**Status**: Ready to run. Scripts updated: `train_stage1_rgb2ir.sh`, `train_stage1_sar2ir.sh`, `train_stage1_sar2rgb.sh`, `train_stage1_sar2eo.sh`.
+**Outcome**: Awesome. SAR→EO completed ~5 epochs and RGB→IR ~8 epochs—both yield appealing results. SAR→IR and SAR→RGB did not complete their first epoch (under-fitting); we will continue training on them.
+
+**Checkpoint**: `huggingface/models/BiliSakura/4th-MAVIC-T-ckpt` (private repo; access via `HF_TOKEN` by sakura).
