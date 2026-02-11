@@ -209,3 +209,47 @@ class MavicTDDBMDataset(Dataset):
             target = TF.vflip(target)
 
         return target, source
+
+
+class PairedValDataset(Dataset):
+    """Dataset that loads (source, target) pairs from a paired validation manifest.
+
+    Manifest format: one line per pair, ``input_path\\ttarget_path`` (tab-separated).
+    Returns ``(target, source)`` tensors in [0, 1] to match MavicTDDBMDataset.
+    """
+
+    def __init__(
+        self,
+        manifest_path: str | Path,
+        resolution: int,
+        source_channels: int,
+        target_channels: int,
+    ) -> None:
+        super().__init__()
+        self.resolution = resolution
+        self.source_channels = source_channels
+        self.target_channels = target_channels
+        self._pairs: list[tuple[str, str]] = []
+        path = Path(manifest_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Paired val manifest not found: {path}")
+        with path.open() as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split("\t", 1)
+                if len(parts) != 2:
+                    continue
+                inp, tgt = parts[0].strip(), parts[1].strip()
+                if inp and tgt:
+                    self._pairs.append((inp, tgt))
+
+    def __len__(self) -> int:
+        return len(self._pairs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        inp_path, tgt_path = self._pairs[idx]
+        source = _load_image_as_tensor(inp_path, self.source_channels, self.resolution)
+        target = _load_image_as_tensor(tgt_path, self.target_channels, self.resolution)
+        return target, source

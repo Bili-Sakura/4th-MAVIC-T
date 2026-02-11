@@ -77,6 +77,7 @@ class TaskConfig:
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
     max_validation_batches: Optional[int] = None  # cap validation batches (None = no limit)
+    paired_val_manifest: Optional[str] = None  # path to paired_val_<task>.txt for metric evaluation
 
     # ---- hub ----
     push_to_hub: bool = True
@@ -117,10 +118,15 @@ class TaskConfig:
 # Pre-built configs for the four core tasks
 # ---------------------------------------------------------------------------
 
+def _default_paired_val_manifest(task_name: str) -> str:
+    return f"datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_{task_name}.txt"
+
+
 def sar2eo_config(**overrides) -> TaskConfig:
     """SAR-to-EO: 1-band 256x256 → 1-band 256x256."""
     cfg = TaskConfig(
         task_name="sar2eo",
+        paired_val_manifest=_default_paired_val_manifest("sar2eo"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
@@ -141,6 +147,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
     """RGB-to-IR: 3-band → 1-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
+        paired_val_manifest=_default_paired_val_manifest("rgb2ir"),
         source_channels=3,
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
@@ -162,6 +169,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
     """SAR-to-IR: 1-band → 1-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="sar2ir",
+        paired_val_manifest=_default_paired_val_manifest("sar2ir"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
@@ -183,6 +191,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
     """SAR-to-RGB: 1-band → 3-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
+        paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
         source_channels=1,
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded

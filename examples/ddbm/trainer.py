@@ -32,10 +32,10 @@ from datetime import timedelta
 
 from src.schedulers import DDBMScheduler
 from .config import TaskConfig
-from .dataset_wrapper import MavicTDDBMDataset
+from .dataset_wrapper import MavicTDDBMDataset, PairedValDataset
 from src.models.unet_ddbm import create_model
 
-from src.utils.metrics import MavicCriterion  # noqa: E402
+from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
     create_optimizer,
     lambda_repa_cosine,
@@ -371,7 +371,7 @@ class DDBMTrainer:
 
     @torch.no_grad()
     def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
-        """Generate and save test samples (first four inputs)."""
+        """Generate and save test samples (first four inputs). Optionally evaluate on paired val set."""
         from src.pipelines.ddbm import DDBMPipeline, DDBMLatentPipeline
 
         logger.info("Running validation at step %d …", global_step)
@@ -442,9 +442,91 @@ class DDBMTrainer:
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
 
+        # Optional: evaluate on paired validation set using competition metrics
+        metrics_result = {}
+        if getattr(cfg, "paired_val_manifest", None) and accelerator.is_main_process:
+            metrics_result = self._evaluate_paired_val_metrics(
+                model, scheduler, pipeline, accelerator, latent_target_encoder
+            )
+            if metrics_result:
+                logger.info(
+                    "Paired val metrics: LPIPS=%.4f L1=%.4f score=%.4f (FID=%s)",
+                    metrics_result.get("lpips", 0),
+                    metrics_result.get("l1", 0),
+                    metrics_result.get("score", 0),
+                    metrics_result.get("fid", "N/A"),
+                )
+
         if was_training:
             unwrapped.train()
-        return {"saved_samples": saved, "sample_dir": str(sample_dir)}
+        out = {"saved_samples": saved, "sample_dir": str(sample_dir)}
+        out.update(metrics_result)
+        return out
+
+    def _evaluate_paired_val_metrics(
+        self, model, scheduler, pipeline, accelerator, latent_target_encoder
+    ):
+        """Run inference on paired val set and compute MAVIC-T metrics (LPIPS, L1, FID)."""
+        cfg = self.cfg
+        manifest_path = Path(cfg.paired_val_manifest)
+        if not manifest_path.is_file():
+            logger.warning("Paired val manifest not found: %s – skipping metric evaluation", manifest_path)
+            return {}
+
+        if cfg.use_latent_target:
+            src_ch, tgt_ch = cfg.source_channels, cfg.target_channels
+        else:
+            src_ch = tgt_ch = cfg.model_channels
+
+        res = getattr(cfg, "output_resolution", None) or cfg.resolution
+        paired_ds = PairedValDataset(
+            manifest_path=manifest_path,
+            resolution=res,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
+        )
+        paired_loader = DataLoader(
+            paired_ds,
+            batch_size=cfg.eval_batch_size,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=False)
+
+        for _target, source in paired_loader:
+            source_01 = source.to(accelerator.device)
+            source_inp = source_01 * 2 - 1
+
+            with accelerator.autocast():
+                pipeline_kwargs = {
+                    "source_image": source_inp,
+                    "num_inference_steps": cfg.num_inference_steps,
+                    "guidance": cfg.guidance,
+                    "churn_step_ratio": cfg.churn_step_ratio,
+                    "output_type": "pt",
+                }
+                if latent_target_encoder is not None:
+                    pipeline_kwargs["target_channels"] = cfg.target_channels
+                result = pipeline(**pipeline_kwargs)
+            generated = (result.images + 1) * 0.5
+
+            target = _target.to(accelerator.device)
+            pred_01 = generated.clamp(0, 1)
+            tgt_01 = target.clamp(0, 1)
+            if pred_01.shape[1] != tgt_01.shape[1]:
+                if pred_01.shape[1] == 3 and tgt_01.shape[1] == 1:
+                    tgt_01 = tgt_01.repeat(1, 3, 1, 1)
+                elif pred_01.shape[1] == 1 and tgt_01.shape[1] == 3:
+                    pred_01 = pred_01.repeat(1, 3, 1, 1)
+            metric_calc.update(pred_01, tgt_01)
+
+        m = metric_calc.compute()
+        return {
+            "val_lpips": m.lpips,
+            "val_l1": m.l1,
+            "val_score": m.score if m.score is not None else m.lpips + m.l1,
+        }
 
     # ----- main training loop ------------------------------------------------
 
@@ -725,10 +807,12 @@ class DDBMTrainer:
                         and global_step % cfg.validation_steps == 0
                         and accelerator.is_main_process
                     ):
-                        self.log_validation(
+                        val_result = self.log_validation(
                             model, scheduler, val_dataloader, accelerator, global_step,
                             latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                         )
+                        if val_result:
+                            accelerator.log(val_result, step=global_step)
 
                     if (
                         checkpointing_steps is not None
@@ -784,10 +868,12 @@ class DDBMTrainer:
                 and (epoch + 1) % cfg.validation_epochs == 0
                 and accelerator.is_main_process
             ):
-                self.log_validation(
+                val_result = self.log_validation(
                     model, scheduler, val_dataloader, accelerator, global_step,
                     latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                 )
+                if val_result:
+                    accelerator.log(val_result, step=global_step)
 
             # Save at epoch boundary
             if (
