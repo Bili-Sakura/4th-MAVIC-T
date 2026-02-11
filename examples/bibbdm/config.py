@@ -91,6 +91,7 @@ class TaskConfig:
     # ---- validation ----
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
+    max_validation_batches: Optional[int] = None  # cap validation batches (None = no limit)
 
     # ---- hub ----
     push_to_hub: bool = True
@@ -106,6 +107,9 @@ class TaskConfig:
     mavic_lpips_weight: float = 1.0
     mavic_l1_weight: float = 1.0
     mavic_loss_weight: float = 0.1
+
+    # ---- sampling (evaluation) ----
+    output_resolution: Optional[int] = None  # if set, load & infer at this resolution
 
     # ---- latent modeling ablation ----
     use_latent_target: bool = False

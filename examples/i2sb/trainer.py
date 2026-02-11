@@ -100,10 +100,11 @@ class I2SBTrainer:
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
             try:
+                val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
                 val_ds = MavicTI2SBDataset(
                     task=self.cfg.task_name,
                     split="test",
-                    resolution=self.cfg.resolution,
+                    resolution=val_resolution,
                     source_channels=src_ch,
                     target_channels=tgt_ch,
                     with_target=False,
@@ -242,6 +243,11 @@ class I2SBTrainer:
             with torch.no_grad():
                 enc_feats = rep_alignment_module.extract_features(target_for_enc)
             rep_features = decoded if decoded is not None else denoised
+            if rep_features.shape[1] != target_for_enc.shape[1]:
+                if rep_features.shape[1] == 3 and target_for_enc.shape[1] == 1:
+                    rep_features = rep_features.mean(dim=1, keepdim=True)
+                elif rep_features.shape[1] == 1 and target_for_enc.shape[1] == 3:
+                    rep_features = rep_features.repeat(1, 3, 1, 1)
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
             loss = loss + lambda_rep_alignment * rep_loss
             extras["loss_rep_alignment"] = rep_loss.detach()
@@ -272,6 +278,8 @@ class I2SBTrainer:
         saved = 0
 
         for batch_idx, batch in enumerate(val_dataloader):
+            if cfg.max_validation_batches is not None and batch_idx >= cfg.max_validation_batches:
+                break
             _zeros, source = batch
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
@@ -338,6 +346,8 @@ class I2SBTrainer:
 
         checkpointing_steps = cfg.checkpointing_steps
         save_model_epochs = cfg.save_model_epochs
+        if save_model_epochs is not None and save_model_epochs <= 0:
+            save_model_epochs = None
         if checkpointing_steps is not None and save_model_epochs is not None:
             logger.warning(
                 "checkpointing_steps is set while save_model_epochs is enabled; "
@@ -512,6 +522,11 @@ class I2SBTrainer:
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
+                # Clear optimizer state when REPA is used: projector may have changed (e.g. 3→1)
+                # to avoid Prodigy shape mismatch errors during resumed optimization.
+                if rep_alignment_module is not None:
+                    optimizer.state.clear()
+                    logger.info("Cleared optimizer state (REPA projector shape may have changed)")
 
         num_epochs_this_run = cfg.num_epochs - first_epoch
         logger.info("***** Running training *****")
