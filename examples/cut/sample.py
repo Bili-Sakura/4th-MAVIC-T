@@ -7,7 +7,10 @@ Usage (pretrained directory — recommended)::
         --task sar2ir \
         --pretrained_model_name_or_path ./ckpt/cut/sar2ir/checkpoint-epoch-400 \
         --split test \
-        --output_dir ./samples/cut_sar2ir
+        --output_dir ./samples/cut_sar2ir \
+        --batch_size 32
+
+Use ``--batch_size`` to control inference batch size (default 32).
 
 Usage (legacy ``.pt`` file)::
 
@@ -74,7 +77,7 @@ def parse_args():
     )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save_npz", action="store_true")

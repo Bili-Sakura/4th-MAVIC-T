@@ -7,7 +7,11 @@ Usage (pretrained directory — recommended)::
         --task sar2ir \
         --pretrained_model_name_or_path ./ckpt/i2sb/sar2ir/checkpoint-epoch-100 \
         --split test \
-        --output_dir ./samples/sar2ir
+        --output_dir ./samples/sar2ir \
+        --batch_size 32
+
+Use ``--batch_size`` to control inference batch size (default 32). EMA UNet is
+loaded by default when ``ema_unet/`` exists under the checkpoint.
 
 Usage (legacy ``.pt`` file)::
 
@@ -76,7 +80,7 @@ def parse_args():
     )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--nfe", type=int, default=100)
     parser.add_argument("--ot_ode", action="store_true")
     parser.add_argument("--clip_denoise", action="store_true")
@@ -94,6 +98,10 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> I2SBPi
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
         pipeline = I2SBPipeline.from_pretrained(pretrained_path)
+        ema_unet_dir = path / "ema_unet"
+        if ema_unet_dir.is_dir():
+            logger.info("Loading EMA UNet from %s", ema_unet_dir)
+            pipeline.unet = I2SBUNet.from_pretrained(pretrained_path, subfolder="ema_unet")
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)

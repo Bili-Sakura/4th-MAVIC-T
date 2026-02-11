@@ -1,13 +1,21 @@
 #!/usr/bin/env python
 """Sample (inference) script for a trained DDBM model on any MAVIC-T task.
 
+Outputs are saved under MACIV-T-2025-Submissions/<task>/<model_name>/ following
+the official submission format (see official-docs/submission.md). Images are
+named by input stem (e.g. 0.png, 1041.png for sar2eo).
+
 Usage (pretrained directory — recommended)::
 
     python -m examples.ddbm.sample \
         --task sar2ir \
-        --pretrained_model_name_or_path ./ckpt/ddbm/sar2ir/checkpoint-epoch-100 \
+        --pretrained_model_name_or_path ./ckpt/exp3/stage1_sar2ir/ddbm/sar2ir/checkpoint-10000 \
         --split test \
-        --output_dir ./samples/sar2ir
+        --model_name ddbm \
+        --batch_size 32
+
+Use ``--batch_size`` to control inference batch size (default 32). Larger values
+are faster but require more GPU memory.
 
 Usage (legacy ``.pt`` file)::
 
@@ -15,7 +23,7 @@ Usage (legacy ``.pt`` file)::
         --task sar2ir \
         --pretrained_model_name_or_path ./outputs/ddbm_sar2ir/model_epoch_100.pt \
         --split test \
-        --output_dir ./samples/sar2ir
+        --model_name ddbm
 
 When a directory is provided the script loads the UNet and scheduler via
 ``from_pretrained`` following the HuggingFace *diffusers* convention.
@@ -29,6 +37,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -57,6 +66,8 @@ from src.models.unet_ddbm import DDBMUNet, create_model  # noqa: E402
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+DEFAULT_SUBMISSION_ROOT = Path("/data/projects/4th-MAVIC-T/datasets/BiliSakura/MACIV-T-2025-Submissions")
+
 _TASK_CONFIG_MAP = {
     "sar2eo": sar2eo_config,
     "rgb2ir": rgb2ir_config,
@@ -75,14 +86,47 @@ def parse_args():
         help="Path to a diffusers-style checkpoint directory or a legacy .pt/.safetensors file.",
     )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
-    parser.add_argument("--output_dir", type=str, default="./samples")
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--num_inference_steps", type=int, default=40)
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=None,
+        help=f"Output directory. Default: {DEFAULT_SUBMISSION_ROOT}/<task>/<model_name>/",
+    )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="ddbm",
+        help="Model name for folder structure (e.g. ddbm). Output: <submission_root>/<task>/<model_name>/",
+    )
+    parser.add_argument(
+        "--submission_root",
+        type=str,
+        default=str(DEFAULT_SUBMISSION_ROOT),
+        help="Root directory for submissions.",
+    )
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for inference (larger = faster).")
+    parser.add_argument(
+        "--num_inference_steps",
+        type=int,
+        default=1000,
+        help="Number of denoising steps (1000 for best quality).",
+    )
     parser.add_argument("--guidance", type=float, default=1.0)
     parser.add_argument("--churn_step_ratio", type=float, default=0.33)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save_npz", action="store_true")
+    parser.add_argument(
+        "--extra_data",
+        action="store_true",
+        help="Set to 1 in readme: models trained with extra data beyond challenge data.",
+    )
+    parser.add_argument(
+        "--readme_description",
+        type=str,
+        default="DDBM diffusion-based image translation. PyTorch implementation.",
+        help="Additional description for readme.txt",
+    )
     return parser.parse_args()
 
 
@@ -106,6 +150,11 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPi
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
         pipeline = DDBMPipeline.from_pretrained(pretrained_path)
+        # Prefer ema_unet when available (default for best inference quality)
+        ema_unet_dir = path / "ema_unet"
+        if ema_unet_dir.is_dir():
+            logger.info("Loading EMA UNet from %s", ema_unet_dir)
+            pipeline.unet = DDBMUNet.from_pretrained(pretrained_path, subfolder="ema_unet")
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)
@@ -141,6 +190,24 @@ def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPi
     return pipeline
 
 
+def _write_readme(
+    output_dir: Path,
+    runtime_per_image: float,
+    use_gpu: bool,
+    extra_data: bool,
+    description: str,
+) -> None:
+    """Write readme.txt per official submission format."""
+    readme_path = output_dir / "readme.txt"
+    content = f"""runtime per image [s] : {runtime_per_image:.2f}
+CPU[1] / GPU[0] : {0 if use_gpu else 1}
+Extra Data [1] / No Extra Data [0] : {1 if extra_data else 0}
+Other description : {description}
+"""
+    readme_path.write_text(content, encoding="utf-8")
+    logger.info("Wrote %s", readme_path)
+
+
 def main():
     args = parse_args()
     if args.seed is not None:
@@ -148,7 +215,13 @@ def main():
         np.random.seed(args.seed)
 
     cfg: TaskConfig = _TASK_CONFIG_MAP[args.task]()
-    output_dir = Path(args.output_dir)
+    submission_root = Path(args.submission_root)
+
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        output_dir = submission_root / args.task / args.model_name
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pipeline = _load_pipeline(args.pretrained_model_name_or_path, cfg, args.device)
@@ -161,10 +234,25 @@ def main():
         model_channels=cfg.model_channels,
         with_target=False,
     )
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=4,
+    )
 
-    logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs …")
+    logger.info(
+        "Generating samples for %s (%s), %d inputs, batch_size=%d, steps=%d → %s",
+        args.task,
+        args.split,
+        len(dataset),
+        args.batch_size,
+        args.num_inference_steps,
+        output_dir,
+    )
+
     all_samples = []
+    total_start = time.perf_counter()
     sample_idx = 0
 
     with torch.no_grad():
@@ -183,22 +271,42 @@ def main():
             images_uint8 = ((images + 1) * 127.5).clamp(0, 255).to(torch.uint8)
             images_uint8 = images_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
-            for img_arr in images_uint8:
+            for i, img_arr in enumerate(images_uint8):
+                out_name = dataset.get_output_name(sample_idx + i)
                 if img_arr.shape[2] == 1:
                     img_arr = img_arr.squeeze(2)
                 img = Image.fromarray(img_arr)
-                img.save(output_dir / f"sample_{sample_idx:05d}.png")
-                sample_idx += 1
+                img.save(output_dir / out_name)
 
+            sample_idx += len(images_uint8)
             all_samples.append(images_uint8)
+
+    total_elapsed = time.perf_counter() - total_start
+    runtime_per_image = total_elapsed / len(dataset) if len(dataset) > 0 else 0.0
+    use_gpu = args.device.startswith("cuda")
+
+    # Write readme.txt per official submission format
+    _write_readme(
+        output_dir,
+        runtime_per_image=runtime_per_image,
+        use_gpu=use_gpu,
+        extra_data=args.extra_data,
+        description=args.readme_description,
+    )
 
     all_samples = np.concatenate(all_samples, axis=0)
 
     if args.save_npz:
         np.savez(output_dir / f"samples_{len(all_samples)}.npz", arr_0=all_samples)
-        logger.info(f"Saved NPZ with {len(all_samples)} samples.")
+        logger.info("Saved NPZ with %d samples.", len(all_samples))
 
-    logger.info(f"Sampling complete – {sample_idx} images saved to {output_dir}")
+    logger.info(
+        "Sampling complete – %d images saved to %s (runtime: %.1fs total, %.2fs/image)",
+        sample_idx,
+        output_dir,
+        total_elapsed,
+        runtime_per_image,
+    )
 
 
 if __name__ == "__main__":

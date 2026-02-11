@@ -7,7 +7,11 @@ Usage::
         --task sar2ir \
         --model_path ./outputs/turbo_sar2ir/checkpoints/model_final.pkl \
         --split test \
-        --output_dir ./samples/turbo_sar2ir
+        --output_dir ./samples/turbo_sar2ir \
+        --batch_size 16
+
+Use ``--batch_size`` to control inference batch size (default 16). Pix2Pix-Turbo
+uses more memory per sample, so a smaller batch size is recommended.
 
 The script loads the model checkpoint, reads the evaluation inputs via
 :class:`src.utils.mavic_t_dataset.MavicTImageToImageDataset`, runs the Pix2Pix-Turbo
@@ -59,7 +63,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to model .pkl checkpoint.")
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save_npz", action="store_true")

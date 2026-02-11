@@ -13,7 +13,11 @@ Usage (combined pipeline checkpoint — recommended)::
         --task sar2ir \
         --pretrained_model_name_or_path ./ckpt/ddib/sar2ir/pipeline \
         --split test \
-        --output_dir ./samples/ddib_sar2ir
+        --output_dir ./samples/ddib_sar2ir \
+        --batch_size 32
+
+Use ``--batch_size`` to control inference batch size (default 32). EMA UNets are
+loaded by default when ``ema_unet/`` exists under source/target checkpoints.
 
 Usage (separate model checkpoints)::
 
@@ -96,7 +100,7 @@ def parse_args():
     )
     parser.add_argument("--split", type=str, default="test", choices=["val", "test"])
     parser.add_argument("--output_dir", type=str, default="./samples")
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_inference_steps", type=int, default=250)
     parser.add_argument("--clip_denoised", type=bool, default=True)
     parser.add_argument("--eta", type=float, default=0.0)
@@ -112,7 +116,10 @@ def _load_unet(pretrained_path: str, cfg: TaskConfig, in_channels: int) -> DDIBU
 
     if path.is_dir():
         logger.info("Loading UNet from pretrained directory: %s", path)
-        return DDIBUNet.from_pretrained(pretrained_path, subfolder="unet")
+        subfolder = "ema_unet" if (path / "ema_unet").is_dir() else "unet"
+        if subfolder == "ema_unet":
+            logger.info("Loading EMA UNet from %s", path / "ema_unet")
+        return DDIBUNet.from_pretrained(pretrained_path, subfolder=subfolder)
 
     # ---- legacy single-file checkpoint ----
     logger.info("Loading UNet from legacy checkpoint: %s", path)
@@ -150,6 +157,13 @@ def main():
         # ---- combined pipeline directory ----
         logger.info("Loading DDIBPipeline from: %s", args.pretrained_model_name_or_path)
         pipeline = DDIBPipeline.from_pretrained(args.pretrained_model_name_or_path)
+        pp = Path(args.pretrained_model_name_or_path)
+        if (pp / "source_ema_unet").is_dir():
+            logger.info("Loading source EMA UNet")
+            pipeline.source_unet = DDIBUNet.from_pretrained(str(pp), subfolder="source_ema_unet")
+        if (pp / "target_ema_unet").is_dir():
+            logger.info("Loading target EMA UNet")
+            pipeline.target_unet = DDIBUNet.from_pretrained(str(pp), subfolder="target_ema_unet")
         pipeline = pipeline.to(args.device)
     elif args.source_pretrained_path and args.target_pretrained_path:
         # ---- separate source/target paths ----

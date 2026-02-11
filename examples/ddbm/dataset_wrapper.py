@@ -179,6 +179,12 @@ class MavicTDDBMDataset(Dataset):
     def __len__(self) -> int:
         return len(self._records)
 
+    def get_output_name(self, idx: int) -> str:
+        """Return the output filename for the given index (submission format: stem.png)."""
+        rec = self._records[idx]
+        stem = Path(rec["input_path"]).stem
+        return f"{stem}.png"
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return ``(target, source)`` tensors in [0, 1].
 
