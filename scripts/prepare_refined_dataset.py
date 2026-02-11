@@ -34,9 +34,12 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_bounds, from_origin
 from rasterio.warp import reproject, transform_bounds
 
+# Add project root for path_from_root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.utils.paths import path_from_root  # noqa: E402
 
-SRC_ROOT = Path("/mnt/data/projects/4th-MAVIC-T/datasets/BiliSakura/MAVIC-T-2025")
-DST_ROOT = Path("/mnt/data/projects/4th-MAVIC-T/datasets/BiliSakura/MACIV-T-2025-Structure-Refined")
+SRC_ROOT = path_from_root("datasets/BiliSakura/MAVIC-T-2025")
+DST_ROOT = path_from_root("datasets/BiliSakura/MACIV-T-2025-Structure-Refined")
 
 CITIES = [
     "Train_Data_Bingham_SAR_IR_RGB",

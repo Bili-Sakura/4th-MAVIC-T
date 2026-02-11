@@ -23,6 +23,35 @@ conda env create -f environment.yaml
 conda activate rsgen
 ```
 
+### Path configuration (optional)
+
+If you clone the repo to a custom location, set `PROJECT_ROOT` to your project directory. Scripts will then resolve paths relative to it.
+
+```bash
+# Option 1: Source paths.env (auto-detects project root from file location)
+source paths.env
+
+# Option 2: Set manually before running scripts
+export PROJECT_ROOT=/path/to/4th-MAVIC-T
+```
+
+Without this, paths are inferred from the script location (works when run from the project root).
+
+### Rewriting manifest paths
+
+Manifest files (`paired_val_*.txt`, `bad_samples.txt`) may contain machine-specific absolute paths. Run the following to rewrite them for your setup:
+
+```bash
+# Dry run first
+python scripts/rewrite_manifest_paths.py --dry_run
+
+# Rewrite to your dataset root
+python scripts/rewrite_manifest_paths.py --dataset_root /path/to/MACIV-T-2025-Structure-Refined
+
+# Or use PROJECT_ROOT from env (see Path configuration above)
+python scripts/rewrite_manifest_paths.py
+```
+
 ## Citations
 
 ```bibtex

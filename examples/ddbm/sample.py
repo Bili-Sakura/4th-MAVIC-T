@@ -76,11 +76,12 @@ from .config import (  # noqa: E402
 )
 from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
 from src.models.unet_ddbm import DDBMUNet, create_model  # noqa: E402
+from src.utils.paths import path_from_root  # noqa: E402
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DEFAULT_SUBMISSION_ROOT = Path("/data/projects/4th-MAVIC-T/datasets/BiliSakura/MACIV-T-2025-Submissions")
+DEFAULT_SUBMISSION_ROOT = path_from_root("datasets/BiliSakura/MACIV-T-2025-Submissions")
 
 _TASK_CONFIG_MAP = {
     "sar2eo": sar2eo_config,

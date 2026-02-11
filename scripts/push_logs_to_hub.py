@@ -13,6 +13,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.training_utils import push_checkpoint_to_hub
+from src.utils.paths import path_from_root
 
 
 def push_logs(
@@ -62,10 +63,10 @@ def main():
     """Main entry point."""
     hub_model_id = "BiliSakura/4th-MAVIC-T-ckpt"
 
-    # TensorBoard log directories
+    # TensorBoard log directories (relative to PROJECT_ROOT)
     logs_dirs = [
-        "/data/projects/4th-MAVIC-T/ckpt/exp3/stage1_sar2eo/ddbm/sar2eo/logs",
-        "/data/projects/4th-MAVIC-T/ckpt/exp3/stage1_sar2ir/ddbm/sar2ir/logs",
+        str(path_from_root("ckpt/exp3/stage1_sar2eo/ddbm/sar2eo/logs")),
+        str(path_from_root("ckpt/exp3/stage1_sar2ir/ddbm/sar2ir/logs")),
     ]
 
     print(f"Hub Model ID: {hub_model_id}")

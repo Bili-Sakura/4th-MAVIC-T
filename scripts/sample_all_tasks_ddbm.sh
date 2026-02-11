@@ -12,11 +12,18 @@
 
 set -euo pipefail
 
-CKPT_BASE="${CKPT_BASE:-./ckpt/exp3}"
+# Load paths from paths.env (PROJECT_ROOT + derived paths)
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${_SCRIPT_DIR}/../paths.env" ]]; then
+  set -a && source "${_SCRIPT_DIR}/../paths.env" && set +a
+fi
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${_SCRIPT_DIR}/.." && pwd)}"
+CKPT_BASE="${CKPT_BASE:-${PROJECT_ROOT}/ckpt/exp3}"
 MODEL_NAME="${MODEL_NAME:-ddbm}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_STEPS="${NUM_STEPS:-1000}"
-SUBMISSION_ROOT="${SUBMISSION_ROOT:-/data/projects/4th-MAVIC-T/datasets/BiliSakura/MACIV-T-2025-Submissions}"
+SUBMISSION_ROOT="${SUBMISSION_ROOT:-${PROJECT_ROOT}/datasets/BiliSakura/MACIV-T-2025-Submissions}"
 
 for task in sar2eo sar2rgb rgb2ir sar2ir; do
   stage="stage1_${task}"

@@ -68,15 +68,17 @@ def push_checkpoint(
 
 def main():
     """Main entry point."""
+    from src.utils.paths import path_from_root
+
     hub_model_id = "BiliSakura/4th-MAVIC-T-ckpt"
     step = 3000
-    
-    # Checkpoint directories
+
+    # Checkpoint directories (relative to PROJECT_ROOT)
     checkpoints = [
-        "/data/projects/4th-MAVIC-T/ckpt/stage1_sar2rgb",
-        "/data/projects/4th-MAVIC-T/ckpt/stage1_sar2ir",
-        "/data/projects/4th-MAVIC-T/ckpt/stage1_sar2eo",
-        "/data/projects/4th-MAVIC-T/ckpt/stage1_rgb2ir",
+        str(path_from_root("ckpt/stage1_sar2rgb")),
+        str(path_from_root("ckpt/stage1_sar2ir")),
+        str(path_from_root("ckpt/stage1_sar2eo")),
+        str(path_from_root("ckpt/stage1_rgb2ir")),
     ]
     
     print(f"Hub Model ID: {hub_model_id}")
