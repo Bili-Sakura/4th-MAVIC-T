@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -113,6 +114,7 @@ def default_resolution_for_domain(domain: str) -> int:
 
 
 def normalization_stats_for_channels(num_channels: int) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Return ImageNet-based mean/std for the given channel count (fallback)."""
     if num_channels <= 0:
         raise ValueError(f"num_channels must be > 0, got {num_channels}")
 
@@ -130,6 +132,21 @@ def normalization_stats_for_channels(num_channels: int) -> tuple[tuple[float, ..
         mean.append(IMAGENET_MEAN[-1])
         std.append(IMAGENET_STD[-1])
     return tuple(mean[:num_channels]), tuple(std[:num_channels])
+
+
+def load_dataset_stats(stats_path: str | Path) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Load pre-computed mean/std from JSON file.
+
+    Expected format: {"mean": [...], "std": [...]}
+    """
+    path = Path(stats_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Dataset stats file not found: {path}")
+    with path.open() as f:
+        data = json.load(f)
+    mean = tuple(float(x) for x in data["mean"])
+    std = tuple(float(x) for x in data["std"])
+    return mean, std
 
 
 @dataclass
@@ -182,6 +199,9 @@ class DomainClassifierConfig:
     checkpoints_total_limit: int = 3
     resume_from_checkpoint: Optional[str] = None
 
+    # ---- dataset normalization (domain-specific) ----
+    dataset_stats_path: Optional[str] = None
+
     def resolved_target_domain(self) -> str:
         return normalize_domain_name(self.target_domain)
 
@@ -218,4 +238,12 @@ class DomainClassifierConfig:
         if self.run_name:
             return self.run_name
         return f"{self.resolved_target_domain()}-resnet18-real-fake"
+
+    def resolved_normalization_stats(
+        self,
+    ) -> tuple[tuple[float, ...], tuple[float, ...]]:
+        """Return mean/std: from dataset_stats_path if set, else ImageNet fallback."""
+        if self.dataset_stats_path:
+            return load_dataset_stats(self.dataset_stats_path)
+        return normalization_stats_for_channels(self.resolved_num_channels())
 

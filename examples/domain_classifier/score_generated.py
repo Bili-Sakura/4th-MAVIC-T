@@ -129,7 +129,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default=None, help="Device override, e.g. cuda:0 or cpu")
     parser.add_argument("--output_csv", type=str, default=None, help="CSV path for per-image scores")
     parser.add_argument("--output_json", type=str, default=None, help="JSON path for aggregate summary")
+    parser.add_argument(
+        "--dataset_stats_path",
+        type=str,
+        default=None,
+        help="Path to pre-computed dataset stats JSON (overrides training_setup.json / ImageNet fallback)",
+    )
     return parser.parse_args()
+
+
+def _resolve_normalization_stats(
+    model_path: str,
+    num_channels: int,
+    dataset_stats_path: Optional[str],
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Resolve mean/std: dataset_stats_path > training_setup.json > ImageNet fallback."""
+    if dataset_stats_path:
+        from .config import load_dataset_stats  # noqa: E402
+        return load_dataset_stats(dataset_stats_path)
+
+    # Check for training_setup.json in run directory (parent of model_path when using best/final)
+    setup_path = Path(model_path).resolve().parent / "training_setup.json"
+    if setup_path.is_file():
+        with setup_path.open() as f:
+            data = json.load(f)
+        resolved = data.get("resolved", {})
+        mean = resolved.get("normalize_mean")
+        std = resolved.get("normalize_std")
+        if mean is not None and std is not None:
+            return tuple(mean), tuple(std)
+
+    return normalization_stats_for_channels(num_channels)
 
 
 def main() -> None:
@@ -147,7 +177,11 @@ def main() -> None:
         override_num_channels=args.num_channels,
         domain=domain,
     )
-    normalize_mean, normalize_std = normalization_stats_for_channels(num_channels)
+    normalize_mean, normalize_std = _resolve_normalization_stats(
+        args.model_path,
+        num_channels,
+        args.dataset_stats_path,
+    )
 
     image_paths = _collect_image_paths(Path(args.input_dir), recursive=args.recursive)
     dataset = InferenceImageDataset(
