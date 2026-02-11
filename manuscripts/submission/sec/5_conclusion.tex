@@ -1,0 +1,6 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+{\color{gray}
+In this paper, we presented our solution for the 4th Multi-modal Aerial View Image Challenge -- Translation (MAVIC-T), based on Denoising Diffusion Bridge Models (DDBM). Our approach leverages the bridge diffusion formulation to directly learn conditional transport between source and target modalities, conditioned via channel concatenation with a UNet denoiser trained under Karras-weighted bridge scalings. We explored three complementary ablations: (1) a MAVIC-T-aware auxiliary loss that directly optimizes toward the challenge evaluation metric (LPIPS + L1), (2) representation alignment using frozen MaRS encoders from the remote sensing domain, and (3) latent-space modeling via a pre-trained VAE for compressed supervision. We systematically compared DDBM against five competitive baselines---CUT, BiBBDM, I2SB, DDIB, and Pix2Pix-Turbo---under controlled experimental conditions across all four translation tasks (SAR$\rightarrow$EO, SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR). \TODO{Add summary of key findings and final ranking.}
+}

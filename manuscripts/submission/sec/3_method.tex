@@ -1,0 +1,110 @@
+% Proposed Method
+\section{Method}
+\label{sec:method}
+
+{\color{gray}
+We present our solution for the 4th MAVIC-T challenge based on Denoising Diffusion Bridge Models (DDBM). Our approach adapts the DDBM framework to cross-modal remote sensing translation by (1) conditioning on the source image via channel concatenation, (2) employing a Karras-weighted bridge denoising objective with the option of augmenting it with a MAVIC-T-aware auxiliary loss, (3) optionally operating in a VAE latent space for high-resolution tasks, and (4) integrating representation alignment from pre-trained remote sensing encoders. \cref{fig:method_overview} provides an overview of our pipeline.
+}
+
+\begin{figure}[t]
+    \centering
+    \fbox{\rule{0pt}{1.8in} \rule{0.9\linewidth}{0pt}}
+    \caption{{\color{gray}Overview of our DDBM-based translation pipeline. The source image $x$ is concatenated with the noisy sample $z_t$ and fed to a UNet denoiser. During training, the bridge forward process constructs $z_t$ from the target $y$ and source $x$. Optional modules include a VAE encoder for latent-space modeling, a frozen MaRS encoder for representation alignment, and a MAVIC-T-aware loss branch. During inference, iterative Heun sampling transforms $x$ into the translated output $\hat{y}$.}}
+    \label{fig:method_overview}
+\end{figure}
+
+
+\subsection{Architecture}
+\label{sec:architecture}
+
+{\color{gray}
+\paragraph{UNet Denoiser}
+Our denoiser is built upon a UNet2DModel backbone with Adaptive Group Normalization (ADM-style) that accepts timestep embeddings. The network is instantiated with a base channel count of 128 and resolution-dependent channel multipliers---for example, $(1,1,2,2,4,4)$ for $256\times256$ inputs---yielding block output channels of $(128, 128, 256, 256, 512, 512)$. Each resolution level uses 2 residual blocks. Self-attention is applied at spatial resolutions of $32\times32$, $16\times16$, and $8\times8$ via \texttt{AttnDownBlock2D} and \texttt{AttnUpBlock2D} modules, while other levels use plain \texttt{DownBlock2D}/\texttt{UpBlock2D} without attention.
+}
+
+{\color{gray}
+\paragraph{Source Conditioning via Concatenation}
+To condition on the source image $x$, we adopt the channel-concatenation strategy: the pre-conditioned noisy sample $c_{\text{in}} \cdot z_t$ and the source image $x$ are concatenated along the channel dimension before being fed to the UNet. This doubles the input channels from $C$ to $2C$, where $C$ is the operating channel count of the model (e.g., $C=1$ for SAR$\rightarrow$EO, $C=3$ for RGB$\rightarrow$IR). The UNet output channels remain $C$, producing the raw denoised prediction.
+}
+
+{\color{gray}
+\paragraph{Bridge Scalings}
+Following DDBM, the raw model output is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is:
+\begin{equation}
+    D_\theta(z_t, t, x) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot z_t,\, t,\, x) + c_{\text{skip}}(t) \cdot z_t\,,
+    \label{eq:denoiser}
+\end{equation}
+where $F_\theta$ is the raw UNet output and the scalings are computed from the VP parameters $\beta_d$ and $\beta_{\min}$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + \varepsilon)$ (with $\varepsilon = 10^{-44}$ for numerical stability) before being passed to the model's sinusoidal embedding layer.
+}
+
+
+\subsection{Training Objective}
+\label{sec:training_objective}
+
+{\color{gray}
+\paragraph{Bridge Denoising Loss}
+The primary training objective is a weighted mean squared error between the denoised prediction $D_\theta(z_t, t, x)$ and the clean target $y$:
+\begin{equation}
+    \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(x,y),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(z_t, t, x) - y \|_2^2 \right],
+    \label{eq:denoising_loss}
+\end{equation}
+where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting derived from the combined variance $A(t) = a_t^2 \sigma_{\text{data,end}}^2 + b_t^2 \sigma_{\text{data}}^2 + c^2 c_t$ (with $a_t, b_t, c_t$ being VP schedule coefficients), and $z_t$ is the noisy sample obtained from the forward bridge process (Eq.~\ref{eq:bridge_forward}). The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$: $\sigma = (\sigma_{\max}^{-1/\rho} + u \cdot (\sigma_{\min}^{-1/\rho} - \sigma_{\max}^{-1/\rho}))^{\rho}$, $u \sim \mathcal{U}(0,1)$, which concentrates samples at lower noise levels where fine detail is learned.
+}
+
+{\color{gray}
+\paragraph{MAVIC-T-Aware Auxiliary Loss}
+Since the challenge evaluation directly uses LPIPS and L1 as two of the three scoring components, we explore augmenting the denoising objective with a differentiable \emph{MAVIC-T-aware} loss that directly optimizes toward the evaluation metric. Specifically, we convert the denoised prediction to the $[0,1]$ range and compute:
+\begin{equation}
+    \mathcal{L}_{\text{mavic}} = \lambda_{\text{lpips}} \cdot \text{LPIPS}(\hat{y},\, y) + \lambda_{\text{l1}} \cdot \| \hat{y} - y \|_1\,,
+    \label{eq:mavic_loss}
+\end{equation}
+where LPIPS uses a frozen VGG-16 backbone. FID is a distribution-level metric and cannot serve as a per-sample loss, so it is excluded from the training criterion. The total loss becomes $\mathcal{L} = \mathcal{L}_{\text{denoise}} + \lambda_{\text{mavic}} \cdot \mathcal{L}_{\text{mavic}}$ with default $\lambda_{\text{mavic}} = 0.1$.
+}
+
+
+\subsection{Representation Alignment}
+\label{sec:rep_alignment}
+
+{\color{gray}
+Inspired by the REPA (REPresentation Alignment) technique, we explore aligning the denoised predictions with features from frozen, pre-trained remote sensing encoders. The intuition is that modality-specific foundation models capture rich semantic representations that can serve as an auxiliary supervision signal, encouraging the translation model to preserve semantic content.
+}
+
+{\color{gray}
+\paragraph{Encoder Selection}
+For SAR-input tasks (SAR$\rightarrow$EO, SAR$\rightarrow$IR, SAR$\rightarrow$RGB), we use a frozen MaRS-SAR encoder---a SwinV2-Base model (\texttt{swinv2\_base\_window8\_256}) pre-trained on SAR data with a feature dimension of 1024. For the RGB$\rightarrow$IR task, we use a frozen MaRS-RGB encoder with the same architecture but pre-trained on RGB imagery. Both encoders extract multi-scale feature maps, and we use global average pooling (GAP) on the deepest stage to obtain a $d$-dimensional feature vector.
+}
+
+{\color{gray}
+\paragraph{Projection and Loss}
+A trainable 3-layer MLP projector maps the model's output features to the encoder's embedding space:
+\begin{equation}
+    h = \text{Linear} \circ \text{SiLU} \circ \text{Linear} \circ \text{SiLU} \circ \text{Linear}(f_{\text{model}})\,,
+\end{equation}
+where the hidden dimension is $2d$ and the output dimension matches the encoder's feature dimension $d$. The alignment loss is the negative cosine similarity, averaged over the batch:
+\begin{equation}
+    \mathcal{L}_{\text{align}} = -\frac{1}{B} \sum_{i=1}^{B} \frac{\bar{h}_i \cdot \bar{e}_i}{\|\bar{h}_i\| \cdot \|\bar{e}_i\|}\,,
+    \label{eq:align_loss}
+\end{equation}
+where $\bar{h}_i = h_i / \|h_i\|$ and $\bar{e}_i = e_i / \|e_i\|$ are L2-normalized projected model features and frozen encoder features, respectively. The encoder features are detached (stop-gradient) so only the projector and UNet receive gradients. The total loss is augmented as $\mathcal{L} = \mathcal{L}_{\text{denoise}} + \lambda_{\text{align}} \cdot \mathcal{L}_{\text{align}}$ with default $\lambda_{\text{align}} = 1.0$.
+}
+
+
+\subsection{Latent-Space Modeling}
+\label{sec:latent_space}
+
+{\color{gray}
+For the high-resolution tasks ($1024 \times 1024$), directly operating in pixel space is computationally expensive. We explore an ablation where a pre-trained Variational Autoencoder (VAE) is used to encode target images into a compact latent space, and an additional \emph{latent-space L2 loss} encourages the translation model's output to be consistent with the reference VAE's encoding. Specifically, let $E_{\text{vae}}$ denote the frozen VAE encoder (an \texttt{AutoencoderKL} from a pre-trained checkpoint). The latent loss is:
+\begin{equation}
+    \mathcal{L}_{\text{latent}} = \left\| E_{\text{vae}}(\hat{y}) - E_{\text{vae}}(y) \right\|_2^2\,,
+    \label{eq:latent_loss}
+\end{equation}
+where $E_{\text{vae}}(\cdot)$ returns the scaled mean of the VAE's posterior distribution (i.e., $\mu \cdot s$ with scaling factor $s$). For single-channel images, channels are replicated to 3 before encoding. The latent loss provides a compressed, semantically rich supervision signal that complements the pixel-level denoising objective, and is weighted by $\lambda_{\text{latent}} = 1.0$.
+}
+
+
+\subsection{Inference}
+\label{sec:inference}
+
+{\color{gray}
+At inference time, we follow the DDBM sampling procedure using a second-order Heun integrator. Starting from the source image $x$, the scheduler discretizes the sigma schedule into $N$ steps using the inverse-$\rho$ Karras schedule from $\sigma_{\max}$ to $\sigma_{\min}$. At each step $i$, the denoiser produces a prediction $D_\theta(z_i, \sigma_i, x)$, which is used to compute the SDE drift. A Heun corrector step evaluates the model a second time at $\sigma_{i+1}$ to refine the update, yielding approximately $2N$ total function evaluations. Optional stochastic churn with ratio $\gamma = 0.33$ injects controlled noise between steps to improve sample diversity. We use $N = 40$ steps by default and set guidance $w = 1.0$ (no classifier-free guidance). When an EMA model is available (with decay $0.9999$), we use the EMA weights for inference.
+}

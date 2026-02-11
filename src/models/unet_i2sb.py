@@ -1,0 +1,222 @@
+"""I2SB-compatible UNet model built on ``diffusers.UNet2DModel``.
+
+The I2SB UNet accepts ``(x, timestep, cond=…)`` where ``cond`` is the
+source/condition image.  With ``condition_mode='concat'`` the model
+internally concatenates ``x`` and ``cond`` along the channel axis.
+
+This module replicates that contract using a standard ``UNet2DModel`` from
+the Hugging Face *diffusers* library.  A thin wrapper class
+:class:`I2SBUNet` concatenates source and noisy sample before forwarding to
+the underlying ``UNet2DModel``, so the rest of the training / sampling code
+can call ``model(x, t, cond=source)`` just like the vendor code.
+
+Supported UNet types (via ``unet_type`` in :func:`create_model`):
+- ``adm``: ADM-style diffusers UNet2DModel (default, implemented).
+- ``edm``, ``edm2``, ``vdm``, ``sid``: placeholders (see :mod:`src.models.unet_ddbm`).
+"""
+
+from __future__ import annotations
+
+from typing import Any, Optional, Tuple, Union
+
+import torch
+import torch.nn as nn
+from diffusers import ModelMixin, UNet2DModel
+from diffusers.configuration_utils import ConfigMixin, register_to_config
+
+from .unet_ddbm import (
+    SUPPORTED_UNET_TYPES,
+    UNET_TYPE_ADM,
+    _raise_unet_placeholder,
+)
+
+
+def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
+    """Return a sensible default channel multiplier tuple."""
+    return {
+        512: (1, 1, 2, 2, 4, 4),
+        256: (1, 1, 2, 2, 4, 4),
+        128: (1, 1, 2, 3, 4),
+        64:  (1, 2, 3, 4),
+        32:  (1, 2, 3, 4),
+    }.get(resolution, (1, 2, 3, 4))
+
+
+class I2SBUNet(ModelMixin, ConfigMixin):
+    """Wrapper around ``UNet2DModel`` that accepts the I2SB calling convention.
+
+    Inherits from :class:`~diffusers.ModelMixin` and
+    :class:`~diffusers.ConfigMixin` so that instances can be persisted and
+    restored with ``save_pretrained`` / ``from_pretrained``.
+
+    Parameters
+    ----------
+    image_size : int
+        Spatial resolution (height == width).
+    in_channels : int
+        Number of channels of the *target* image (and of the noisy sample).
+        When ``condition_mode='concat'``, the underlying UNet receives
+        ``2 * in_channels`` input channels.
+    model_channels : int
+        Base channel count of the UNet.
+    num_res_blocks : int
+        Residual blocks per resolution level.
+    attention_resolutions : tuple of int
+        Down-block indices where attention is applied (0-indexed).
+    dropout : float
+        Dropout probability.
+    condition_mode : str or None
+        ``'concat'`` to concatenate source image along channels, or ``None``
+        for unconditional mode.
+    channel_mult : tuple of int or None
+        Per-level channel multipliers. Auto-detected if ``None``.
+    """
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+
+        # Build block_out_channels from model_channels and channel_mult
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+
+        # Convert attention_resolutions to down_block indices
+        down_block_types = []
+        for i in range(len(channel_mult)):
+            if i in attention_resolutions:
+                down_block_types.append("AttnDownBlock2D")
+            else:
+                down_block_types.append("DownBlock2D")
+
+        up_block_types = []
+        for i in range(len(channel_mult)):
+            if (len(channel_mult) - 1 - i) in attention_resolutions:
+                up_block_types.append("AttnUpBlock2D")
+            else:
+                up_block_types.append("UpBlock2D")
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=in_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=tuple(down_block_types),
+            up_block_types=tuple(up_block_types),
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+        )
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        timestep: torch.Tensor,
+        cond: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Forward pass matching I2SB UNet calling convention.
+
+        Parameters
+        ----------
+        x : Tensor  (B, C, H, W)
+            Noisy sample.
+        timestep : Tensor  (B,)
+            Timestep embedding.
+        cond : Tensor or None  (B, C, H, W)
+            Source/condition image.
+
+        Returns
+        -------
+        Tensor  (B, C, H, W)
+            Predicted noise label.
+        """
+        if self.condition_mode == "concat" and cond is not None:
+            x = torch.cat([x, cond], dim=1)
+        return self.unet(x, timestep).sample
+
+
+def create_model(
+    image_size: int = 256,
+    in_channels: int = 3,
+    num_channels: int = 128,
+    num_res_blocks: int = 2,
+    attention_resolutions: str = "32,16,8",
+    dropout: float = 0.0,
+    condition_mode: Optional[str] = "concat",
+    channel_mult: str = "",
+    unet_type: str = UNET_TYPE_ADM,
+    **kwargs: Any,
+) -> Union[I2SBUNet, nn.Module]:
+    """Factory for :class:`I2SBUNet`.
+
+    Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
+    into the tuples that :class:`I2SBUNet` expects.
+
+    Parameters
+    ----------
+    unet_type : str
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
+        ``vdm``, ``sid``. Only ``adm`` is implemented; others raise
+        :exc:`NotImplementedError`.
+    """
+    if unet_type not in SUPPORTED_UNET_TYPES:
+        raise ValueError(
+            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+        )
+    if unet_type != UNET_TYPE_ADM:
+        _raise_unet_placeholder("I2SB", unet_type)
+
+    # Parse attention_resolutions → down-block indices
+    attn_indices: Tuple[int, ...] = ()
+    if attention_resolutions:
+        if isinstance(attention_resolutions, str):
+            attn_res_list = [int(r) for r in attention_resolutions.split(",")]
+        else:
+            attn_res_list = list(attention_resolutions)
+
+        # Determine channel_mult to know the number of blocks
+        cm = None
+        if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
+            cm = tuple(int(c) for c in channel_mult.split(","))
+        elif channel_mult and isinstance(channel_mult, tuple):
+            cm = channel_mult
+        else:
+            cm = _channel_mult_for_resolution(image_size)
+
+        # Map resolution to block index: block i has resolution image_size / 2^i
+        attn_indices = tuple(
+            i for i in range(len(cm))
+            if image_size // (2 ** i) in attn_res_list
+        )
+
+    # Parse channel_mult
+    cm_tuple: Optional[Tuple[int, ...]] = None
+    if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
+        cm_tuple = tuple(int(c) for c in channel_mult.split(","))
+    elif isinstance(channel_mult, tuple) and channel_mult:
+        cm_tuple = channel_mult
+
+    return I2SBUNet(
+        image_size=image_size,
+        in_channels=in_channels,
+        model_channels=num_channels,
+        num_res_blocks=num_res_blocks,
+        attention_resolutions=attn_indices,
+        dropout=dropout,
+        condition_mode=condition_mode,
+        channel_mult=cm_tuple,
+    )
