@@ -43,14 +43,32 @@
 # ============================================================
 # 1. Diffusion UNet Baselines — DDBM / BiBBDM / I2SB
 # ============================================================
-# These three baselines share the same ADM-style conditional UNet
-# architecture, so a single set of scaling tiers applies.
-# DDBM uses VP/VE noise; BiBBDM uses Brownian Bridge; I2SB uses
-# Schrödinger Bridge — but the UNet backbone is identical.
+# These three baselines share the same conditional UNet architecture,
+# so a single set of scaling tiers applies.  DDBM uses VP/VE noise;
+# BiBBDM uses Brownian Bridge; I2SB uses Schrödinger Bridge — but the
+# UNet backbone is identical.
+#
+# **unet_type** (adm, edm, edm2, vdm, sid) is configurable per-baseline
+# (e.g. in ddbm/config.py).  It does not affect the parameter counts below;
+# all variants share the same spatial layout (channel_mult, blocks, etc.).
 #
 # Exact parameter counts (sar2eo, 1ch conditional):
 #   DDBM/I2SB  small=20,017,153  medium=120,246,401  large=404,284,161  huge=909,497,473
 #   BiBBDM     small=20,017,730  medium=120,247,554  large=404,286,466  huge=909,500,930
+#
+# ---------------------------------------------------------------------------
+# UNet type options (unet_type)
+# ---------------------------------------------------------------------------
+# | Type   | Time embedding     | Forward logic
+# |--------|--------------------|------------------------------------------------
+# | adm    | Positional         | Timestep passed as-is (default)
+# | edm    | Fourier            | Same as adm; different time encoding
+# | edm2   | Fourier            | EDM2 preconditioning (c_skip, c_out, c_in, c_noise)
+# | vdm    | Positional         | logSNR (gamma) normalized to [0,1]
+# | sid    | Positional         | Same as adm; alias for Simple Diffusion
+#
+# EDM2 accepts sigma_data (default 0.5).  VDM accepts gamma_min, gamma_max.
+# ---------------------------------------------------------------------------
 
 diffusion_unet:
   # -------------------------------------------------------

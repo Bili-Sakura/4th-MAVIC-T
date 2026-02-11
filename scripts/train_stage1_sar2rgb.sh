@@ -45,7 +45,7 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=16
+TRAIN_BATCH_SIZE=8
 EVAL_BATCH_SIZE=1
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=10000
@@ -64,7 +64,7 @@ MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-OUTPUT_DIR="./ckpt/stage1_sar2rgb"
+OUTPUT_DIR="./ckpt/exp3/stage1_sar2rgb"
 
 # --- Resume from checkpoint ---
 RESUME_FROM_CHECKPOINT="latest"
