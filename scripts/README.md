@@ -53,6 +53,21 @@ python3 scripts/document_model_configs.py
 
 Analyzes test dataset statistics and metadata.
 
+### `create_paired_validation_set.py`
+
+**Purpose:** Create a paired validation set by randomly sampling 500 pairs per task from the train set. Writes manifest files under `dataset_root/manifests/paired_val_<task>.txt` for use during training validation.
+
+**Usage:**
+```bash
+python3 scripts/create_paired_validation_set.py
+python3 scripts/create_paired_validation_set.py --dataset_root ./datasets/BiliSakura/MACIV-T-2025-Structure-Refined
+python3 scripts/create_paired_validation_set.py --n_pairs 500 --seed 42
+```
+
+**Output:** One manifest file per task (`paired_val_sar2eo.txt`, `paired_val_rgb2ir.txt`, etc.) with tab-separated `input_path\ttarget_path` lines.
+
+**Training integration:** When `paired_val_manifest` is set in the DDBM config (default: `datasets/.../manifests/paired_val_<task>.txt`), validation runs MAVIC-T competition metrics (LPIPS, L1) on the paired val set and logs them to the experiment tracker.
+
 ### `filter_bad_samples.py`
 
 Identifies and filters out problematic samples from the dataset.
