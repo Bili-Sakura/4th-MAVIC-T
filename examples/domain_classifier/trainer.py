@@ -176,6 +176,47 @@ def _save_json(path: Path, payload: dict[str, object]) -> None:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
+def _load_resume_state(resume_dir: Path) -> Optional[dict[str, object]]:
+    """Load training state from Hugging Face–style checkpoint.
+
+    Expects:
+      - trainer_state.json: epoch, global_step, max_steps, log_history
+      - optimizer.pt: optimizer state
+      - scheduler.pt: scheduler state
+
+    Falls back to legacy trainer_state.pt if present and HF format is missing.
+    """
+    trainer_state_path = resume_dir / "trainer_state.json"
+    optimizer_path = resume_dir / "optimizer.pt"
+    scheduler_path = resume_dir / "scheduler.pt"
+    legacy_path = resume_dir / "trainer_state.pt"
+
+    if legacy_path.is_file() and not trainer_state_path.is_file():
+        state = torch.load(legacy_path, map_location="cpu")
+        return {
+            "epoch": state.get("epoch", 0),
+            "global_step": state.get("global_step", 0),
+            "optimizer": state.get("optimizer"),
+            "lr_scheduler": state.get("lr_scheduler"),
+        }
+
+    if not trainer_state_path.is_file():
+        return None
+
+    with trainer_state_path.open() as f:
+        trainer_state = json.load(f)
+
+    result: dict[str, object] = {
+        "epoch": trainer_state.get("epoch", 0),
+        "global_step": trainer_state.get("global_step", 0),
+    }
+    if optimizer_path.is_file():
+        result["optimizer"] = torch.load(optimizer_path, map_location="cpu")
+    if scheduler_path.is_file():
+        result["lr_scheduler"] = torch.load(scheduler_path, map_location="cpu")
+    return result
+
+
 def _cleanup_old_checkpoints(run_dir: Path, keep: int) -> None:
     if keep <= 0:
         return
@@ -360,12 +401,7 @@ class DomainClassifierTrainer:
         else:
             model = ResNetForImageClassification.from_pretrained(str(resume_dir))
             load_report = {"resumed_from_checkpoint": str(resume_dir)}
-            state_path = resume_dir / "trainer_state.pt"
-            resume_state = (
-                torch.load(state_path, map_location="cpu")
-                if state_path.is_file()
-                else None
-            )
+            resume_state = _load_resume_state(resume_dir)
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -535,16 +571,23 @@ class DomainClassifierTrainer:
                     ckpt_dir = run_dir / f"checkpoint-epoch-{epoch + 1:03d}"
                     unwrapped = accelerator.unwrap_model(model)
                     unwrapped.save_pretrained(str(ckpt_dir), safe_serialization=True)
+                    # Hugging Face Trainer–style checkpoint files
+                    trainer_state = {
+                        "epoch": float(epoch),
+                        "global_step": global_step,
+                        "max_steps": max_train_steps,
+                        "log_history": [
+                            {"epoch": epoch + 1, "train": train_metrics, "val": val_metrics},
+                        ],
+                    }
+                    _save_json(ckpt_dir / "trainer_state.json", trainer_state)
                     torch.save(
-                        {
-                            "epoch": epoch,
-                            "global_step": global_step,
-                            "optimizer": optimizer.state_dict(),
-                            "lr_scheduler": lr_scheduler.state_dict(),
-                            "train_metrics": train_metrics,
-                            "val_metrics": val_metrics,
-                        },
-                        ckpt_dir / "trainer_state.pt",
+                        optimizer.state_dict(),
+                        ckpt_dir / "optimizer.pt",
+                    )
+                    torch.save(
+                        lr_scheduler.state_dict(),
+                        ckpt_dir / "scheduler.pt",
                     )
                     _save_json(
                         ckpt_dir / "metrics.json",

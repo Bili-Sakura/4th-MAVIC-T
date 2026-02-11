@@ -7,7 +7,8 @@ the classifier outputs a soft probability `p_real` for each generated image.
 ## Model
 
 - Backbone: `transformers.ResNetForImageClassification` (ResNet-18)
-- Initialization: `Francesco/resnet18-224-1k`
+- Initialization: `Francesco/resnet18-224-1k` (Hugging Face Hub)
+- Checkpoints: saved in Hugging Face/transformers style (`config.json`, `model.safetensors`, `trainer_state.json`, `optimizer.pt`, `scheduler.pt`)
 - Head replacement: ImageNet 1000-way head -> 2-way head (`fake`, `real`)
 - Input channel adaptation:
   - `EO`, `IR`, `SAR` -> 1 channel
