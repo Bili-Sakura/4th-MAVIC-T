@@ -1,0 +1,43 @@
+[submodule "libs/diffusers"]
+	path = libs/diffusers
+	url = https://github.com/huggingface/diffusers
+
+[submodule "libs/PBVS2025_translation"]
+	path = libs/PBVS2025_translation
+	url = https://github.com/wsqmyself/PBVS2025_translation
+
+[submodule "libs/img2img-turbo"]
+	path = libs/img2img-turbo
+	url = https://github.com/GaParmar/img2img-turbo
+
+[submodule "libs/contrastive-unpaired-translation"]
+	path = libs/contrastive-unpaired-translation
+	url = https://github.com/taesungp/contrastive-unpaired-translation
+
+[submodule "libs/DDBM"]
+	path = libs/DDBM
+	url = https://github.com/Bili-Sakura/DDBM
+
+[submodule "libs/REPA"]
+	path = libs/REPA
+	url = https://github.com/sihyun-yu/REPA
+
+[submodule "libs/MaRS"]
+	path = libs/MaRS
+	url = https://github.com/WanderRainy/MaRS
+
+[submodule "libs/ddib"]
+	path = libs/ddib
+	url = https://github.com/suxuann/ddib
+
+[submodule "libs/edm2"]
+	path = libs/edm2
+	url = https://github.com/NVlabs/edm2
+
+[submodule "libs/vdm"]
+	path = libs/vdm
+	url = https://github.com/google-research/vdm
+
+[submodule "libs/simpleDiffusion"]
+	path = libs/simpleDiffusion
+	url = https://github.com/faverogian/simpleDiffusion

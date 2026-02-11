@@ -6,42 +6,91 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
+  - affine=2.4.0=py312h06a4308_0
+  - attrs=25.4.0=py312h06a4308_2
+  - blas=1.0=mkl
+  - blosc=1.21.6=hf7d4471_0
   - bzip2=1.0.8=h5eee18b_6
+  - c-ares=1.34.6=hd44998d_0
   - ca-certificates=2025.12.2=h06a4308_0
+  - certifi=2026.01.04=py312h06a4308_0
   - expat=2.7.3=h7354ed3_4
+  - freexl=2.0.0=hf309648_0
+  - geos=3.10.6=h6a678d5_0
+  - geotiff=1.7.0=ha59944b_4
+  - gettext=0.21.0=hedfda30_2
+  - giflib=5.2.2=h5eee18b_0
+  - icu=73.1=h6a678d5_0
+  - jansson=2.14=h5eee18b_1
+  - jpeg=9f=h5ce9db8_0
+  - json-c=0.18=hee96239_0
   - ld_impl_linux-64=2.44=h153f514_2
+  - lerc=4.0.0=h6a678d5_0
+  - libarchive=3.8.2=h3ec8f01_0
+  - libbrotlicommon=1.2.0=h32cd6e7_0
+  - libbrotlidec=1.2.0=ha2c5f68_0
+  - libbrotlienc=1.2.0=h2e96acb_0
+  - libcurl=8.18.0=h3506a8c_0
+  - libdeflate=1.22=h5eee18b_0
+  - libev=4.33=h7f8727e_1
   - libexpat=2.7.3=h7354ed3_4
   - libffi=3.4.4=h6a678d5_1
   - libgcc=15.2.0=h69a1729_7
   - libgcc-ng=15.2.0=h166f726_7
+  - libgdal-core=3.11.4=hc92985d_0
   - libgomp=15.2.0=h4751f2c_7
+  - libhwloc=2.12.1=default_hf1bbc79_1000
+  - libiconv=1.16=h5eee18b_3
+  - libidn2=2.3.8=hf80d704_0
+  - libkml=1.3.0=h096b73e_7
+  - libkrb5=1.22.1=h6d2bf13_0
+  - libnghttp2=1.67.1=h697f920_0
   - libnsl=2.0.0=h5eee18b_0
+  - libpng=1.6.54=hee55ce4_0
+  - libspatialite=5.1.0=h798b768_2
+  - libssh2=1.11.1=h251f7ec_0
   - libstdcxx=15.2.0=h39759b7_7
   - libstdcxx-ng=15.2.0=hc03a8fd_7
+  - libtiff=4.7.1=h029b1ac_0
+  - libunistring=1.3=hb25bd0a_0
   - libuuid=1.41.5=h5eee18b_0
+  - libwebp-base=1.6.0=hb7bb969_0
   - libxcb=1.17.0=h9b100fa_0
+  - libxml2=2.13.9=h2c43086_0
   - libzlib=1.3.1=hb25bd0a_0
+  - lmdb=0.9.31=hb25bd0a_0
+  - lz4-c=1.9.4=h6a678d5_1
+  - minizip=4.0.3=hf59b114_0
+  - mkl_fft=2.1.1=py312h8fe796d_0
+  - mkl_random=1.3.0=py312h505adc9_0
   - ncurses=6.5=h7934f7d_0
-  - openssl=3.0.18=hd6dcaed_0
+  - numpy-base=2.4.1=py312h00548fb_0
+  - openssl=3.0.19=h1b28b03_0
   - packaging=25.0=py312h06a4308_1
+  - pcre2=10.46=hf426167_0
   - pip=25.3=pyhc872135_0
+  - proj=9.3.1=h4591001_1
   - pthread-stubs=0.3=h0ce48e5_1
   - python=3.12.12=hd17a9e1_1
+  - rasterio=1.4.4=py312h584ab63_0
   - readline=8.3=hc2a1206_0
   - setuptools=80.10.1=py312h06a4308_0
   - sqlite=3.51.1=he0a8d7e_0
+  - tbb-devel=2022.3.0=h698db13_0
   - tk=8.6.15=h54e0aa7_0
+  - uriparser=0.9.8=h451ca9b_0
   - wheel=0.46.3=py312h06a4308_0
+  - xerces-c=3.3.0=ha155076_0
   - xorg-libx11=1.8.12=h9b100fa_1
   - xorg-libxau=1.0.12=h9b100fa_0
   - xorg-libxdmcp=1.1.5=h9b100fa_0
   - xorg-xorgproto=2024.1=h5eee18b_1
   - xz=5.6.4=h5eee18b_1
   - zlib=1.3.1=hb25bd0a_0
+  - zstd=1.5.7=h11fc155_0
   - pip:
       - absl-py==2.4.0
       - accelerate==1.12.0
-      - affine==2.4.0
       - aiofiles==24.1.0
       - aiohappyeyeballs==2.6.1
       - aiohttp==3.13.3
@@ -52,7 +101,6 @@ dependencies:
       - anyio==4.12.1
       - asttokens==3.0.1
       - async-timeout==5.0.1
-      - attrs==25.4.0
       - av==16.1.0
       - bitsandbytes==0.49.1
       - black==26.1.0
@@ -60,7 +108,6 @@ dependencies:
       - braceexpand==0.1.7
       - brotli==1.2.0
       - cachetools==6.2.6
-      - certifi==2026.1.4
       - charset-normalizer==3.4.4
       - click==8.3.1
       - click-plugins==1.1.1.2
@@ -136,6 +183,7 @@ dependencies:
       - mpmath==1.3.0
       - multidict==6.7.1
       - multiprocess==0.70.18
+      - muon-optimizer==0.1.0
       - mypy-extensions==1.1.0
       - narwhals==2.15.0
       - nest-asyncio==1.6.0
@@ -193,7 +241,6 @@ dependencies:
       - pyyaml==6.0.3
       - pyzmq==27.1.0
       - qwen-vl-utils==0.0.14
-      - rasterio==1.4.4
       - referencing==0.37.0
       - regex==2026.1.15
       - requests==2.32.5
@@ -255,6 +302,7 @@ dependencies:
       - widgetsnbextension==4.0.15
       - wrapt==2.1.0
       - xxhash==3.6.0
+      - yacs==0.1.8
       - yarl==1.22.0
       - zipp==3.23.0
 prefix: /data/miniconda3/envs/rsgen

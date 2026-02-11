@@ -2,6 +2,8 @@
 
 ## Installation
 
+1. Install from `requirements.txt` (recommended)
+
 ```bash
 conda create -n rsgen python=3.12
 conda activate rsgen
@@ -12,6 +14,13 @@ pip install torch==2.8.0+cu126 torchaudio==2.8.0+cu126 torchvision==0.23.0+cu126
 pip install -r requirements.txt
 # optional
 # pip install muon-optimizer
+```
+
+2. Install from `environment.yaml`
+
+```bash
+conda env create -f environment.yaml
+conda activate rsgen
 ```
 
 ## Citations
