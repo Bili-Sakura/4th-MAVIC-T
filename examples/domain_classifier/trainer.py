@@ -22,10 +22,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from .config import (  # noqa: E402
-    DomainClassifierConfig,
-    normalization_stats_for_channels,
-)
+from .config import DomainClassifierConfig  # noqa: E402
 from .dataset_wrapper import (  # noqa: E402
     BinaryDomainImageDataset,
     build_binary_records,
@@ -281,7 +278,7 @@ class DomainClassifierTrainer:
         target_domain = cfg.resolved_target_domain()
         resolution = cfg.resolved_resolution()
         num_channels = cfg.resolved_num_channels()
-        normalize_mean, normalize_std = normalization_stats_for_channels(num_channels)
+        normalize_mean, normalize_std = cfg.resolved_normalization_stats()
 
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
