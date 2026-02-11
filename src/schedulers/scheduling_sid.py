@@ -89,6 +89,8 @@ class SiDScheduler(SchedulerMixin, ConfigMixin):
     ):
         self.logsnr_min = logsnr_min
         self.logsnr_max = logsnr_max
+        if noise_d <= 0 or image_d <= 0:
+            raise ValueError(f"noise_d ({noise_d}) and image_d ({image_d}) must be positive")
         self.noise_d = noise_d
         self.image_d = image_d
         self.num_train_timesteps = num_train_timesteps

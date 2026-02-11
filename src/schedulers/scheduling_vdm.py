@@ -188,12 +188,12 @@ class VDMScheduler(SchedulerMixin, ConfigMixin):
         variance = (sigma_s ** 2) * c
 
         # Sample z_s
-        if gamma_s <= self.gamma_max:
+        if i < self.num_inference_steps - 1:
             # Not the final step: add noise
             noise = randn_tensor(sample.shape, generator=generator, device=sample.device, dtype=sample.dtype)
             prev_sample = mu + torch.sqrt(variance) * noise
         else:
-            # Final step (gamma_s = gamma_max, t_s = 0): deterministic
+            # Final step (t_s = 0): deterministic
             prev_sample = mu
 
         if not return_dict:
