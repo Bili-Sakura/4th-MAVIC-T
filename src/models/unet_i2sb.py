@@ -20,6 +20,7 @@ Supported UNet types (via ``unet_type`` in :func:`create_model`):
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Optional, Tuple, Union
 
 import torch
@@ -139,6 +140,21 @@ class I2SBUNet(ModelMixin, ConfigMixin):
         if self.condition_mode == "concat" and cond is not None:
             x = torch.cat([x, cond], dim=1)
         return self.unet(x, timestep).sample
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        """Load UNet; if ema_unet has no config.json, load config from unet and weights from ema_unet."""
+        path = Path(pretrained_model_name_or_path)
+        subfolder = kwargs.get("subfolder", "unet")
+        if subfolder == "ema_unet" and not (path / "ema_unet" / "config.json").exists():
+            unet = super().from_pretrained(path, subfolder="unet", **{k: v for k, v in kwargs.items() if k != "subfolder"})
+            ema_path = path / "ema_unet" / "diffusion_pytorch_model.safetensors"
+            if ema_path.exists():
+                from safetensors.torch import load_file
+                state = load_file(str(ema_path))
+                unet.load_state_dict(state, strict=True)
+            return unet
+        return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
 
 
 class EDMI2SBUNet(ModelMixin, ConfigMixin):

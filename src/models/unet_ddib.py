@@ -14,6 +14,7 @@ This module provides:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional, Tuple
 
 import torch
@@ -128,6 +129,23 @@ class DDIBUNet(ModelMixin, ConfigMixin):
             Model prediction (noise or noise + log-variance).
         """
         return self.unet(x, timestep).sample
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        """Load UNet; if ema subfolder has no config.json, load config from base unet and weights from ema."""
+        path = Path(pretrained_model_name_or_path)
+        subfolder = kwargs.get("subfolder", "unet")
+        config_subfolder = subfolder.replace("ema_unet", "unet")
+        ema_subfolder = subfolder
+        if subfolder != config_subfolder and not (path / ema_subfolder / "config.json").exists():
+            unet = super().from_pretrained(path, subfolder=config_subfolder, **{k: v for k, v in kwargs.items() if k != "subfolder"})
+            ema_path = path / ema_subfolder / "diffusion_pytorch_model.safetensors"
+            if ema_path.exists():
+                from safetensors.torch import load_file
+                state = load_file(str(ema_path))
+                unet.load_state_dict(state, strict=True)
+            return unet
+        return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
 
 
 def create_model(

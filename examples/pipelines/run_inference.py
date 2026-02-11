@@ -105,6 +105,11 @@ def main():
     parser.add_argument("--output_dir", default="./outputs")
     parser.add_argument("--num_steps", type=int, default=1000, help="Inference steps (DDBM/I2SB/BiBBDM)")
     parser.add_argument("--direction", default="b2a", choices=["b2a", "a2b"], help="BiBBDM only")
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Use deterministic sampling (churn/eta/ot_ode overrides).",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--output_type", default="pil", choices=["pil", "np", "pt"])
     args = parser.parse_args()
@@ -137,6 +142,10 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.deterministic and args.model == "bibbdm":
+        pipe.scheduler.eta = 0.0
+        pipe.scheduler.config.eta = 0.0
+
     # Run inference
     for i, img_path in enumerate(inputs):
         img = Image.open(img_path).convert("RGB")
@@ -150,12 +159,16 @@ def main():
             tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)  # (1,C,H,W)
         tensor = tensor.to(args.device) * 2 - 1  # [-1,1]
 
+        churn = 0.0 if args.deterministic else 0.33
+        eta = 0.0 if args.deterministic else 1.0
+        ot_ode = True if args.deterministic else False
+
         if args.model == "ddbm":
             out = pipe(
                 source_image=tensor,
                 num_inference_steps=args.num_steps,
                 guidance=1.0,
-                churn_step_ratio=0.33,
+                churn_step_ratio=churn,
                 output_type=args.output_type,
             )
         elif args.model == "ddib":
@@ -163,13 +176,14 @@ def main():
                 source_image=tensor,
                 num_inference_steps=args.num_steps,
                 clip_denoised=True,
+                eta=eta,
                 output_type=args.output_type,
             )
         elif args.model == "i2sb":
             out = pipe(
                 source_image=tensor,
                 nfe=args.num_steps,
-                ot_ode=False,
+                ot_ode=ot_ode,
                 clip_denoise=False,
                 output_type=args.output_type,
             )

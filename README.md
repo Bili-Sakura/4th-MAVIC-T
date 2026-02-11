@@ -1,5 +1,19 @@
 # 4th-MAVIC-T
 
+## Installation
+
+```bash
+conda create -n rsgen python=3.12
+conda activate rsgen
+# we are using PyTorch 2.8.0 torchaudio 2.8.0 torchvision 0.23.0 from https://download.pytorch.org/whl/cu126
+# other version mostly would work as long installed follow https://pytorch.org/get-started/previous-versions/
+pip install torch==2.8.0+cu126 torchaudio==2.8.0+cu126 torchvision==0.23.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+# install other packages
+pip install -r requirements.txt
+# optional
+# pip install muon-optimizer
+```
+
 ## Citations
 
 ```bibtex

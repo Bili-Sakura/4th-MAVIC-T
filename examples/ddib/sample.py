@@ -44,7 +44,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -104,10 +104,27 @@ def parse_args():
     parser.add_argument("--num_inference_steps", type=int, default=250)
     parser.add_argument("--clip_denoised", type=bool, default=True)
     parser.add_argument("--eta", type=float, default=0.0)
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Use deterministic DDIM sampling (eta=0). "
+        "DDIM is typically deterministic by default; eta=0 ensures no stochasticity.",
+    )
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--skip_existing",
+        action="store_true",
+        default=True,
+        help="Skip samples whose output file already exists (default: True, for resumability).",
+    )
+    parser.add_argument("--no_skip_existing", dest="skip_existing", action="store_false")
     parser.add_argument("--save_npz", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.deterministic:
+        # eta=0: fully deterministic DDIM (DDIB default is already 0)
+        args.eta = 0.0
+    return args
 
 
 def _load_unet(pretrained_path: str, cfg: TaskConfig, in_channels: int) -> DDIBUNet:
@@ -204,11 +221,30 @@ def main():
         model_channels=cfg.source_channels,
         with_target=False,
     )
+    if args.skip_existing:
+        indices_to_process = [
+            i for i in range(len(dataset))
+            if not (output_dir / f"sample_{i:05d}.png").exists()
+        ]
+        n_total = len(dataset)
+        if not indices_to_process:
+            logger.info("All %d outputs already exist in %s. Nothing to do.", n_total, output_dir)
+            return
+        if len(indices_to_process) < n_total:
+            dataset = Subset(dataset, indices_to_process)
+            logger.info("Skipping %d existing, processing %d remaining.", n_total - len(indices_to_process), len(indices_to_process))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
-    logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs …")
+    eta_info = " (deterministic)" if args.deterministic else ""
+    logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs{eta_info} …")
     all_samples = []
     sample_idx = 0
+    if isinstance(dataset, Subset):
+        def original_indices(i):
+            return dataset.indices[i]
+    else:
+        def original_indices(i):
+            return i
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="DDIB Translation"):
@@ -226,13 +262,13 @@ def main():
             images_uint8 = ((images + 1) * 127.5).clamp(0, 255).to(torch.uint8)
             images_uint8 = images_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
-            for img_arr in images_uint8:
+            for i, img_arr in enumerate(images_uint8):
+                out_idx = original_indices(sample_idx + i)
                 if img_arr.shape[2] == 1:
                     img_arr = img_arr.squeeze(2)
                 img = Image.fromarray(img_arr)
-                img.save(output_dir / f"sample_{sample_idx:05d}.png")
-                sample_idx += 1
-
+                img.save(output_dir / f"sample_{out_idx:05d}.png")
+            sample_idx += len(images_uint8)
             all_samples.append(images_uint8)
 
     all_samples = np.concatenate(all_samples, axis=0)

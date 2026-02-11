@@ -7,12 +7,15 @@ named by input stem (e.g. 0.png, 1041.png for sar2eo).
 
 Usage (pretrained directory — recommended)::
 
-    python -m examples.ddbm.sample \
+    nohup python -m examples.ddbm.sample \
         --task sar2ir \
         --pretrained_model_name_or_path ./ckpt/exp3/stage1_sar2ir/ddbm/sar2ir/checkpoint-10000 \
         --split test \
         --model_name ddbm \
-        --batch_size 32
+        --batch_size 8 \
+        --deterministic \
+        --num_inference_steps 250 \
+        --device cuda:1 &
 
 Use ``--batch_size`` to control inference batch size (default 32). Larger values
 are faster but require more GPU memory.
@@ -43,7 +46,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +77,13 @@ _TASK_CONFIG_MAP = {
     "sar2ir": sar2ir_config,
     "sar2rgb": sar2rgb_config,
 }
+
+
+class _SubsetWithOutputNames(Subset):
+    """Subset that delegates get_output_name to the underlying dataset with original indices."""
+
+    def get_output_name(self, idx: int) -> str:
+        return self.dataset.get_output_name(self.indices[idx])
 
 
 def parse_args():
@@ -113,8 +123,26 @@ def parse_args():
     )
     parser.add_argument("--guidance", type=float, default=1.0)
     parser.add_argument("--churn_step_ratio", type=float, default=0.33)
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Use deterministic sampling (churn_step_ratio=0, faster, no stochastic churn). "
+        "Note: Can cause large quality degradation vs default; use for speed/reproducibility only.",
+    )
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--skip_existing",
+        action="store_true",
+        default=True,
+        help="Skip samples whose output file already exists (default: True, for resumability).",
+    )
+    parser.add_argument(
+        "--no_skip_existing",
+        dest="skip_existing",
+        action="store_false",
+        help="Overwrite existing output files.",
+    )
     parser.add_argument("--save_npz", action="store_true")
     parser.add_argument(
         "--extra_data",
@@ -127,7 +155,11 @@ def parse_args():
         default="DDBM diffusion-based image translation. PyTorch implementation.",
         help="Additional description for readme.txt",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.deterministic:
+        # churn=0: faster (~33% fewer model calls) but reported large quality degradation
+        args.churn_step_ratio = 0.0
+    return args
 
 
 def _load_pipeline(pretrained_path: str, cfg: TaskConfig, device: str) -> DDBMPipeline:
@@ -234,6 +266,18 @@ def main():
         model_channels=cfg.model_channels,
         with_target=False,
     )
+    if args.skip_existing:
+        indices_to_process = [
+            i for i in range(len(dataset))
+            if not (output_dir / dataset.get_output_name(i)).exists()
+        ]
+        n_total = len(dataset)
+        if not indices_to_process:
+            logger.info("All %d outputs already exist in %s. Nothing to do.", n_total, output_dir)
+            return
+        if len(indices_to_process) < n_total:
+            dataset = _SubsetWithOutputNames(dataset, indices_to_process)
+            logger.info("Skipping %d existing, processing %d remaining.", n_total - len(indices_to_process), len(indices_to_process))
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -241,13 +285,15 @@ def main():
         num_workers=4,
     )
 
+    churn_info = " (deterministic)" if args.deterministic else ""
     logger.info(
-        "Generating samples for %s (%s), %d inputs, batch_size=%d, steps=%d → %s",
+        "Generating samples for %s (%s), %d inputs, batch_size=%d, steps=%d%s → %s",
         args.task,
         args.split,
         len(dataset),
         args.batch_size,
         args.num_inference_steps,
+        churn_info,
         output_dir,
     )
 
