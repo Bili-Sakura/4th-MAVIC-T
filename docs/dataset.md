@@ -35,14 +35,70 @@ The refined dataset contains preprocessed and paired samples for supervised trai
 ## 2. Evaluation Inputs (Refined Root)
 
 Used for validation and final testing. These folders contain **inputs only** (no targets) and
-now live alongside the refined training data.
+live alongside the refined training data.
 
-- **Validation:** `datasets/BiliSakura/MACIV-T-2025-Structure-Refined/val/{rgb2ir,sar2ir,sar2rgb}`
-- **Test:** `datasets/BiliSakura/MACIV-T-2025-Structure-Refined/test/{rgb2ir,sar2ir,sar2rgb,sar2eo}`
+### Folder Structure
+
+```
+MACIV-T-2025-Structure-Refined/
+├── manifests/
+│   ├── refined_manifest.csv
+│   └── refined_manifest_crop_aug.csv
+├── {task}/train/                    # Training (paired input/target)
+│   ├── input/
+│   └── target/
+├── val/                             # Validation (inputs only)
+│   ├── rgb2ir/input/                # 60 samples, 1024×1024 TIFF
+│   ├── sar2ir/input/                # 60 samples, 1024×1024 TIFF
+│   └── sar2rgb/input/               # 60 samples, 1024×1024 TIFF
+└── test/                            # Test (inputs only)
+    ├── rgb2ir/                      # 60 samples, 1024×1024 TIFF
+    ├── sar2ir/                      # 60 samples, 1024×1024 TIFF
+    ├── sar2rgb/                      # 60 samples, 1024×1024 TIFF
+    └── sar2eo/                       # 3,586 samples, 256×256 PNG
+```
+
+**Note:** The val split uses `{task}/input/` subfolders; the test split has files directly under `{task}/` for rgb2ir/sar2ir/sar2rgb. The `sar2eo` task exists only in test, not in val.
+
+### Validation Set Statistics
+
+| Task | Resolution | Format | Samples |
+| :--- | :--- | :--- | :--- |
+| **`rgb2ir`** | 1024×1024 | 3-band TIFF | 60 |
+| **`sar2ir`** | 1024×1024 | 1-band TIFF | 60 |
+| **`sar2rgb`** | 1024×1024 | 1-band TIFF | 60 |
+
+### Test Set Statistics
+
+| Task | Resolution | Format | Samples |
+| :--- | :--- | :--- | :--- |
+| **`rgb2ir`** | 1024×1024 | 3-band TIFF | 60 |
+| **`sar2ir`** | 1024×1024 | 1-band TIFF | 60 |
+| **`sar2rgb`** | 1024×1024 | 1-band TIFF | 60 |
+| **`sar2eo`** | 256×256 | 1-band PNG | 3,586 |
 
 ---
 
-## 3. Usage
+## 3. Domain Statistics (Normalization)
+
+Pre-computed mean and std for each target domain are in `docs/stats/`. Use these (instead of ImageNet) for domain-specific normalization when training models or domain classifiers.
+
+| Domain | Resolution | Channels | Images | Mean | Std | File |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **IR** | 1024×1024 | 1 | 12,770 | [0.655] | [0.162] | `docs/stats/ir_domain_stats.json` |
+| **RGB** | 1024×1024 | 3 | 10,421 | [0.587, 0.580, 0.508] | [0.182, 0.153, 0.154] | `docs/stats/rgb_domain_stats.json` |
+| **EO** | 256×256 | 1 | 89,065 | [0.231] | [0.126] | `docs/stats/eo_domain_stats.json` |
+
+Values are computed over positive (real) target images in [0,1] range. Recompute with:
+
+```bash
+bash scripts/compute_domain_stats.sh              # IR only (default)
+NUM_WORKERS=16 bash scripts/compute_domain_stats.sh ir eo rgb   # All domains
+```
+
+---
+
+## 4. Usage
 
 Load data via the HuggingFace `datasets` wrapper:
 

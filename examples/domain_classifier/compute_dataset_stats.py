@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import sys
 from typing import Optional
@@ -62,16 +63,35 @@ def _load_image_array(
     return arr  # HWC
 
 
+def _load_and_compute_stats(
+    image_path: str,
+    resolution: int,
+    num_channels: int,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Load image and return (mean_i, M2_i, n_i) for parallel workers."""
+    arr = _load_image_array(
+        image_path,
+        resolution=resolution,
+        num_channels=num_channels,
+    )
+    pixels = arr.reshape(-1, num_channels).astype(np.float64)
+    n_i = pixels.shape[0]
+    mean_i = pixels.mean(axis=0)
+    M2_i = ((pixels - mean_i) ** 2).sum(axis=0)
+    return (mean_i, M2_i, n_i)
+
+
 def compute_dataset_stats(
     records: list[BinaryImageRecord],
     *,
     resolution: int,
     num_channels: int,
     sample_limit: Optional[int] = None,
+    workers: int = 0,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Compute per-channel mean and std over dataset images.
 
-    Uses Welford's online algorithm for numerical stability.
+    Uses vectorized per-image stats + parallel Welford combination.
     Images are loaded in [0,1] range with same preprocessing as training.
     """
     n = 0
@@ -82,22 +102,46 @@ def compute_dataset_stats(
     if sample_limit is not None:
         step = max(1, len(records) // sample_limit)
         iterator = records[::step][:sample_limit]
+    iterator = list(iterator)
 
-    for record in tqdm(iterator, desc="Computing stats", unit="img"):
-        arr = _load_image_array(
-            record.image_path,
-            resolution=resolution,
-            num_channels=num_channels,
-        )
-        # arr: HWC -> reshape to (H*W, C)
-        pixels = arr.reshape(-1, num_channels)
+    def _combine(mean_i: np.ndarray, M2_i: np.ndarray, n_i: int) -> None:
+        nonlocal n, mean, M2
+        if n == 0:
+            n, mean, M2 = n_i, mean_i.copy(), M2_i.copy()
+        else:
+            n_total = n + n_i
+            delta = mean_i - mean
+            mean = mean + (n_i * delta) / n_total
+            M2 = M2 + M2_i + (n * n_i * (delta ** 2)) / n_total
+            n = n_total
 
-        for p in pixels:
-            n += 1
-            delta = p - mean
-            mean += delta / n
-            delta2 = p - mean
-            M2 += delta * delta2
+    if workers > 1:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(
+                    _load_and_compute_stats,
+                    r.image_path,
+                    resolution,
+                    num_channels,
+                ): r
+                for r in iterator
+            }
+            for fut in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Computing stats",
+                unit="img",
+            ):
+                mean_i, M2_i, n_i = fut.result()
+                _combine(mean_i, M2_i, n_i)
+    else:
+        for record in tqdm(iterator, desc="Computing stats", unit="img"):
+            mean_i, M2_i, n_i = _load_and_compute_stats(
+                record.image_path,
+                resolution,
+                num_channels,
+            )
+            _combine(mean_i, M2_i, n_i)
 
     if n < 2:
         raise RuntimeError(f"Too few pixels for std (n={n})")
@@ -159,6 +203,12 @@ def main() -> None:
         default=None,
         help="Override num_channels (default: domain native)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Number of parallel data workers for loading (0=sequential)",
+    )
     args = parser.parse_args()
 
     cfg = DomainClassifierConfig(
@@ -166,6 +216,7 @@ def main() -> None:
         refined_root=args.refined_root,
         positive_tasks_csv=args.positive_tasks_csv,
         use_source_as_fake=True,  # Need at least one fake source for build_binary_records
+        include_crop_aug=False,  # Stats: use base tasks only, no crop_aug
     )
     resolution = cfg.resolved_resolution() if args.resolution is None else args.resolution
     num_channels = cfg.resolved_num_channels() if args.num_channels is None else args.num_channels
@@ -180,6 +231,7 @@ def main() -> None:
         resolution=resolution,
         num_channels=num_channels,
         sample_limit=args.sample_limit,
+        workers=args.workers,
     )
 
     output_path = args.output_path
