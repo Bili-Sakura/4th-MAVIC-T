@@ -45,6 +45,7 @@ from src.models.unet_ddib import create_model
 
 from src.utils.training_utils import (  # noqa: E402
     create_optimizer,
+    lambda_repa_cosine,
     save_checkpoint_diffusers,
     save_training_config,
     push_checkpoint_to_hub,
@@ -368,7 +369,18 @@ class DDIBTrainer:
                         rep_loss = rep_alignment_module.compute_alignment_loss(
                             pred_for_align, enc_feats,
                         )
-                        loss = loss + lambda_rep_alignment * rep_loss
+                        lambda_repa = (
+                            lambda_repa_cosine(
+                                global_step,
+                                cfg.lambda_rep_alignment,
+                                cfg.lambda_rep_alignment_end,
+                                cfg.lambda_rep_alignment_decay_steps,
+                            )
+                            if cfg.lambda_rep_alignment_decay_steps > 0
+                            else cfg.lambda_rep_alignment
+                        )
+                        # Add (rep_loss + 1): offset keeps total loss positive for visualization.
+                        loss = loss + lambda_repa * (rep_loss + 1.0)
                     else:
                         loss = scheduler.compute_training_loss(model, x_0)
 
@@ -388,6 +400,8 @@ class DDIBTrainer:
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
                     if rep_loss is not None:
                         logs["loss/repa"] = rep_loss.detach().item()
+                        if cfg.lambda_rep_alignment_decay_steps > 0:
+                            logs["lambda/repa"] = lambda_repa
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
@@ -559,7 +573,9 @@ class DDIBTrainer:
                 logger.info(
                     f"[{cfg.task_name}] Representation alignment enabled "
                     f"(model={cfg.rep_alignment_model_path}, "
-                    f"lambda={cfg.lambda_rep_alignment})"
+                    f"lambda={cfg.lambda_rep_alignment}"
+                    + (f"→{cfg.lambda_rep_alignment_end} cos decay over {cfg.lambda_rep_alignment_decay_steps} steps" if cfg.lambda_rep_alignment_decay_steps > 0 else "")
+                    + ")"
                 )
         if latent_target_encoder is not None:
             latent_target_encoder = latent_target_encoder.to(accelerator.device)

@@ -53,6 +53,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from src.utils.metrics import MavicCriterion  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
     create_optimizer,
+    lambda_repa_cosine,
     save_checkpoint_diffusers,
     save_training_config,
     push_checkpoint_to_hub,
@@ -181,7 +182,9 @@ class Pix2PixTurboTrainer:
             with torch.no_grad():
                 enc_feats = rep_alignment_module.extract_features(x_tgt)
             rep_loss = rep_alignment_module.compute_alignment_loss(x_tgt_pred, enc_feats)
-            loss = loss + lambda_rep_alignment * rep_loss
+            # Add lambda_rep_alignment * (rep_loss + 1): offset keeps total loss positive for
+            # visualization (rep_loss is negative cosine similarity in [-1, 1]); gradient unchanged.
+            loss = loss + lambda_rep_alignment * (rep_loss + 1.0)
             extras["loss_rep_alignment"] = rep_loss.detach()
 
         return loss, extras
@@ -341,7 +344,9 @@ class Pix2PixTurboTrainer:
                 logger.info(
                     f"[{cfg.task_name}] Representation alignment enabled "
                     f"(model={cfg.rep_alignment_model_path}, "
-                    f"lambda={cfg.lambda_rep_alignment})"
+                    f"lambda={cfg.lambda_rep_alignment}"
+                    + (f"→{cfg.lambda_rep_alignment_end} cos decay over {cfg.lambda_rep_alignment_decay_steps} steps" if cfg.lambda_rep_alignment_decay_steps > 0 else "")
+                    + ")"
                 )
 
         # Optimizer (only trainable parameters)
@@ -441,6 +446,16 @@ class Pix2PixTurboTrainer:
         for epoch in range(first_epoch, cfg.num_epochs):
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
+                    lambda_repa = (
+                        lambda_repa_cosine(
+                            global_step,
+                            cfg.lambda_rep_alignment,
+                            cfg.lambda_rep_alignment_end,
+                            cfg.lambda_rep_alignment_decay_steps,
+                        )
+                        if rep_alignment_module is not None and cfg.lambda_rep_alignment_decay_steps > 0
+                        else cfg.lambda_rep_alignment
+                    )
                     loss, loss_extras = self.compute_training_loss(
                         accelerator.unwrap_model(model),
                         batch,
@@ -453,7 +468,7 @@ class Pix2PixTurboTrainer:
                         latent_target_encoder=latent_target_encoder,
                         lambda_latent=cfg.lambda_latent,
                         rep_alignment_module=rep_alignment_module,
-                        lambda_rep_alignment=cfg.lambda_rep_alignment,
+                        lambda_rep_alignment=lambda_repa,
                     )
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:
@@ -473,6 +488,8 @@ class Pix2PixTurboTrainer:
                     }
                     if loss_extras.get("loss_rep_alignment") is not None:
                         logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
+                        if cfg.lambda_rep_alignment_decay_steps > 0:
+                            logs["lambda/repa"] = lambda_repa
                     if loss_extras.get("loss_mavic") is not None:
                         logs["loss/mavic"] = loss_extras["loss_mavic"].item()
                     if loss_extras.get("loss_latent") is not None:

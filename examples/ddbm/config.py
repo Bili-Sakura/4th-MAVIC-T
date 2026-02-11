@@ -106,7 +106,9 @@ class TaskConfig:
     # ---- representation alignment ----
     use_rep_alignment: bool = False
     rep_alignment_model_path: Optional[str] = None  # path to encoder checkpoint
-    lambda_rep_alignment: float = 0.1  # weight for alignment loss
+    lambda_rep_alignment: float = 0.1  # weight for alignment loss (constant, or start when schedule used)
+    lambda_rep_alignment_decay_steps: int = 0  # 0 = constant; >0 = cosine decay from lambda_rep_alignment to lambda_rep_alignment_end
+    lambda_rep_alignment_end: float = 0.0  # end value when using cosine decay
 
 
 # ---------------------------------------------------------------------------

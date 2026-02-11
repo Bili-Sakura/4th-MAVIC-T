@@ -33,8 +33,10 @@ RESOLUTION=512
 OUTPUT_RESOLUTION=1024  # inference: load 1024, run 512-trained model → 1024 output (no upscale)
 
 # --- Representation alignment (REPA) ---
-USE_REP_ALIGNMENT=false
-LAMBDA_REP_ALIGNMENT=0.1
+USE_REP_ALIGNMENT=true
+LAMBDA_REP_ALIGNMENT=1.0
+LAMBDA_REP_ALIGNMENT_DECAY_STEPS=2500
+LAMBDA_REP_ALIGNMENT_END=0.0
 
 # --- Data augmentation and filtering ---
 USE_AUGMENTED=true
@@ -78,6 +80,8 @@ COMMON_ARGS=(
   --resolution "${RESOLUTION}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
+  --lambda_rep_alignment_decay_steps "${LAMBDA_REP_ALIGNMENT_DECAY_STEPS}"
+  --lambda_rep_alignment_end "${LAMBDA_REP_ALIGNMENT_END}"
   --use_augmented "${USE_AUGMENTED}"
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
   --use_vertical_flip "${USE_VERTICAL_FLIP}"

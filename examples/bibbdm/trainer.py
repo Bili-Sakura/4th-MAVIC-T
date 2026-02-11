@@ -40,6 +40,7 @@ from src.models.unet_bibbdm import create_model
 from src.utils.metrics import MavicCriterion  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
     create_optimizer,
+    lambda_repa_cosine,
     save_checkpoint_diffusers,
     save_training_config,
     push_checkpoint_to_hub,
@@ -273,7 +274,9 @@ class BiBBDMTrainer:
                 elif rep_features.shape[1] == 1 and target_for_enc.shape[1] == 3:
                     rep_features = rep_features.repeat(1, 3, 1, 1)
             rep_loss = rep_alignment_module.compute_alignment_loss(rep_features, enc_feats)
-            loss = loss + lambda_rep_alignment * rep_loss
+            # Add lambda_rep_alignment * (rep_loss + 1): offset keeps total loss positive for
+            # visualization (rep_loss is negative cosine similarity in [-1, 1]); gradient unchanged.
+            loss = loss + lambda_rep_alignment * (rep_loss + 1.0)
             extras["loss_rep_alignment"] = rep_loss.detach()
 
         return loss, extras
@@ -460,7 +463,9 @@ class BiBBDMTrainer:
                 logger.info(
                     f"[{cfg.task_name}] Representation alignment enabled "
                     f"(model={cfg.rep_alignment_model_path}, "
-                    f"lambda={cfg.lambda_rep_alignment})"
+                    f"lambda={cfg.lambda_rep_alignment}"
+                    + (f"→{cfg.lambda_rep_alignment_end} cos decay over {cfg.lambda_rep_alignment_decay_steps} steps" if cfg.lambda_rep_alignment_decay_steps > 0 else "")
+                    + ")"
                 )
 
         ema_model = None
@@ -568,6 +573,16 @@ class BiBBDMTrainer:
                         with torch.no_grad():
                             target = latent_target_encoder.encode(pixel_target)
                             source = latent_target_encoder.encode(pixel_source)
+                    lambda_repa = (
+                        lambda_repa_cosine(
+                            global_step,
+                            cfg.lambda_rep_alignment,
+                            cfg.lambda_rep_alignment_end,
+                            cfg.lambda_rep_alignment_decay_steps,
+                        )
+                        if rep_alignment_module is not None and cfg.lambda_rep_alignment_decay_steps > 0
+                        else cfg.lambda_rep_alignment
+                    )
                     loss, loss_extras = self.compute_training_loss(
                         model, scheduler, target, source,
                         objective=cfg.objective,
@@ -580,7 +595,7 @@ class BiBBDMTrainer:
                         latent_target_encoder=latent_target_encoder,
                         lambda_latent=cfg.lambda_latent,
                         rep_alignment_module=rep_alignment_module,
-                        lambda_rep_alignment=cfg.lambda_rep_alignment,
+                        lambda_rep_alignment=lambda_repa,
                         pixel_target=pixel_target if cfg.use_latent_target else None,
                         pixel_source=pixel_source if cfg.use_latent_target else None,
                         latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
@@ -603,6 +618,8 @@ class BiBBDMTrainer:
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
                     if loss_extras.get("loss_rep_alignment") is not None:
                         logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
+                        if cfg.lambda_rep_alignment_decay_steps > 0:
+                            logs["lambda/repa"] = lambda_repa
                     if loss_extras.get("loss_mavic") is not None:
                         logs["loss/mavic"] = loss_extras["loss_mavic"].item()
                     if loss_extras.get("loss_latent") is not None:

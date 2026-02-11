@@ -121,6 +121,8 @@ class TaskConfig:
     use_rep_alignment: bool = False
     rep_alignment_model_path: Optional[str] = None
     lambda_rep_alignment: float = 0.1
+    lambda_rep_alignment_decay_steps: int = 0
+    lambda_rep_alignment_end: float = 0.0
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 """Shared training utilities for MAVIC-T baselines.
 
 Provides:
+* :func:`lambda_repa_cosine` – cosine decay for REPA lambda (step-based schedule).
 * :func:`create_optimizer` – build Prodigy or Adam/AdamW from config.
 * :func:`save_checkpoint_diffusers` – save model weights in diffusers-style
   directory layout (``unet/``, ``scheduler/``, ``model_index.json``) using
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -55,6 +57,19 @@ def _to_yaml_serializable(
     stack.discard(obj_id)
     visited[obj_id] = result
     return result
+
+
+# ---------------------------------------------------------------------------
+# REPA lambda schedule
+# ---------------------------------------------------------------------------
+
+
+def lambda_repa_cosine(step: int, start: float, end: float, decay_steps: int) -> float:
+    """Cosine-style decay for REPA lambda: start at step 0, end at decay_steps."""
+    if decay_steps <= 0 or step >= decay_steps:
+        return end if decay_steps > 0 else start
+    progress = step / decay_steps
+    return end + 0.5 * (start - end) * (1 + math.cos(math.pi * progress))
 
 
 # ---------------------------------------------------------------------------
