@@ -37,8 +37,11 @@ from src.models.unet_ddbm import create_model
 
 from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
+    build_accelerate_tracker_config,
+    build_accelerate_tracker_init_kwargs,
     create_optimizer,
     lambda_repa_cosine,
+    normalize_accelerate_log_with,
     save_checkpoint_diffusers,
     save_training_config,
     push_checkpoint_to_hub,
@@ -554,9 +557,7 @@ class DDBMTrainer:
 
         # Accelerator setup
         # log_with: "tensorboard" | "swanlab" | "wandb" | "all" | "tensorboard,swanlab" etc.
-        log_with = cfg.log_with
-        if isinstance(log_with, str) and "," in log_with:
-            log_with = [s.strip() for s in log_with.split(",") if s.strip()]
+        log_with = normalize_accelerate_log_with(cfg.log_with)
         logging_dir = os.path.join(cfg.output_dir, "logs")
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
         kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
@@ -704,8 +705,14 @@ class DDBMTrainer:
         cfg.num_epochs = math.ceil(cfg.max_train_steps / num_update_steps_per_epoch)
 
         if accelerator.is_main_process:
-            tracker_config = {k: str(v) for k, v in vars(cfg).items()}
-            accelerator.init_trackers(f"ddbm-{cfg.task_name}", config=tracker_config)
+            project_name = f"ddbm-{cfg.task_name}"
+            tracker_config = build_accelerate_tracker_config(cfg)
+            tracker_init_kwargs = build_accelerate_tracker_init_kwargs(cfg, project_name)
+            accelerator.init_trackers(
+                project_name,
+                config=tracker_config,
+                init_kwargs=tracker_init_kwargs,
+            )
 
         global_step = 0
         first_epoch = 0

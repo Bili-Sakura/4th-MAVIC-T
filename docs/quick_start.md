@@ -34,6 +34,18 @@ python -m examples.img2img_turbo.train_sar2ir --log_with swanlab
 
 # Use both TensorBoard and SwanLab
 python -m examples.ddbm.train_sar2rgb --log_with "tensorboard,swanlab"
+
+# Set SwanLab run metadata from CLI (maps to init_kwargs["swanlab"])
+python -m examples.cut.train_sar2ir \
+  --log_with swanlab \
+  --swanlab_experiment_name cut-sar2ir-exp01 \
+  --swanlab_tags baseline,stage2 \
+  --swanlab_description "CUT baseline on SAR->IR"
+
+# Pass arbitrary SwanLab init kwargs (JSON object, merged last)
+python -m examples.i2sb.train_sar2eo \
+  --log_with swanlab \
+  --swanlab_init_kwargs_json '{"mode":"cloud","notes":"night run"}'
 ```
 
 > [!IMPORTANT]
