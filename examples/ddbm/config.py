@@ -68,6 +68,11 @@ class TaskConfig:
     # Accelerate log_with: "tensorboard" | "wandb" | "swanlab" | "all" | comma-separated
     # SwanLab: one-line integration via log_with="swanlab" (pip install swanlab)
     log_with: str = "tensorboard"
+    # SwanLab init kwargs (used only when log_with contains "swanlab")
+    swanlab_experiment_name: Optional[str] = None
+    swanlab_description: Optional[str] = None
+    swanlab_tags: Optional[str] = None  # comma-separated tags
+    swanlab_init_kwargs_json: Optional[str] = None  # JSON object merged into init_kwargs["swanlab"]
     save_model_epochs: Optional[int] = 1
     checkpointing_steps: Optional[int] = None
     checkpoints_total_limit: int = 1

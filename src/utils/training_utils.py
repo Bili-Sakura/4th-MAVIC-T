@@ -73,6 +73,128 @@ def lambda_repa_cosine(step: int, start: float, end: float, decay_steps: int) ->
 
 
 # ---------------------------------------------------------------------------
+# Accelerate tracker helpers
+# ---------------------------------------------------------------------------
+
+
+def normalize_accelerate_log_with(log_with: Any) -> Any:
+    """Normalize ``Accelerator(log_with=...)`` values from CLI-friendly inputs.
+
+    Supports:
+    - single strings: ``"tensorboard"``
+    - comma-separated strings: ``"tensorboard,swanlab"``
+    - iterable values: ``["tensorboard", "swanlab"]``
+    """
+
+    if log_with is None:
+        return None
+
+    if isinstance(log_with, str):
+        value = log_with.strip()
+        if not value:
+            return None
+        if "," not in value:
+            return value
+        parts = [item.strip() for item in value.split(",") if item.strip()]
+        if not parts:
+            return None
+        return parts if len(parts) > 1 else parts[0]
+
+    if isinstance(log_with, (list, tuple, set)):
+        parts = []
+        for item in log_with:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                parts.extend([token.strip() for token in item.split(",") if token.strip()])
+            else:
+                token = str(item).strip()
+                if token:
+                    parts.append(token)
+        if not parts:
+            return None
+        return parts if len(parts) > 1 else parts[0]
+
+    return log_with
+
+
+def _accelerate_uses_swanlab(log_with: Any) -> bool:
+    normalized = normalize_accelerate_log_with(log_with)
+    if normalized is None:
+        return False
+    if isinstance(normalized, str):
+        return normalized.lower() in {"swanlab", "all"}
+    return any(str(item).strip().lower() in {"swanlab", "all"} for item in normalized)
+
+
+def _parse_csv_values(raw_value: Any) -> Optional[list[str]]:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, str):
+        values = [item.strip() for item in raw_value.split(",") if item.strip()]
+        return values or None
+    if isinstance(raw_value, (list, tuple, set)):
+        values = [str(item).strip() for item in raw_value if str(item).strip()]
+        return values or None
+    value = str(raw_value).strip()
+    return [value] if value else None
+
+
+def build_accelerate_tracker_config(cfg: Any) -> Dict[str, str]:
+    """Build a tracker-safe config dict from a config object."""
+
+    if hasattr(cfg, "__dict__"):
+        return {k: str(v) for k, v in vars(cfg).items()}
+    if is_dataclass(cfg):
+        return {k: str(v) for k, v in asdict(cfg).items()}
+    raise TypeError(f"Cannot build tracker config from type: {type(cfg).__name__}")
+
+
+def build_accelerate_tracker_init_kwargs(cfg: Any, project_name: str) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Build ``accelerator.init_trackers(..., init_kwargs=...)`` payload.
+
+    For SwanLab, this follows Accelerate's native integration path:
+    ``init_kwargs={"swanlab": {...}}``.
+    """
+
+    if not _accelerate_uses_swanlab(getattr(cfg, "log_with", None)):
+        return None
+
+    swanlab_kwargs: Dict[str, Any] = {
+        # Default to project_name for stable and predictable run naming.
+        "experiment_name": getattr(cfg, "swanlab_experiment_name", None) or project_name,
+    }
+
+    swanlab_description = getattr(cfg, "swanlab_description", None)
+    if swanlab_description:
+        swanlab_kwargs["description"] = str(swanlab_description)
+
+    swanlab_tags = _parse_csv_values(getattr(cfg, "swanlab_tags", None))
+    if swanlab_tags:
+        swanlab_kwargs["tags"] = swanlab_tags
+
+    raw_json = getattr(cfg, "swanlab_init_kwargs_json", None)
+    if raw_json:
+        try:
+            parsed_kwargs = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "Invalid swanlab_init_kwargs_json: expected a JSON object string."
+            ) from exc
+        if not isinstance(parsed_kwargs, dict):
+            raise ValueError(
+                "Invalid swanlab_init_kwargs_json: expected a JSON object."
+            )
+        # JSON payload takes final precedence for advanced customizations.
+        swanlab_kwargs.update(parsed_kwargs)
+
+    swanlab_kwargs = {k: v for k, v in swanlab_kwargs.items() if v is not None}
+    if not swanlab_kwargs:
+        return None
+    return {"swanlab": swanlab_kwargs}
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
