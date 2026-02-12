@@ -345,3 +345,61 @@ faster student model via knowledge distillation to reduce inference cost
 while retaining quality.
 
 > ⚠️ *Placeholder — experimental design to be finalised.*
+
+---
+
+## Additional Future Plans
+
+### Resolution Upscaling Strategy (512 px → 1024 px)
+
+We currently **train on 512 px** and **perform inference on 1024 px**. Two paths
+are planned depending on compute budget:
+
+1. **Direct 1024 px fine-tuning** — If compute budget allows, we will
+   fine-tune the model directly at 1024 px resolution.
+
+2. **Training up-sample techniques** — If compute is constrained, we may
+   adopt external feature/image upsampling methods to improve 1024 px
+   inference without full-resolution training. Relevant works include:
+   AnyUp (Wimmer et al., 2026), FeatUp (Fu et al., 2024), MultiDiffusion
+   (Bar-Tal et al., 2023), JAFAR (Couairon et al., 2025). See bibtex below.
+
+```bibtex
+@inproceedings{bar-talMultiDiffusionFusingDiffusion2023a,
+  title = {{{MultiDiffusion}}: {{Fusing Diffusion Paths}} for {{Controlled Image Generation}}},
+  shorttitle = {{{MultiDiffusion}}},
+  booktitle = {{{ICML}}},
+  author = {{Bar-Tal}, Omer and Yariv, Lior and Lipman, Yaron and Dekel, Tali},
+  year = 2023,
+  month = jan,
+  urldate = {2025-08-28}
+}
+
+@inproceedings{couaironJAFARJackAny2025,
+  title = {{{JAFAR}}: {{Jack}} up {{Any Feature}} at {{Any Resolution}}},
+  shorttitle = {{{JAFAR}}},
+  booktitle = {The {{Thirty-ninth Annual Conference}} on {{Neural Information Processing Systems}}},
+  author = {Couairon, Paul and Chambon, Loick and Serrano, Louis and Haugeard, Jean-Emmanuel and Cord, Matthieu and Thome, Nicolas},
+  year = 2025,
+  month = oct,
+  urldate = {2026-02-12}
+}
+
+@inproceedings{fu2024featup,
+  title = {{{FeatUp}}: {{A Model-Agnostic Framework}} for {{Features}} at {{Any Resolution}}},
+  shorttitle = {{{FeatUp}}},
+  booktitle = {The Twelfth International Conference on Learning Representations},
+  author = {Fu, Stephanie and Hamilton, Mark and Brandt, Laura E. and Feldmann, Axel and Zhang, Zhoutong and Freeman, William T.},
+  year = 2024,
+  urldate = {2024-12-22}
+}
+
+@inproceedings{wimmerAnyUpUniversalFeature2026,
+  title = {{{AnyUp}}: {{Universal Feature Upsampling}}},
+  shorttitle = {{{AnyUp}}},
+  booktitle = {The {{Fourteenth International Conference}} on {{Learning Representations}}},
+  author = {Wimmer, Thomas and Truong, Prune and Rakotosaona, Marie-Julie and Oechsle, Michael and Tombari, Federico and Schiele, Bernt and Lenssen, Jan Eric},
+  year = 2026,
+  urldate = {2026-02-12}
+}
+```
