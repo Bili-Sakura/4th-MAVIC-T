@@ -78,6 +78,7 @@ class TaskConfig:
     # ---- validation ----
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
+    paired_val_manifest: Optional[str] = None  # path to paired_val_<task>.txt for golden val (log validation)
 
     # ---- hub ----
     push_to_hub: bool = True
@@ -113,10 +114,15 @@ class TaskConfig:
 # Pre-built configs for the four core tasks
 # ---------------------------------------------------------------------------
 
+def _default_paired_val_manifest(task_name: str) -> str:
+    return f"datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_{task_name}.txt"
+
+
 def sar2eo_config(**overrides) -> TaskConfig:
     """SAR-to-EO: 1-band 256×256 → 1-band 256×256."""
     cfg = TaskConfig(
         task_name="sar2eo",
+        paired_val_manifest=_default_paired_val_manifest("sar2eo"),
         prompt="convert SAR image to electro-optical image",
         source_channels=1,
         target_channels=1,
@@ -138,6 +144,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
     """RGB-to-IR: 3-band → 1-band."""
     cfg = TaskConfig(
         task_name="rgb2ir",
+        paired_val_manifest=_default_paired_val_manifest("rgb2ir"),
         prompt="convert RGB image to infrared image",
         source_channels=3,
         target_channels=1,
@@ -160,6 +167,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
     """SAR-to-IR: 1-band → 1-band."""
     cfg = TaskConfig(
         task_name="sar2ir",
+        paired_val_manifest=_default_paired_val_manifest("sar2ir"),
         prompt="convert SAR image to infrared image",
         source_channels=1,
         target_channels=1,
@@ -182,6 +190,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
     """SAR-to-RGB: 1-band → 3-band."""
     cfg = TaskConfig(
         task_name="sar2rgb",
+        paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
         prompt="convert SAR image to RGB image",
         source_channels=1,
         target_channels=3,

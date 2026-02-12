@@ -34,6 +34,7 @@ from datetime import timedelta
 
 from src.schedulers import BiBBDMScheduler
 from .config import TaskConfig
+from examples.ddbm.dataset_wrapper import PairedValDataset
 from .dataset_wrapper import MavicTBiBBDMDataset
 from src.models.unet_bibbdm import create_model
 
@@ -101,21 +102,32 @@ class BiBBDMTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
+            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
-            try:
-                val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
-                val_ds = MavicTBiBBDMDataset(
-                    task=self.cfg.task_name,
-                    split="test",
-                    resolution=val_resolution,
-                    source_channels=src_ch,
-                    target_channels=tgt_ch,
-                    with_target=False,
-                )
-            except (ValueError, FileNotFoundError, RuntimeError):
-                logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
+            val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
+            if getattr(self.cfg, "paired_val_manifest", None):
+                manifest_path = Path(self.cfg.paired_val_manifest)
+                if manifest_path.is_file():
+                    val_ds = PairedValDataset(
+                        manifest_path=manifest_path,
+                        resolution=val_resolution,
+                        source_channels=src_ch,
+                        target_channels=tgt_ch,
+                    )
+            if val_ds is None:
+                try:
+                    val_ds = MavicTBiBBDMDataset(
+                        task=self.cfg.task_name,
+                        split="test",
+                        resolution=val_resolution,
+                        source_channels=src_ch,
+                        target_channels=tgt_ch,
+                        with_target=False,
+                    )
+                except (ValueError, FileNotFoundError, RuntimeError):
+                    logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model / scheduler -------------------------------------------------
@@ -306,6 +318,7 @@ class BiBBDMTrainer:
         sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
+        first_grid = None
 
         for batch_idx, batch in enumerate(val_dataloader):
             if cfg.max_validation_batches is not None and batch_idx >= cfg.max_validation_batches:
@@ -354,9 +367,15 @@ class BiBBDMTrainer:
 
             grid = make_image_grid(batch_images, rows=batch_size, cols=2)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            if first_grid is None:
+                first_grid = grid.copy()
             saved += batch_size
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
+
+        if first_grid is not None:
+            from src.utils.training_utils import log_validation_images_to_trackers
+            log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
         if was_training:
             unwrapped.train()

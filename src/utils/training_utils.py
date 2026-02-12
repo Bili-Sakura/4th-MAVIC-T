@@ -20,6 +20,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+import numpy as np
 import torch
 import torch.distributed as dist
 import yaml
@@ -192,6 +193,55 @@ def build_accelerate_tracker_init_kwargs(cfg: Any, project_name: str) -> Optiona
     if not swanlab_kwargs:
         return None
     return {"swanlab": swanlab_kwargs}
+
+
+def log_validation_images_to_trackers(
+    accelerator: Any,
+    images: Any,
+    step: int,
+    tag: str = "validation/samples",
+) -> None:
+    """Log validation sample images to all active experiment trackers (TensorBoard, WandB, SwanLab, etc.).
+
+    Images are already saved locally by the trainer; this sends the same grid/samples
+    to the configured trackers so they appear in the experiment UI.
+
+    Args:
+        accelerator: HuggingFace Accelerator instance (with init_trackers already called).
+        images: Single PIL Image or list of PIL Images to log (e.g. a grid or per-batch grids).
+        step: Global step to associate with the logged images.
+        tag: Key under which to log (e.g. "validation/samples").
+    """
+    if not accelerator.is_main_process:
+        return
+    try:
+        from PIL import Image as PILImage
+    except ImportError:
+        return
+    if isinstance(images, PILImage.Image):
+        images = [images]
+    if not images:
+        return
+    # Ensure list of PIL for trackers that expect it
+    out: list = []
+    for img in images:
+        if isinstance(img, PILImage.Image):
+            out.append(img)
+        elif isinstance(img, (str, Path)):
+            out.append(PILImage.open(img).convert("RGB"))
+        else:
+            out.append(PILImage.fromarray(np.asarray(img)).convert("RGB") if hasattr(img, "__array__") else img)
+    if not out:
+        return
+    values = {tag: out}
+    tracker_names = ("tensorboard", "wandb", "swanlab", "aim", "comet_ml", "mlflow", "clearml", "dvclive", "trackio")
+    for name in tracker_names:
+        try:
+            t = accelerator.get_tracker(name, unwrap=True)
+            if t is not None and hasattr(t, "log_images"):
+                t.log_images(values, step=step)
+        except (AttributeError, ValueError, TypeError):
+            pass
 
 
 # ---------------------------------------------------------------------------

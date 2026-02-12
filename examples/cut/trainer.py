@@ -38,6 +38,7 @@ from accelerate.utils import ProjectConfiguration
 from tqdm.auto import tqdm
 from datetime import timedelta
 
+from examples.ddbm.dataset_wrapper import PairedValDataset
 from .config import TaskConfig
 from .dataset_wrapper import MavicTCUTDataset
 from src.models.cut_model import (
@@ -98,23 +99,35 @@ class CUTTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
+            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
-            try:
-                val_res = self.cfg.validation_resolution if self.cfg.validation_resolution is not None else self.cfg.resolution
-                val_ds = MavicTCUTDataset(
-                    task=self.cfg.task_name,
-                    split="test",
-                    resolution=val_res,
-                    load_size=self.cfg.load_size,
-                    source_channels=self.cfg.source_channels,
-                    target_channels=self.cfg.target_channels,
-                    model_channels=self.cfg.model_channels,
-                    with_target=False,
-                )
-            except (ValueError, FileNotFoundError, RuntimeError):
-                logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
+            val_res = self.cfg.validation_resolution if self.cfg.validation_resolution is not None else self.cfg.resolution
+            if getattr(self.cfg, "paired_val_manifest", None):
+                manifest_path = Path(self.cfg.paired_val_manifest)
+                if manifest_path.is_file():
+                    val_ds = PairedValDataset(
+                        manifest_path=manifest_path,
+                        resolution=val_res,
+                        source_channels=self.cfg.source_channels,
+                        target_channels=self.cfg.target_channels,
+                        return_order="source_target",
+                    )
+            if val_ds is None:
+                try:
+                    val_ds = MavicTCUTDataset(
+                        task=self.cfg.task_name,
+                        split="test",
+                        resolution=val_res,
+                        load_size=self.cfg.load_size,
+                        source_channels=self.cfg.source_channels,
+                        target_channels=self.cfg.target_channels,
+                        model_channels=self.cfg.model_channels,
+                        with_target=False,
+                    )
+                except (ValueError, FileNotFoundError, RuntimeError):
+                    logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model / losses ----------------------------------------------------
@@ -362,6 +375,7 @@ class CUTTrainer:
         sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
+        first_grid = None
 
         for batch_idx, batch in enumerate(val_dataloader):
             source, _ = batch  # CUT dataset returns (source, target); target is zeros for test split
@@ -408,9 +422,15 @@ class CUTTrainer:
 
             grid = make_image_grid(batch_images, rows=batch_size, cols=2)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            if first_grid is None:
+                first_grid = grid.copy()
             saved += batch_size
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
+
+        if first_grid is not None:
+            from src.utils.training_utils import log_validation_images_to_trackers
+            log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
         if was_training:
             unwrapped.train()

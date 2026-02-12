@@ -34,6 +34,7 @@ from typing import Iterable
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 # Standalone constants to avoid heavy imports (torch, datasets, etc.)
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -118,7 +119,12 @@ class MaRSEmbedder:
 
         all_embeddings: list[np.ndarray] = []
         with torch.no_grad():
-            for start in range(0, len(paths), batch_size):
+            for start in tqdm(
+                range(0, len(paths), batch_size),
+                desc="Encoding",
+                unit="batch",
+                total=(len(paths) + batch_size - 1) // batch_size,
+            ):
                 batch_paths = paths[start:start + batch_size]
                 batch_images = [self._load_pil(p) for p in batch_paths]
                 pixel_values = self.processor(images=batch_images, return_tensors="pt").pixel_values
@@ -263,7 +269,7 @@ def create_paired_validation_set(
     if not mars_rgb_path.exists():
         raise FileNotFoundError(f"MaRS-RGB model path not found: {mars_rgb_path}")
 
-    for task in BASE_TASKS:
+    for task in tqdm(BASE_TASKS, desc="Tasks", unit="task"):
         pairs = load_train_pairs(refined_root, task, exclude)
         n_pairs = _pair_count_for_task(task, n)
 

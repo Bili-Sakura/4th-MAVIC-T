@@ -13,7 +13,7 @@ can call ``model(x, t, xT=source)`` just like the vendor code.
 Supported UNet types (via ``unet_type`` in :func:`create_model`):
 - ``adm``: ADM-style diffusers UNet2DModel (default).
 - ``edm``: EDM/DDPM++ style using UNet2DModel with Fourier time embedding.
-- ``edm2``: EDM2 magnitude-preserving style with Fourier embedding and preconditioning.
+- ``edm2``: DISABLED. See :class:`EDM2UNet` docstring for the incompatibility issue.
 - ``vdm``: Variational Diffusion Model with logSNR time normalization.
 - ``sid``: Simple Diffusion using UNet2DModel (following libs/simpleDiffusion).
 """
@@ -39,7 +39,7 @@ UNET_TYPE_EDM2 = "edm2"
 UNET_TYPE_VDM = "vdm"
 UNET_TYPE_SID = "sid"
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_EDM2, UNET_TYPE_VDM, UNET_TYPE_SID)
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_SID)
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -61,7 +61,12 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
         UNET_TYPE_EDM2: {
             "source": "diffusers.UNet2DModel (time_embedding_type='fourier') + EDM2 preconditioning",
             "description": "EDM2-style UNet with Fourier embedding and magnitude-preserving preconditioning.",
-            "implemented": True,
+            "implemented": False,
+            "issue": (
+                "EDM2 is incompatible with DDBM/BiBBDM pipelines. The pipeline passes (c_in*x_t, "
+                "rescaled_log_sigma) and applies c_skip/c_out externally, but EDM2 expects raw x, "
+                "sigma as timestep, and applies its own preconditioning internally. Use adm or edm instead."
+            ),
         },
         UNET_TYPE_VDM: {
             "source": "diffusers.UNet2DModel + logSNR normalization",
@@ -290,10 +295,22 @@ class EDMUNet(ModelMixin, ConfigMixin):
 # ---------------------------------------------------------------------------
 # EDM2 UNet – Fourier embedding + magnitude-preserving preconditioning
 # ---------------------------------------------------------------------------
+#
+# DISABLED: EDM2 is incompatible with the DDBM/BiBBDM pipeline denoise contract.
+# The pipeline (e.g. pipeline_ddbm.py) passes:
+#   - Input: c_in * x_t (bridge-preconditioned)
+#   - Timestep: rescaled_t = 1000 * 0.25 * log(sigma)
+#   - Output: expects raw F(x); pipeline applies denoised = c_out * F + c_skip * x_t
+# EDM2 instead expects raw x, sigma as timestep, and returns denoised directly with
+# its own c_skip/c_out. Using EDM2 with the current pipeline causes double preconditioning
+# and wrong timestep encoding. Use adm or edm backbones instead.
 
 
 class EDM2UNet(ModelMixin, ConfigMixin):
     """EDM2 magnitude-preserving UNet with preconditioning wrapper.
+
+    DISABLED: Incompatible with DDBM/BiBBDM pipelines (see module-level annotation above).
+    Use ``adm`` or ``edm`` backbones instead.
 
     Ported from ``libs/edm2/training/networks_edm2.Precond``. The underlying
     UNet uses Fourier time embedding via ``UNet2DModel``. The forward pass
@@ -545,7 +562,6 @@ def _parse_create_model_args(
 _UNET_CLASS_MAP: Dict[str, type] = {
     UNET_TYPE_ADM: DDBMUNet,
     UNET_TYPE_EDM: EDMUNet,
-    UNET_TYPE_EDM2: EDM2UNet,
     UNET_TYPE_VDM: VDMUNet,
     UNET_TYPE_SID: SiDUNet,
 }
@@ -562,7 +578,7 @@ def create_model(
     channel_mult: str = "",
     unet_type: str = UNET_TYPE_ADM,
     **kwargs: Any,
-) -> Union[DDBMUNet, EDMUNet, EDM2UNet, VDMUNet, SiDUNet]:
+) -> Union[DDBMUNet, EDMUNet, VDMUNet, SiDUNet]:
     """Factory for DDBM-compatible UNet models.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
@@ -571,9 +587,14 @@ def create_model(
     Parameters
     ----------
     unet_type : str
-        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
-        ``vdm``, ``sid``.
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
+        ``sid``. Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
+    if unet_type == UNET_TYPE_EDM2:
+        cfg = get_unet_type_config(UNET_TYPE_EDM2)
+        raise ValueError(
+            f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
+        )
     if unet_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
             f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
@@ -596,11 +617,8 @@ def create_model(
 
     cls = _UNET_CLASS_MAP[unet_type]
 
-    # EDM2 and VDM accept extra init parameters via kwargs
-    if unet_type == UNET_TYPE_EDM2:
-        if "sigma_data" in kwargs:
-            common_kwargs["sigma_data"] = kwargs["sigma_data"]
-    elif unet_type == UNET_TYPE_VDM:
+    # VDM accepts extra init parameters via kwargs
+    if unet_type == UNET_TYPE_VDM:
         if "gamma_min" in kwargs:
             common_kwargs["gamma_min"] = kwargs["gamma_min"]
         if "gamma_max" in kwargs:

@@ -88,6 +88,7 @@ class DDIBTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
+            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
         )
         source_ds = MavicTDDIBDataset(
             domain="source",
@@ -163,6 +164,7 @@ class DDIBTrainer:
         sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
+        first_grid = None
 
         for batch_idx, batch in enumerate(val_dataloader):
             _zeros, source = batch
@@ -205,9 +207,15 @@ class DDIBTrainer:
 
             grid = make_image_grid(batch_images, rows=batch_size, cols=2)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            if first_grid is None:
+                first_grid = grid.copy()
             saved += batch_size
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
+
+        if first_grid is not None:
+            from src.utils.training_utils import log_validation_images_to_trackers
+            log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
         if src_training:
             src_unwrapped.train()
@@ -623,15 +631,29 @@ class DDIBTrainer:
             accelerator.is_main_process
             and (cfg.validation_epochs is not None or cfg.validation_steps is not None)
         ):
-            from examples.ddbm.dataset_wrapper import MavicTDDBMDataset
-            try:
-                val_ds = MavicTDDBMDataset(
-                    task=cfg.task_name,
-                    split="test",
-                    resolution=cfg.resolution,
-                    model_channels=cfg.source_channels,
-                    with_target=False,
-                )
+            from examples.ddbm.dataset_wrapper import MavicTDDBMDataset, PairedValDataset
+            val_ds = None
+            if getattr(cfg, "paired_val_manifest", None):
+                manifest_path = Path(cfg.paired_val_manifest)
+                if manifest_path.is_file():
+                    val_ds = PairedValDataset(
+                        manifest_path=manifest_path,
+                        resolution=cfg.resolution,
+                        source_channels=cfg.source_channels,
+                        target_channels=cfg.target_channels,
+                    )
+            if val_ds is None:
+                try:
+                    val_ds = MavicTDDBMDataset(
+                        task=cfg.task_name,
+                        split="test",
+                        resolution=cfg.resolution,
+                        model_channels=cfg.source_channels,
+                        with_target=False,
+                    )
+                except (ValueError, FileNotFoundError, RuntimeError):
+                    pass
+            if val_ds is not None:
                 val_dataloader = DataLoader(
                     val_ds,
                     batch_size=cfg.eval_batch_size,
@@ -644,7 +666,7 @@ class DDIBTrainer:
                     val_dataloader, accelerator, global_step,
                     latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                 )
-            except (ValueError, FileNotFoundError, RuntimeError):
+            else:
                 logger.warning("Val split unavailable for %s – skipping validation", cfg.task_name)
 
         # --- Save combined DDIBPipeline checkpoint ---

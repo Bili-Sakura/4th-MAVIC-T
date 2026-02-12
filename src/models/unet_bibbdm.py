@@ -11,7 +11,7 @@ outputs ``2 * in_channels`` to predict both components simultaneously.
 Supported UNet types (via ``unet_type`` in :func:`create_model`):
 - ``adm``: ADM-style diffusers UNet2DModel (default).
 - ``edm``: EDM/DDPM++ style with Fourier time embedding.
-- ``edm2``: EDM2 with Fourier embedding and preconditioning.
+- ``edm2``: DISABLED. See unet_ddbm.get_unet_type_config("edm2") for the issue.
 - ``vdm``: VDM with logSNR time normalization.
 - ``sid``: Simple Diffusion using UNet2DModel.
 """
@@ -35,6 +35,7 @@ from .unet_ddbm import (
     UNET_TYPE_SID,
     _build_block_types,
     _parse_create_model_args,
+    get_unet_type_config,
 )
 
 
@@ -209,7 +210,10 @@ class EDMBiBBDMUNet(ModelMixin, ConfigMixin):
 
 
 class EDM2BiBBDMUNet(ModelMixin, ConfigMixin):
-    """EDM2-style BiBBDM UNet with Fourier embedding and preconditioning."""
+    """EDM2-style BiBBDM UNet with Fourier embedding and preconditioning.
+
+    DISABLED: Incompatible with pipeline contract (see unet_ddbm.EDM2UNet). Use adm or edm.
+    """
 
     @register_to_config
     def __init__(
@@ -376,7 +380,6 @@ def _out_channels_for_objective(objective: str, in_channels: int) -> int:
 _BIBBDM_CLASS_MAP = {
     UNET_TYPE_ADM: BiBBDMUNet,
     UNET_TYPE_EDM: EDMBiBBDMUNet,
-    UNET_TYPE_EDM2: EDM2BiBBDMUNet,
     UNET_TYPE_VDM: VDMBiBBDMUNet,
     UNET_TYPE_SID: SiDBiBBDMUNet,
 }
@@ -403,9 +406,14 @@ def create_model(
     Parameters
     ----------
     unet_type : str
-        Backbone architecture. One of: ``adm`` (default), ``edm``, ``edm2``,
-        ``vdm``, ``sid``.
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
+        ``sid``. Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
+    if unet_type == UNET_TYPE_EDM2:
+        cfg = get_unet_type_config(UNET_TYPE_EDM2)
+        raise ValueError(
+            f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
+        )
     if unet_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
             f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
@@ -431,10 +439,7 @@ def create_model(
 
     cls = _BIBBDM_CLASS_MAP[unet_type]
 
-    if unet_type == UNET_TYPE_EDM2:
-        if "sigma_data" in kwargs:
-            common_kwargs["sigma_data"] = kwargs["sigma_data"]
-    elif unet_type == UNET_TYPE_VDM:
+    if unet_type == UNET_TYPE_VDM:
         if "gamma_min" in kwargs:
             common_kwargs["gamma_min"] = kwargs["gamma_min"]
         if "gamma_max" in kwargs:

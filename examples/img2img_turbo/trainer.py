@@ -42,6 +42,9 @@ from accelerate.utils import ProjectConfiguration
 from tqdm.auto import tqdm
 from datetime import timedelta
 
+from pathlib import Path
+
+from examples.ddbm.dataset_wrapper import PairedValDataset
 from .config import TaskConfig
 from .dataset_wrapper import MavicTTurboDataset
 from src.models.pix2pix_turbo import Pix2PixTurbo
@@ -96,19 +99,30 @@ class Pix2PixTurboTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
+            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
-            try:
-                val_ds = MavicTTurboDataset(
-                    task=self.cfg.task_name,
-                    split="test",
-                    resolution=self.cfg.resolution,
-                    model_channels=self.cfg.model_channels,
-                    with_target=False,
-                )
-            except (ValueError, FileNotFoundError, RuntimeError):
-                logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
+            if getattr(self.cfg, "paired_val_manifest", None):
+                manifest_path = Path(self.cfg.paired_val_manifest)
+                if manifest_path.is_file():
+                    val_ds = PairedValDataset(
+                        manifest_path=manifest_path,
+                        resolution=self.cfg.resolution,
+                        source_channels=self.cfg.source_channels,
+                        target_channels=self.cfg.target_channels,
+                    )
+            if val_ds is None:
+                try:
+                    val_ds = MavicTTurboDataset(
+                        task=self.cfg.task_name,
+                        split="test",
+                        resolution=self.cfg.resolution,
+                        model_channels=self.cfg.model_channels,
+                        with_target=False,
+                    )
+                except (ValueError, FileNotFoundError, RuntimeError):
+                    logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model -------------------------------------------------------------
@@ -205,9 +219,13 @@ class Pix2PixTurboTrainer:
         sample_dir = Path(self.cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
         saved = 0
+        first_grid = None
 
         for batch_idx, batch in enumerate(val_dataloader):
-            _zeros, source = batch
+            if isinstance(batch, dict):
+                source = batch["conditioning_pixel_values"]
+            else:
+                _zeros, source = batch
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
 
@@ -243,9 +261,15 @@ class Pix2PixTurboTrainer:
 
             grid = make_image_grid(batch_images, rows=batch_size, cols=2)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            if first_grid is None:
+                first_grid = grid.copy()
             saved += batch_size
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
+
+        if first_grid is not None:
+            from src.utils.training_utils import log_validation_images_to_trackers
+            log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
         if was_training:
             model.train()

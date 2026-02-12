@@ -36,6 +36,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
+from examples.ddbm.dataset_wrapper import _load_paired_val_exclude_set  # noqa: E402
 
 
 def _load_image_as_tensor(
@@ -148,6 +149,9 @@ class MavicTCUTDataset(Dataset):
         (applied consistently to both source and target).
     refined_root, eval_root : str or Path or None
         Forwarded to :class:`MavicTImageToImageDataset`.
+    paired_val_manifest : str or None
+        Path to paired_val_<task>.txt. When loading train, paths in this manifest
+        are excluded so the train set does not overlap with the golden val set.
     """
 
     def __init__(
@@ -166,6 +170,7 @@ class MavicTCUTDataset(Dataset):
         refined_root: Optional[str] = None,
         eval_root: Optional[str] = None,
         exclude_file: Optional[str] = None,
+        paired_val_manifest: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.task = task
@@ -201,8 +206,10 @@ class MavicTCUTDataset(Dataset):
             except (ValueError, FileNotFoundError):
                 pass  # augmented variant may not exist for all tasks
 
-        # Filter out excluded samples
+        # Filter out excluded samples (bad_samples + paired val paths when train)
         exclude = _load_exclude_set(exclude_file)
+        if split == "train" and paired_val_manifest:
+            exclude = exclude | _load_paired_val_exclude_set(paired_val_manifest)
         if exclude:
             before = len(self._records)
             self._records = [
@@ -213,7 +220,7 @@ class MavicTCUTDataset(Dataset):
             after = len(self._records)
             if before != after:
                 logging.getLogger(__name__).info(
-                    f"Excluded {before - after} samples via {exclude_file} "
+                    f"Excluded {before - after} samples via exclude set "
                     f"({after} remaining)"
                 )
 
