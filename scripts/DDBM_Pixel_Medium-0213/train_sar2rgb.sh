@@ -14,6 +14,7 @@ set -euo pipefail
 
 export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
+export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
@@ -66,10 +67,21 @@ SEED=42
 
 OUTPUT_DIR="./ckpt/DDBM_Pixel_Medium-0213/sar2rgb"
 
+# --- SwanLab ---
+SWANLOG_DIR="./ckpt/swanlog"
+SWANLAB_EXPERIMENT_NAME="ddbm-pixel-medium-sar2rgb"
+SWANLAB_DESCRIPTION="DDBM Pixel Medium SAR→RGB"
+SWANLAB_TAGS="ddbm,pixel,sar2rgb"
+
 # --- Resume from checkpoint ---
 RESUME_FROM_CHECKPOINT="latest"
 
 COMMON_ARGS=(
+  --log_with swanlab
+  --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
+  --swanlab_description "${SWANLAB_DESCRIPTION}"
+  --swanlab_tags "${SWANLAB_TAGS}"
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"

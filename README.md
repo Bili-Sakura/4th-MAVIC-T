@@ -12,6 +12,7 @@ conda activate rsgen
 pip install torch==2.8.0+cu126 torchaudio==2.8.0+cu126 torchvision==0.23.0+cu126 --index-url https://download.pytorch.org/whl/cu126
 # install other packages
 pip install -r requirements.txt
+pip install swanlab
 # optional
 # pip install muon-optimizer
 ```
@@ -51,6 +52,35 @@ python scripts/rewrite_manifest_paths.py --dataset_root /path/to/MACIV-T-2025-St
 # Or use PROJECT_ROOT from env (see Path configuration above)
 python scripts/rewrite_manifest_paths.py
 ```
+
+### Experiment tracking with SwanLab
+
+Training scripts support [SwanLab](https://swanlab.cn) for experiment tracking. Install with `pip install swanlab` (see Installation above).
+
+**Enable SwanLab** — The DDBM scripts in `scripts/DDBM_Pixel_Medium-0213/` already use `--log_with swanlab`. For other trainers, add:
+
+```bash
+--log_with swanlab
+```
+
+**Log location** — SwanLab logs are stored under `./ckpt/swanlog` (full path: `ckpt/swanlog/run-<experiment_id>`).
+
+**Optional metadata** — Customize run name, tags, and description:
+
+```bash
+--log_with swanlab \
+--swanlab_experiment_name my-run-name \
+--swanlab_tags baseline,rgb2ir \
+--swanlab_description "DDBM Pixel Medium RGB→IR"
+```
+
+**Storage modes** — By default, data syncs to SwanLab cloud. For offline-only logging:
+
+```bash
+--swanlab_init_kwargs_json '{"mode":"offline"}'
+```
+
+To sync offline logs later: `swanlab sync ./ckpt/swanlog/run-xxx`
 
 ## Citations
 

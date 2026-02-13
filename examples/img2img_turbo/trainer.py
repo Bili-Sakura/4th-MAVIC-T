@@ -439,7 +439,7 @@ class Pix2PixTurboTrainer:
             accelerator.init_trackers(
                 project_name,
                 config=tracker_config,
-                init_kwargs=tracker_init_kwargs,
+                init_kwargs=tracker_init_kwargs or {},
             )
 
         def save_checkpoint_config_for(path: str) -> None:

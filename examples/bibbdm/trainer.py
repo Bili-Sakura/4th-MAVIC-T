@@ -557,7 +557,7 @@ class BiBBDMTrainer:
             accelerator.init_trackers(
                 project_name,
                 config=tracker_config,
-                init_kwargs=tracker_init_kwargs,
+                init_kwargs=tracker_init_kwargs or {},
             )
 
         global_step = 0
