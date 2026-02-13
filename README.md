@@ -38,6 +38,35 @@ export PROJECT_ROOT=/path/to/4th-MAVIC-T
 
 Without this, paths are inferred from the script location (works when run from the project root).
 
+### Project structure
+
+| Directory | Purpose |
+| :--- | :--- |
+| **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
+| **`models/`** | Pre-trained model weights. |
+| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_bibbdm`, `unet_i2sb`, `unet_ddib`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
+| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, bibbdm, i2sb, cut, img2img_turbo, domain_classifier). |
+| **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
+| **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
+
+### Pre-trained models (MaRS-Base)
+
+Some scripts use pre-trained MaRS encoders for representation alignment or validation-set creation. Please pre-download them from [HuggingFace/BiliSakura](https://huggingface.co/BiliSakura) to your local `models/` folder:
+
+| Model | HuggingFace ID | Local path |
+| :--- | :--- | :--- |
+| MaRS-Base-RGB | `BiliSakura/MaRS-Base-RGB` | `models/BiliSakura/MaRS-Base-RGB` |
+| MaRS-Base-SAR | `BiliSakura/MaRS-Base-SAR` | `models/BiliSakura/MaRS-Base-SAR` |
+
+```bash
+# From project root
+mkdir -p models/BiliSakura
+huggingface-cli download BiliSakura/MaRS-Base-RGB --local-dir models/BiliSakura/MaRS-Base-RGB
+huggingface-cli download BiliSakura/MaRS-Base-SAR --local-dir models/BiliSakura/MaRS-Base-SAR
+```
+
+If you use a custom project location, ensure the paths resolve correctly (e.g. via `PROJECT_ROOT` or by placing the models under your project’s `models/BiliSakura/` directory).
+
 ### Rewriting manifest paths
 
 Manifest files (`paired_val_*.txt`, `bad_samples.txt`) may contain machine-specific absolute paths. Run the following to rewrite them for your setup:

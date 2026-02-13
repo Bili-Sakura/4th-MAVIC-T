@@ -25,6 +25,9 @@ Usage:
 
 The script detects paths containing "MACIV-T-2025-Structure-Refined", extracts the
 relative part (e.g. sar2rgb/train/input/file.tif), and prepends the target dataset root.
+Supports both path patterns found in manifests (including symlinked locations):
+  - /mnt/data/expansion/datasets/BiliSakura/MACIV-T-2025-Structure-Refined/
+  - /mnt/data/data/hf_datasets/BiliSakura/MACIV-T-2025-Structure-Refined/
 """
 
 from __future__ import annotations
@@ -47,7 +50,10 @@ DEFAULT_MANIFEST_FILES = (
     "bad_samples.txt",
 )
 
-# Pattern: path contains MACIV-T-2025-Structure-Refined, extract relative part after it
+# Pattern: path contains MACIV-T-2025-Structure-Refined, extract relative part after it.
+# Manifests may contain links from two locations:
+#   /mnt/data/expansion/datasets/BiliSakura/MACIV-T-2025-Structure-Refined/
+#   /mnt/data/data/hf_datasets/BiliSakura/MACIV-T-2025-Structure-Refined/
 DATASET_ANCHOR = "MACIV-T-2025-Structure-Refined"
 _RELATIVE_PATTERN = re.compile(
     r".*" + re.escape(DATASET_ANCHOR) + r"[/\\]?(.*)$",
@@ -56,7 +62,11 @@ _RELATIVE_PATTERN = re.compile(
 
 
 def _extract_relative(path_str: str) -> str | None:
-    """Extract the part after MACIV-T-2025-Structure-Refined, or None if not matched."""
+    """Extract the part after MACIV-T-2025-Structure-Refined, or None if not matched.
+    Handles both path patterns:
+      /mnt/data/expansion/datasets/BiliSakura/MACIV-T-2025-Structure-Refined/...
+      /mnt/data/data/hf_datasets/BiliSakura/MACIV-T-2025-Structure-Refined/...
+    """
     path_str = path_str.strip()
     m = _RELATIVE_PATTERN.match(path_str)
     if m:
