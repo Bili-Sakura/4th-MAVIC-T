@@ -51,7 +51,6 @@ class TaskConfig:
     # ---- training ----
     output_dir: str = "./ckpt"
     train_batch_size: int = 8
-    eval_batch_size: int = 4
     num_epochs: int = 100
     max_train_steps: Optional[int] = None
     gradient_accumulation_steps: int = 1
@@ -81,7 +80,6 @@ class TaskConfig:
     # ---- validation ----
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
-    max_validation_batches: Optional[int] = None  # cap validation batches (None = no limit)
     paired_val_manifest: Optional[str] = None  # path to paired_val_<task>.txt for metric evaluation
 
     # ---- hub ----
@@ -138,7 +136,6 @@ def sar2eo_config(**overrides) -> TaskConfig:
         resolution=256,
         output_dir="./ckpt",
         train_batch_size=32,
-        eval_batch_size=16,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment not applicable – no pre-trained EO encoder
@@ -160,7 +157,6 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
-        eval_batch_size=4,
         # latent modeling ablation (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment not applicable – no pre-trained IR encoder
@@ -182,7 +178,6 @@ def sar2ir_config(**overrides) -> TaskConfig:
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
-        eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment not applicable – no pre-trained IR encoder
@@ -204,7 +199,6 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
-        eval_batch_size=4,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
         latent_vae_path="./models/BiliSakura/VAEs/FLUX2-VAE",
         # representation alignment via MaRS-RGB (encode the RGB target)

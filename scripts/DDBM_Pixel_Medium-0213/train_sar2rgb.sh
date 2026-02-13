@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Stage 1 — SAR→RGB — Pixel-space DDBM (no VAE)
+# DDBM-Pixel-Medium-0213 — SAR→RGB — Pixel-space DDBM (no VAE)
 # DDBM medium config, (512, 512) crop per roadmap
 #
 # Usage:
-#   bash scripts/train_stage1_sar2rgb.sh
+#   bash scripts/DDBM_Pixel_Medium-0213/train_sar2rgb.sh
 #   # run on a specific GPU (e.g., cuda:0):
-#   CUDA_VISIBLE_DEVICES=3 bash scripts/train_stage1_sar2rgb.sh
+#   CUDA_VISIBLE_DEVICES=3 bash scripts/DDBM_Pixel_Medium-0213/train_sar2rgb.sh
 #   # (pick 0-3 to spread stages across 4 GPUs)
 #   # or multi-GPU:
-#   NGPU=4 bash scripts/train_stage1_sar2rgb.sh
+#   NGPU=4 bash scripts/DDBM_Pixel_Medium-0213/train_sar2rgb.sh
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ export HF_ENDPOINT="https://hf-mirror.com"
 
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
-LOG_FILE="${LOG_DIR}/train_stage1_sar2rgb.log"
+LOG_FILE="${LOG_DIR}/train_sar2rgb.log"
 
 mkdir -p "${LOG_DIR}"
 
@@ -49,22 +49,22 @@ OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=8
 NUM_EPOCHS=0
-MAX_TRAIN_STEPS=10000
+MAX_TRAIN_STEPS=100000
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=0
-CHECKPOINTING_STEPS=1000
+CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=1000
 VALIDATION_EPOCHS=
-NUM_INFERENCE_STEPS=1000
+NUM_INFERENCE_STEPS=100
 PUSH_TO_HUB=true
-HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt"
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0213"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-OUTPUT_DIR="./ckpt/exp3/stage1_sar2rgb"
+OUTPUT_DIR="./ckpt/DDBM_Pixel_Medium-0213/sar2rgb"
 
 # --- Resume from checkpoint ---
 RESUME_FROM_CHECKPOINT="latest"

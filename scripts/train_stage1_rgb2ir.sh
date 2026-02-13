@@ -46,7 +46,6 @@ EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_s
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=8
-EVAL_BATCH_SIZE=1
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=10000
 GRADIENT_ACCUMULATION_STEPS=1
@@ -54,9 +53,8 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=1000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS="1000"
-VALIDATION_EPOCHS=""
-MAX_VALIDATION_BATCHES=2
+VALIDATION_STEPS=1000
+VALIDATION_EPOCHS=
 NUM_INFERENCE_STEPS=1000
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt"
@@ -85,7 +83,6 @@ COMMON_ARGS=(
   --optimizer_type "${OPTIMIZER_TYPE}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"
-  --eval_batch_size "${EVAL_BATCH_SIZE}"
   --num_epochs "${NUM_EPOCHS}"
   --max_train_steps "${MAX_TRAIN_STEPS}"
   --gradient_accumulation_steps "${GRADIENT_ACCUMULATION_STEPS}"
@@ -112,10 +109,6 @@ fi
 if [ -n "${VALIDATION_EPOCHS}" ]; then
   COMMON_ARGS+=(--validation_epochs "${VALIDATION_EPOCHS}")
 fi
-if [ -n "${MAX_VALIDATION_BATCHES}" ]; then
-  COMMON_ARGS+=(--max_validation_batches "${MAX_VALIDATION_BATCHES}")
-fi
-
 if [ "${NGPU}" -gt 1 ]; then
   nohup accelerate launch --num_processes "${NGPU}" -m examples.ddbm.train_rgb2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &

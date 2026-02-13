@@ -203,7 +203,10 @@ class DDBMTrainer:
             paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
         )
         val_ds = None
-        if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
+        if (
+            (self.cfg.validation_epochs is not None and self.cfg.validation_epochs > 0)
+            or (self.cfg.validation_steps is not None and self.cfg.validation_steps > 0)
+        ):
             val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
             # Prefer golden val set (paired manifest) for log validation when available
             if getattr(self.cfg, "paired_val_manifest", None):
@@ -226,7 +229,7 @@ class DDBMTrainer:
                         with_target=False,
                     )
                 except (ValueError, FileNotFoundError, RuntimeError):
-                    logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
+                    logger.warning("Test split unavailable for %s - skipping validation", self.cfg.task_name)
         return train_ds, val_ds
 
     # ----- model / scheduler -------------------------------------------------
@@ -406,10 +409,11 @@ class DDBMTrainer:
         saved = 0
         first_grid = None
 
-        for batch_idx, batch in enumerate(val_dataloader):
-            if cfg.max_validation_batches is not None and batch_idx >= cfg.max_validation_batches:
-                break
-            _zeros, source = batch
+        has_paired_target = isinstance(val_dataloader.dataset, PairedValDataset)
+        cols = 3 if has_paired_target else 2
+
+        for sample_idx, batch in enumerate(val_dataloader):
+            target, source = batch  # both datasets return (target, source); target is zeros when unpaired
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1  # [0,1] → [-1,1]
 
@@ -429,34 +433,48 @@ class DDBMTrainer:
             # Match channel counts for visualization
             src_vis = source_01
             gen_vis = generated
+            tgt_vis = target.to(accelerator.device) if has_paired_target else None
             if gen_vis.shape[1] != src_vis.shape[1]:
                 if gen_vis.shape[1] == 3 and src_vis.shape[1] == 1:
                     src_vis = src_vis.repeat(1, 3, 1, 1)
                 elif gen_vis.shape[1] == 1 and src_vis.shape[1] == 3:
                     gen_vis = gen_vis.repeat(1, 3, 1, 1)
+            if tgt_vis is not None and tgt_vis.shape[1] != gen_vis.shape[1]:
+                if gen_vis.shape[1] == 3 and tgt_vis.shape[1] == 1:
+                    tgt_vis = tgt_vis.repeat(1, 3, 1, 1)
+                elif gen_vis.shape[1] == 1 and tgt_vis.shape[1] == 3:
+                    tgt_vis = tgt_vis.repeat(1, 3, 1, 1)
 
             src_uint8 = (src_vis.clamp(0, 1) * 255).round().to(torch.uint8)
             gen_uint8 = (gen_vis.clamp(0, 1) * 255).round().to(torch.uint8)
+            tgt_uint8 = (tgt_vis.clamp(0, 1) * 255).round().to(torch.uint8) if tgt_vis is not None else None
 
             src_uint8 = src_uint8.permute(0, 2, 3, 1).cpu().numpy()
             gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
+            tgt_uint8 = tgt_uint8.permute(0, 2, 3, 1).cpu().numpy() if tgt_uint8 is not None else None
 
             batch_images = []
             batch_size = len(src_uint8)
-            for src_arr, gen_arr in zip(src_uint8, gen_uint8):
+            for i in range(batch_size):
+                src_arr = src_uint8[i]
+                gen_arr = gen_uint8[i]
                 if src_arr.shape[2] == 1:
                     src_arr = src_arr.squeeze(2)
                 if gen_arr.shape[2] == 1:
                     gen_arr = gen_arr.squeeze(2)
-                batch_images.extend(
-                    [Image.fromarray(src_arr).convert("RGB"), Image.fromarray(gen_arr).convert("RGB")]
-                )
+                batch_images.append(Image.fromarray(src_arr).convert("RGB"))
+                batch_images.append(Image.fromarray(gen_arr).convert("RGB"))
+                if tgt_uint8 is not None:
+                    tgt_arr = tgt_uint8[i]
+                    if tgt_arr.shape[2] == 1:
+                        tgt_arr = tgt_arr.squeeze(2)
+                    batch_images.append(Image.fromarray(tgt_arr).convert("RGB"))
 
-            grid = make_image_grid(batch_images, rows=batch_size, cols=2)
-            grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
+            grid = make_image_grid(batch_images, rows=1, cols=cols)
+            grid.save(sample_dir / f"sample_{sample_idx:03d}.png")
             if first_grid is None:
                 first_grid = grid.copy()
-            saved += batch_size
+            saved += 1
 
         logger.info("Saved %d test sample pairs to %s", saved, sample_dir)
 
@@ -492,7 +510,7 @@ class DDBMTrainer:
         cfg = self.cfg
         manifest_path = Path(cfg.paired_val_manifest)
         if not manifest_path.is_file():
-            logger.warning("Paired val manifest not found: %s – skipping metric evaluation", manifest_path)
+            logger.warning("Paired val manifest not found: %s - skipping metric evaluation", manifest_path)
             return {}
 
         if cfg.use_latent_target:
@@ -509,7 +527,7 @@ class DDBMTrainer:
         )
         paired_loader = DataLoader(
             paired_ds,
-            batch_size=cfg.eval_batch_size,
+            batch_size=1,  # one-by-one inference for metrics
             shuffle=False,
             num_workers=0,
         )
@@ -651,7 +669,7 @@ class DDBMTrainer:
                 rep_alignment_module = MaRSRGBAlignment(cfg.rep_alignment_model_path)
             else:
                 logger.warning(
-                    "REPA is not applicable for task '%s' – no pre-trained "
+                    "REPA is not applicable for task '%s' - no pre-trained "
                     "encoder for the target domain; skipping.", cfg.task_name,
                 )
             if rep_alignment_module is not None:
@@ -692,7 +710,7 @@ class DDBMTrainer:
         )
         val_dataloader = DataLoader(
             val_dataset,
-            batch_size=cfg.eval_batch_size,
+            batch_size=1,  # one-by-one inference and save
             shuffle=False,
             num_workers=cfg.dataloader_num_workers,
         ) if val_dataset is not None else None
@@ -830,6 +848,7 @@ class DDBMTrainer:
                     if (
                         val_dataloader is not None
                         and cfg.validation_steps is not None
+                        and cfg.validation_steps > 0
                         and global_step % cfg.validation_steps == 0
                         and accelerator.is_main_process
                     ):
@@ -839,6 +858,7 @@ class DDBMTrainer:
                         )
                         if val_result:
                             accelerator.log(val_result, step=global_step)
+                        accelerator.wait_for_everyone()
 
                     if (
                         checkpointing_steps is not None
@@ -891,6 +911,7 @@ class DDBMTrainer:
             if (
                 val_dataloader is not None
                 and cfg.validation_epochs is not None
+                and cfg.validation_epochs > 0
                 and (epoch + 1) % cfg.validation_epochs == 0
                 and accelerator.is_main_process
             ):
@@ -900,6 +921,7 @@ class DDBMTrainer:
                 )
                 if val_result:
                     accelerator.log(val_result, step=global_step)
+                accelerator.wait_for_everyone()
 
             # Save at epoch boundary
             if (
