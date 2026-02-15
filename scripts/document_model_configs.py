@@ -273,7 +273,9 @@ def main():
     
     baselines = {
         'DDBM': 'ddbm',
+        'DBIM': 'dbim',
         'BiBBDM': 'bibbdm',
+        'BDBM': 'bdbm',
         'I2SB': 'i2sb',
         'DDIB': 'ddib',
         'CUT': 'cut',
@@ -306,7 +308,7 @@ def main():
                     continue
                 
                 # Estimate parameters based on baseline type
-                if baseline_name in ['DDBM', 'BiBBDM', 'I2SB']:
+                if baseline_name in ['DDBM', 'DBIM', 'BiBBDM', 'BDBM', 'I2SB']:
                     params = estimate_unet_parameters(config, is_conditional=True)
                     results[baseline_name][task] = {
                         'config': config,
@@ -406,9 +408,15 @@ def generate_markdown(results, project_root):
         if baseline_name == 'DDBM':
             md_lines.append("**Description:** Denoising Diffusion Bridge Models for image-to-image translation.")
             md_lines.append("Uses a UNet architecture with conditioning via concatenation.")
+        elif baseline_name == 'DBIM':
+            md_lines.append("**Description:** Diffusion Bridge Implicit Models with improved bridge samplers.")
+            md_lines.append("Uses the same bridge parameterization as DDBM with faster high-order inference.")
         elif baseline_name == 'BiBBDM':
             md_lines.append("**Description:** Bidirectional Brownian Bridge Diffusion Models with reversible translation.")
             md_lines.append("Supports bidirectional sampling (source→target and target→source).")
+        elif baseline_name == 'BDBM':
+            md_lines.append("**Description:** Bidirectional Diffusion Bridge Models with dual endpoint conditioning.")
+            md_lines.append("Supports bidirectional source↔target translation under Brownian bridge dynamics.")
         elif baseline_name == 'I2SB':
             md_lines.append("**Description:** Image-to-Image Schrödinger Bridge for paired image translation.")
             md_lines.append("Uses Schrödinger Bridge formulation with ODE/SDE samplers.")
@@ -505,7 +513,7 @@ def generate_markdown(results, project_root):
             md_lines.append("```yaml")
             
             # Print key config values
-            if baseline_name in ['DDBM', 'BiBBDM', 'I2SB']:
+            if baseline_name in ['DDBM', 'DBIM', 'BiBBDM', 'BDBM', 'I2SB']:
                 md_lines.append(f"task_name: {config.task_name}")
                 md_lines.append(f"resolution: {config.resolution}x{config.resolution}")
                 md_lines.append(f"channels: {config.source_channels} → {config.target_channels}")
@@ -516,7 +524,7 @@ def generate_markdown(results, project_root):
                 md_lines.append(f"dropout: {config.dropout}")
                 md_lines.append(f"condition_mode: {config.condition_mode}")
                 
-                if baseline_name == 'DDBM':
+                if baseline_name in ['DDBM', 'DBIM']:
                     if config.unet_type:
                         md_lines.append(f"unet_type: {config.unet_type}")
                     if config.pred_mode:
@@ -524,7 +532,7 @@ def generate_markdown(results, project_root):
                     if config.sigma_max:
                         md_lines.append(f"sigma_max: {config.sigma_max}")
                         md_lines.append(f"sigma_min: {config.sigma_min}")
-                elif baseline_name == 'BiBBDM':
+                elif baseline_name in ['BiBBDM', 'BDBM']:
                     if config.objective:
                         md_lines.append(f"objective: {config.objective}")
                     if config.num_timesteps:
@@ -614,9 +622,11 @@ def generate_markdown(results, project_root):
     md_lines.append("")
     md_lines.append("### Key Architecture Differences")
     md_lines.append("")
-    md_lines.append("1. **Diffusion Models (DDBM, BiBBDM, I2SB, DDIB):** Use iterative denoising process")
+    md_lines.append("1. **Diffusion Models (DDBM, DBIM, BiBBDM, BDBM, I2SB, DDIB):** Use iterative denoising process")
     md_lines.append("   - DDBM: Bridge diffusion with VP/VE noise schedules")
+    md_lines.append("   - DBIM: Implicit bridge solvers (DBIM / high-order) over DDBM parameterization")
     md_lines.append("   - BiBBDM: Brownian Bridge with bidirectional translation")
+    md_lines.append("   - BDBM: Bidirectional diffusion bridge with dual endpoint conditioning")
     md_lines.append("   - I2SB: Schrödinger Bridge formulation")
     md_lines.append("   - DDIB: Two separate unconditional models with DDIM bridge")
     md_lines.append("")

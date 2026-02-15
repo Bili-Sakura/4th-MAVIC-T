@@ -137,6 +137,36 @@ class TestBiBBDMFromPretrained:
 
 
 # ---------------------------------------------------------------------------
+# BDBM
+# ---------------------------------------------------------------------------
+
+
+class TestBDBMFromPretrained:
+    def test_round_trip(self):
+        from src.models.unet_bdbm import BDBMUNet
+        from src.schedulers import BDBMScheduler
+
+        model = BDBMUNet(
+            image_size=32,
+            in_channels=1,
+            out_channels=2,
+            model_channels=_MIN_CHANNELS,
+            condition_mode="dual",
+        )
+        scheduler = BDBMScheduler(num_timesteps=1000, objective="both")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(tmpdir, model, scheduler=scheduler, model_name="unet")
+
+            loaded = BDBMUNet.from_pretrained(tmpdir, subfolder="unet")
+            loaded_sched = BDBMScheduler.from_pretrained(tmpdir, subfolder="scheduler")
+
+        _assert_state_dicts_equal(model.state_dict(), loaded.state_dict())
+        assert loaded.config["out_channels"] == 2
+        assert loaded_sched.config["objective"] == "both"
+
+
+# ---------------------------------------------------------------------------
 # I2SB
 # ---------------------------------------------------------------------------
 
@@ -274,6 +304,30 @@ class TestPipelineFromPretrained:
                 pipeline_class_name="BiBBDMPipeline",
             )
             pipe = BiBBDMPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+
+    def test_bdbm_pipeline_from_pretrained(self):
+        from src.models.unet_bdbm import BDBMUNet
+        from src.schedulers import BDBMScheduler
+        from src.pipelines.bdbm import BDBMPipeline
+
+        model = BDBMUNet(
+            image_size=32,
+            in_channels=1,
+            out_channels=2,
+            model_channels=_MIN_CHANNELS,
+            condition_mode="dual",
+        )
+        scheduler = BDBMScheduler(num_timesteps=1000, objective="both")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=scheduler, model_name="unet",
+                pipeline_class_name="BDBMPipeline",
+            )
+            pipe = BDBMPipeline.from_pretrained(tmpdir)
 
         assert pipe.unet is not None
         assert pipe.scheduler is not None

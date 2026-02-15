@@ -3,6 +3,7 @@
 from .ddbm import DDBMPipeline, DDBMPipelineOutput, DDBMLatentPipeline, DDBMLatentPipelineOutput
 from .dbim import DBIMPipeline, DBIMPipelineOutput, DBIMLatentPipeline, DBIMLatentPipelineOutput
 from .bibbdm import BiBBDMPipeline, BiBBDMPipelineOutput, BiBBDMLatentPipeline, BiBBDMLatentPipelineOutput
+from .bdbm import BDBMPipeline, BDBMPipelineOutput, BDBMLatentPipeline, BDBMLatentPipelineOutput
 from .ddib import DDIBPipeline, DDIBPipelineOutput, DDIBLatentPipeline, DDIBLatentPipelineOutput
 from .i2sb import I2SBPipeline, I2SBPipelineOutput, I2SBLatentPipeline, I2SBLatentPipelineOutput
 from .cut import CUTPipeline, CUTPipelineOutput, CUTLatentPipeline, CUTLatentPipelineOutput

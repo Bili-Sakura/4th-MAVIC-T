@@ -9,8 +9,12 @@ import pytest
 
 from examples.ddbm.config import TaskConfig as DdbmConfig
 from examples.ddbm.config import sar2eo_config as ddbm_sar2eo
+from examples.dbim.config import TaskConfig as DbimConfig
+from examples.dbim.config import sar2eo_config as dbim_sar2eo
 from examples.bibbdm.config import TaskConfig as BibbdmConfig
 from examples.bibbdm.config import sar2eo_config as bibbdm_sar2eo
+from examples.bdbm.config import TaskConfig as BdbmConfig
+from examples.bdbm.config import sar2eo_config as bdbm_sar2eo
 from examples.i2sb.config import TaskConfig as I2sbConfig
 from examples.i2sb.config import sar2eo_config as i2sb_sar2eo
 from examples.ddib.config import TaskConfig as DdibConfig
@@ -24,7 +28,7 @@ from examples.img2img_turbo.config import TaskConfig as TurboConfig
 # Default value
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("cfg_cls", [DdbmConfig, BibbdmConfig, I2sbConfig, DdibConfig, CutConfig, TurboConfig])
+@pytest.mark.parametrize("cfg_cls", [DdbmConfig, DbimConfig, BibbdmConfig, BdbmConfig, I2sbConfig, DdibConfig, CutConfig, TurboConfig])
 def test_latent_channels_default_is_32(cfg_cls):
     """All baselines default latent_channels to 32 (VAE latent dim)."""
     cfg = cfg_cls()
@@ -35,7 +39,7 @@ def test_latent_channels_default_is_32(cfg_cls):
 # Override
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("cfg_cls", [DdbmConfig, BibbdmConfig, I2sbConfig, DdibConfig, CutConfig, TurboConfig])
+@pytest.mark.parametrize("cfg_cls", [DdbmConfig, DbimConfig, BibbdmConfig, BdbmConfig, I2sbConfig, DdibConfig, CutConfig, TurboConfig])
 def test_latent_channels_override(cfg_cls):
     """latent_channels can be overridden at construction time."""
     cfg = cfg_cls(latent_channels=16)
@@ -46,14 +50,14 @@ def test_latent_channels_override(cfg_cls):
 # Pre-built task configs inherit default
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("cfg_fn", [ddbm_sar2eo, bibbdm_sar2eo, i2sb_sar2eo, ddib_sar2eo, cut_sar2eo])
+@pytest.mark.parametrize("cfg_fn", [ddbm_sar2eo, dbim_sar2eo, bibbdm_sar2eo, bdbm_sar2eo, i2sb_sar2eo, ddib_sar2eo, cut_sar2eo])
 def test_task_config_has_latent_channels(cfg_fn):
     """Pre-built task configs carry the default latent_channels=32."""
     cfg = cfg_fn()
     assert cfg.latent_channels == 32
 
 
-@pytest.mark.parametrize("cfg_fn", [ddbm_sar2eo, bibbdm_sar2eo, i2sb_sar2eo, ddib_sar2eo, cut_sar2eo])
+@pytest.mark.parametrize("cfg_fn", [ddbm_sar2eo, dbim_sar2eo, bibbdm_sar2eo, bdbm_sar2eo, i2sb_sar2eo, ddib_sar2eo, cut_sar2eo])
 def test_task_config_latent_channels_overridable(cfg_fn):
     """Pre-built task configs allow latent_channels override via kwargs."""
     cfg = cfg_fn(latent_channels=4)
