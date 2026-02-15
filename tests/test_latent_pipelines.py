@@ -166,6 +166,41 @@ class TestBiBBDMLatentPipeline:
 
 
 # ---------------------------------------------------------------------------
+# BDBM Latent Pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestBDBMLatentPipeline:
+    def test_is_diffusion_pipeline_subclass(self):
+        from src.pipelines.bdbm import BDBMLatentPipeline
+
+        assert issubclass(BDBMLatentPipeline, DiffusionPipeline)
+
+    def test_construction(self):
+        from src.models.unet_bdbm import BDBMUNet
+        from src.schedulers import BDBMScheduler
+        from src.pipelines.bdbm import BDBMLatentPipeline
+
+        unet = BDBMUNet(
+            image_size=32,
+            in_channels=_MIN_CHANNELS,
+            out_channels=2 * _MIN_CHANNELS,
+            model_channels=_MIN_CHANNELS,
+            condition_mode="dual",
+            channel_mult=(1,),
+            attention_resolutions=(),
+        )
+        scheduler = BDBMScheduler(num_timesteps=1000, objective="both")
+        vae = _make_mock_vae()
+
+        pipe = BDBMLatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        assert pipe.vae is not None
+
+
+# ---------------------------------------------------------------------------
 # I2SB Latent Pipeline
 # ---------------------------------------------------------------------------
 

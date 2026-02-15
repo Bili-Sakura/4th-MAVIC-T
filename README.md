@@ -44,7 +44,7 @@ Without this, paths are inferred from the script location (works when run from t
 | :--- | :--- |
 | **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
 | **`models/`** | Pre-trained model weights. |
-| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_i2sb`, `unet_ddib`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
+| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_ddib`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
 | **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, bibbdm, i2sb, cut, img2img_turbo, domain_classifier). |
 | **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
 | **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
@@ -148,6 +148,14 @@ To sync offline logs later: `swanlab sync ./ckpt/swanlog/run-xxx`
   number = {11},
   pages = {10546--10559},
   doi = {10.1109/TPAMI.2025.3597667}
+}
+
+@article{kieu2025bidirectional,
+  title = {Bidirectional Diffusion Bridge Models},
+  author = {Kieu, Duc and Do, Kien and Nguyen, Toan and Nguyen, Dang and Nguyen, Thin},
+  journal = {arXiv preprint arXiv:2502.09655},
+  year = {2025},
+  url = {https://arxiv.org/abs/2502.09655}
 }
 
 @inproceedings{liu2023i2sb,

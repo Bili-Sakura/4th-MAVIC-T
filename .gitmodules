@@ -44,3 +44,6 @@
 [submodule "libs/DiffusionBridge"]
 	path = libs/DiffusionBridge
 	url = https://github.com/thu-ml/DiffusionBridge.git
+[submodule "libs/BDBM"]
+	path = libs/BDBM
+	url = https://github.com/kvmduc/BDBM.git
