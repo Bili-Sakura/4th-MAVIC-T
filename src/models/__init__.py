@@ -15,6 +15,14 @@ from .unet_ddbm import (
     UNET_TYPE_VDM,
     UNET_TYPE_SID,
 )
+from .unet_dbim import (
+    DBIMUNet,
+    DBIMEDMUNet,
+    DBIMEDM2UNet,
+    DBIMVDMUNet,
+    DBIMSiDUNet,
+    create_dbim_model,
+)
 from .unet_bibbdm import (
     BiBBDMUNet,
     EDMBiBBDMUNet,
@@ -62,6 +70,8 @@ __all__ = [
     "UNET_TYPE_EDM2",
     "UNET_TYPE_VDM",
     "UNET_TYPE_SID",
+    "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet", "DBIMSiDUNet",
+    "create_dbim_model",
     "BiBBDMUNet", "EDMBiBBDMUNet", "EDM2BiBBDMUNet", "VDMBiBBDMUNet", "SiDBiBBDMUNet",
     "create_bibbdm_model",
     "DDIBUNet", "create_ddib_model",

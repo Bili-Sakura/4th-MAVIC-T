@@ -71,6 +71,48 @@ class TestDDBMFromPretrained:
 
 
 # ---------------------------------------------------------------------------
+# DBIM
+# ---------------------------------------------------------------------------
+
+
+class TestDBIMFromPretrained:
+    def test_round_trip(self):
+        from src.models.unet_dbim import DBIMUNet
+        from src.schedulers import DBIMScheduler
+
+        model = DBIMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = DBIMScheduler(sigma_min=0.002, sigma_max=1.0, sigma_data=0.5)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(tmpdir, model, scheduler=scheduler, model_name="unet")
+
+            loaded = DBIMUNet.from_pretrained(tmpdir, subfolder="unet")
+            loaded_sched = DBIMScheduler.from_pretrained(tmpdir, subfolder="scheduler")
+
+        _assert_state_dicts_equal(model.state_dict(), loaded.state_dict())
+        assert loaded.config["image_size"] == 32
+        assert loaded.config["in_channels"] == 1
+        assert loaded_sched.config["sigma_min"] == 0.002
+
+    def test_pipeline_construction(self):
+        from src.models.unet_dbim import DBIMUNet
+        from src.schedulers import DBIMScheduler
+        from src.pipelines.dbim import DBIMPipeline
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model = DBIMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+            scheduler = DBIMScheduler(sigma_min=0.002, sigma_max=1.0, sigma_data=0.5)
+            save_checkpoint_diffusers(tmpdir, model, scheduler=scheduler, model_name="unet")
+
+            unet = DBIMUNet.from_pretrained(tmpdir, subfolder="unet")
+            sched = DBIMScheduler.from_pretrained(tmpdir, subfolder="scheduler")
+            pipe = DBIMPipeline(unet=unet, scheduler=sched)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+
+
+# ---------------------------------------------------------------------------
 # BiBBDM
 # ---------------------------------------------------------------------------
 
@@ -191,6 +233,28 @@ class TestPipelineFromPretrained:
                 pipeline_class_name="DDBMPipeline",
             )
             pipe = DDBMPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
+
+    def test_dbim_pipeline_from_pretrained(self):
+        from src.models.unet_dbim import DBIMUNet
+        from src.schedulers import DBIMScheduler
+        from src.pipelines.dbim import DBIMPipeline
+
+        model = DBIMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = DBIMScheduler(sigma_min=0.002, sigma_max=1.0, sigma_data=0.5)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir,
+                model,
+                scheduler=scheduler,
+                model_name="unet",
+                pipeline_class_name="DBIMPipeline",
+            )
+            pipe = DBIMPipeline.from_pretrained(tmpdir)
 
         assert pipe.unet is not None
         assert pipe.scheduler is not None

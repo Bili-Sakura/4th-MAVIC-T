@@ -106,6 +106,39 @@ class TestDDBMLatentPipeline:
 
 
 # ---------------------------------------------------------------------------
+# DBIM Latent Pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestDBIMLatentPipeline:
+    def test_is_diffusion_pipeline_subclass(self):
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        assert issubclass(DBIMLatentPipeline, DiffusionPipeline)
+
+    def test_construction(self):
+        from src.models.unet_dbim import DBIMUNet
+        from src.schedulers import DBIMScheduler
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        unet = DBIMUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
+        scheduler = DBIMScheduler(sigma_min=0.002, sigma_max=1.0, sigma_data=0.5)
+        vae = _make_mock_vae()
+
+        pipe = DBIMLatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        assert pipe.vae is not None
+
+    def test_has_encode_decode(self):
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        assert hasattr(DBIMLatentPipeline, "_encode")
+        assert hasattr(DBIMLatentPipeline, "_decode")
+
+
+# ---------------------------------------------------------------------------
 # BiBBDM Latent Pipeline
 # ---------------------------------------------------------------------------
 
