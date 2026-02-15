@@ -1,6 +1,7 @@
 """Noise schedulers for MAVIC-T baselines."""
 
 from .scheduling_ddbm import DDBMScheduler, DDBMSchedulerOutput
+from .scheduling_dbim import DBIMScheduler, DBIMSchedulerOutput
 from .scheduling_bibbdm import BiBBDMScheduler, BiBBDMSchedulerOutput
 from .scheduling_ddib import DDIBScheduler, DDIBSchedulerOutput
 from .scheduling_i2sb import I2SBScheduler, I2SBSchedulerOutput

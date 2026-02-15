@@ -1,0 +1,37 @@
+"""DBIM UNet wrappers.
+
+DBIM is an improved sampler family over the same bridge model parameterization
+used by DDBM, so DBIM reuses the exact UNet contracts from ``unet_ddbm``.
+"""
+
+from .unet_ddbm import (
+    DDBMUNet as DBIMUNet,
+    EDMUNet as DBIMEDMUNet,
+    EDM2UNet as DBIMEDM2UNet,
+    VDMUNet as DBIMVDMUNet,
+    SiDUNet as DBIMSiDUNet,
+    create_model as create_dbim_model,
+    get_unet_type_config,
+    SUPPORTED_UNET_TYPES,
+    UNET_TYPE_ADM,
+    UNET_TYPE_EDM,
+    UNET_TYPE_EDM2,
+    UNET_TYPE_VDM,
+    UNET_TYPE_SID,
+)
+
+__all__ = [
+    "DBIMUNet",
+    "DBIMEDMUNet",
+    "DBIMEDM2UNet",
+    "DBIMVDMUNet",
+    "DBIMSiDUNet",
+    "create_dbim_model",
+    "get_unet_type_config",
+    "SUPPORTED_UNET_TYPES",
+    "UNET_TYPE_ADM",
+    "UNET_TYPE_EDM",
+    "UNET_TYPE_EDM2",
+    "UNET_TYPE_VDM",
+    "UNET_TYPE_SID",
+]
