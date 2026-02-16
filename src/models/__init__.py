@@ -45,6 +45,7 @@ from .unet_i2sb import (
 from .unet_i2sb import create_model as create_i2sb_model
 from .unet_cdtsde import CDTSDEUNet
 from .unet_cdtsde import create_model as create_cdtsde_model
+from .unet_unidb import UniDBConditionalUNet
 from .cut_model import (
     CUTGenerator,
     PatchGANDiscriminator,
@@ -83,6 +84,7 @@ __all__ = [
     "I2SBUNet", "EDMI2SBUNet", "EDM2I2SBUNet", "VDMI2SBUNet", "SiDI2SBUNet",
     "create_i2sb_model",
     "CDTSDEUNet", "create_cdtsde_model",
+    "UniDBConditionalUNet",
     "CUTGenerator", "PatchGANDiscriminator", "PatchSampleMLP",
     "GANLoss", "PatchNCELoss",
     "create_generator", "create_discriminator", "create_patch_sample_mlp",
