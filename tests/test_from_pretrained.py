@@ -113,6 +113,48 @@ class TestDBIMFromPretrained:
 
 
 # ---------------------------------------------------------------------------
+# CDTSDE
+# ---------------------------------------------------------------------------
+
+
+class TestCDTSDEFromPretrained:
+    def test_round_trip(self):
+        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.schedulers import CDTSDEScheduler
+
+        model = CDTSDEUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = CDTSDEScheduler(num_train_timesteps=100)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(tmpdir, model, scheduler=scheduler, model_name="unet")
+
+            loaded = CDTSDEUNet.from_pretrained(tmpdir, subfolder="unet")
+            loaded_sched = CDTSDEScheduler.from_pretrained(tmpdir, subfolder="scheduler")
+
+        _assert_state_dicts_equal(model.state_dict(), loaded.state_dict())
+        assert loaded.config["image_size"] == 32
+        assert loaded.config["in_channels"] == 1
+        assert loaded_sched.config["num_train_timesteps"] == 100
+
+    def test_pipeline_construction(self):
+        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.schedulers import CDTSDEScheduler
+        from src.pipelines.cdtsde import CDTSDEPipeline
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model = CDTSDEUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+            scheduler = CDTSDEScheduler(num_train_timesteps=100)
+            save_checkpoint_diffusers(tmpdir, model, scheduler=scheduler, model_name="unet")
+
+            unet = CDTSDEUNet.from_pretrained(tmpdir, subfolder="unet")
+            sched = CDTSDEScheduler.from_pretrained(tmpdir, subfolder="scheduler")
+            pipe = CDTSDEPipeline(unet=unet, scheduler=sched)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+
+
+# ---------------------------------------------------------------------------
 # BiBBDM
 # ---------------------------------------------------------------------------
 
@@ -285,6 +327,25 @@ class TestPipelineFromPretrained:
                 pipeline_class_name="DBIMPipeline",
             )
             pipe = DBIMPipeline.from_pretrained(tmpdir)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
+
+    def test_cdtsde_pipeline_from_pretrained(self):
+        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.schedulers import CDTSDEScheduler
+        from src.pipelines.cdtsde import CDTSDEPipeline
+
+        model = CDTSDEUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
+        scheduler = CDTSDEScheduler(num_train_timesteps=100)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_checkpoint_diffusers(
+                tmpdir, model, scheduler=scheduler, model_name="unet",
+                pipeline_class_name="CDTSDEPipeline",
+            )
+            pipe = CDTSDEPipeline.from_pretrained(tmpdir)
 
         assert pipe.unet is not None
         assert pipe.scheduler is not None
