@@ -12,3 +12,4 @@ from .scheduling_turbo import make_1step_sched
 from .scheduling_edm2 import EDM2Scheduler, EDM2SchedulerOutput
 from .scheduling_vdm import VDMScheduler, VDMSchedulerOutput
 from .scheduling_sid import SiDScheduler, SiDSchedulerOutput
+from .scheduling_unidb import UniDBScheduler, UniDBSchedulerOutput
