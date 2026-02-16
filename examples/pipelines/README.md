@@ -7,9 +7,11 @@ Self-contained diffusion pipelines for MAVIC-T models. **No external project cod
 | Model | Pipeline | UNet | Scheduler |
 |-------|----------|------|-----------|
 | DDBM | `DDBMPipeline` | `DDBMUNet` | `DDBMScheduler` |
+| DBIM | `DBIMPipeline` | `DBIMUNet` | `DBIMScheduler` |
 | DDIB | `DDIBPipeline` | `DDIBUNet` | `DDIBScheduler` |
 | I2SB | `I2SBPipeline` | `I2SBUNet` | `I2SBScheduler` |
 | BiBBDM | `BiBBDMPipeline` | `BiBBDMUNet` | `BiBBDMScheduler` |
+| BDBM | `BDBMPipeline` | `BDBMUNet` | `BDBMScheduler` |
 
 ## Usage
 

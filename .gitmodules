@@ -41,3 +41,9 @@
 [submodule "libs/simpleDiffusion"]
 	path = libs/simpleDiffusion
 	url = https://github.com/faverogian/simpleDiffusion
+[submodule "libs/DiffusionBridge"]
+	path = libs/DiffusionBridge
+	url = https://github.com/thu-ml/DiffusionBridge.git
+[submodule "libs/BDBM"]
+	path = libs/BDBM
+	url = https://github.com/kvmduc/BDBM.git

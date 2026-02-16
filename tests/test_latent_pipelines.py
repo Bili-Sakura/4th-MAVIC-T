@@ -106,6 +106,39 @@ class TestDDBMLatentPipeline:
 
 
 # ---------------------------------------------------------------------------
+# DBIM Latent Pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestDBIMLatentPipeline:
+    def test_is_diffusion_pipeline_subclass(self):
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        assert issubclass(DBIMLatentPipeline, DiffusionPipeline)
+
+    def test_construction(self):
+        from src.models.unet_dbim import DBIMUNet
+        from src.schedulers import DBIMScheduler
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        unet = DBIMUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
+        scheduler = DBIMScheduler(sigma_min=0.002, sigma_max=1.0, sigma_data=0.5)
+        vae = _make_mock_vae()
+
+        pipe = DBIMLatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        assert pipe.vae is not None
+
+    def test_has_encode_decode(self):
+        from src.pipelines.dbim import DBIMLatentPipeline
+
+        assert hasattr(DBIMLatentPipeline, "_encode")
+        assert hasattr(DBIMLatentPipeline, "_decode")
+
+
+# ---------------------------------------------------------------------------
 # BiBBDM Latent Pipeline
 # ---------------------------------------------------------------------------
 
@@ -126,6 +159,41 @@ class TestBiBBDMLatentPipeline:
         vae = _make_mock_vae()
 
         pipe = BiBBDMLatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        assert pipe.vae is not None
+
+
+# ---------------------------------------------------------------------------
+# BDBM Latent Pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestBDBMLatentPipeline:
+    def test_is_diffusion_pipeline_subclass(self):
+        from src.pipelines.bdbm import BDBMLatentPipeline
+
+        assert issubclass(BDBMLatentPipeline, DiffusionPipeline)
+
+    def test_construction(self):
+        from src.models.unet_bdbm import BDBMUNet
+        from src.schedulers import BDBMScheduler
+        from src.pipelines.bdbm import BDBMLatentPipeline
+
+        unet = BDBMUNet(
+            image_size=32,
+            in_channels=_MIN_CHANNELS,
+            out_channels=2 * _MIN_CHANNELS,
+            model_channels=_MIN_CHANNELS,
+            condition_mode="dual",
+            channel_mult=(1,),
+            attention_resolutions=(),
+        )
+        scheduler = BDBMScheduler(num_timesteps=1000, objective="both")
+        vae = _make_mock_vae()
+
+        pipe = BDBMLatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
 
         assert pipe.unet is not None
         assert pipe.scheduler is not None

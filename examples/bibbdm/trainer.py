@@ -73,6 +73,32 @@ class BiBBDMTrainer:
     def __init__(self, cfg: TaskConfig) -> None:
         self.cfg = cfg
 
+    # ----- baseline hooks ----------------------------------------------------
+
+    @property
+    def baseline_name(self) -> str:
+        return "bibbdm"
+
+    @property
+    def pipeline_class_name(self) -> str:
+        return "BiBBDMPipeline"
+
+    def get_validation_pipelines(self):
+        from src.pipelines.bibbdm import BiBBDMPipeline, BiBBDMLatentPipeline
+
+        return BiBBDMPipeline, BiBBDMLatentPipeline
+
+    def get_inference_kwargs(self, source_inp: torch.Tensor) -> dict:
+        cfg = self.cfg
+        num_steps = getattr(cfg, "num_inference_steps", cfg.sample_step)
+        return {
+            "source_image": source_inp,
+            "direction": "b2a",
+            "num_inference_steps": num_steps,
+            "clip_denoised": cfg.clip_denoised,
+            "output_type": "pt",
+        }
+
     # ----- dataset -----------------------------------------------------------
 
     def build_datasets(self):
@@ -301,7 +327,7 @@ class BiBBDMTrainer:
     @torch.no_grad()
     def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
         """Generate and save test samples (first four inputs)."""
-        from src.pipelines.bibbdm import BiBBDMPipeline, BiBBDMLatentPipeline
+        PixelPipeline, LatentPipeline = self.get_validation_pipelines()
 
         logger.info("Running validation at step %d …", global_step)
         cfg = self.cfg
@@ -310,9 +336,9 @@ class BiBBDMTrainer:
         unwrapped.eval()
 
         if latent_target_encoder is not None:
-            pipeline = BiBBDMLatentPipeline(unet=unwrapped, scheduler=scheduler, vae=latent_target_encoder.vae)
+            pipeline = LatentPipeline(unet=unwrapped, scheduler=scheduler, vae=latent_target_encoder.vae)
         else:
-            pipeline = BiBBDMPipeline(unet=unwrapped, scheduler=scheduler)
+            pipeline = PixelPipeline(unet=unwrapped, scheduler=scheduler)
         pipeline = pipeline.to(accelerator.device)
 
         sample_dir = Path(cfg.output_dir) / "test_results" / f"step-{global_step:06d}"
@@ -328,13 +354,7 @@ class BiBBDMTrainer:
             source_inp = source_01 * 2 - 1
 
             with accelerator.autocast():
-                pipeline_kwargs = {
-                    "source_image": source_inp,
-                    "direction": "b2a",
-                    "num_inference_steps": cfg.num_inference_steps,
-                    "clip_denoised": cfg.clip_denoised,
-                    "output_type": "pt",
-                }
+                pipeline_kwargs = self.get_inference_kwargs(source_inp)
                 if latent_target_encoder is not None:
                     pipeline_kwargs["target_channels"] = cfg.target_channels
                 result = pipeline(**pipeline_kwargs)
@@ -388,7 +408,7 @@ class BiBBDMTrainer:
         cfg = self.cfg
 
         if cfg.task_name:
-            cfg.output_dir = os.path.join(cfg.output_dir, "bibbdm", cfg.task_name)
+            cfg.output_dir = os.path.join(cfg.output_dir, self.baseline_name, cfg.task_name)
 
         checkpointing_steps = cfg.checkpointing_steps
         save_model_epochs = cfg.save_model_epochs
@@ -551,7 +571,7 @@ class BiBBDMTrainer:
         cfg.num_epochs = math.ceil(cfg.max_train_steps / num_update_steps_per_epoch)
 
         if accelerator.is_main_process:
-            project_name = f"bibbdm-{cfg.task_name}"
+            project_name = f"{self.baseline_name}-{cfg.task_name}"
             tracker_config = build_accelerate_tracker_config(cfg)
             tracker_init_kwargs = build_accelerate_tracker_init_kwargs(cfg, project_name)
             accelerator.init_trackers(
@@ -692,7 +712,7 @@ class BiBBDMTrainer:
                             unwrapped_for_ckpt,
                             scheduler=scheduler,
                             model_name="unet",
-                            pipeline_class_name="BiBBDMPipeline",
+                            pipeline_class_name=self.pipeline_class_name,
                             extra_state_dicts=extra_sd_ckpt if extra_sd_ckpt else None,
                         )
                         save_training_config(cfg, save_path)
@@ -701,8 +721,8 @@ class BiBBDMTrainer:
                             push_checkpoint_to_hub(
                                 save_path,
                                 hub_model_id=cfg.hub_model_id,
-                                commit_message=f"bibbdm {cfg.task_name} step {global_step}",
-                                path_in_repo=f"bibbdm/{cfg.task_name}/checkpoint-{global_step}",
+                                commit_message=f"{self.baseline_name} {cfg.task_name} step {global_step}",
+                                path_in_repo=f"{self.baseline_name}/{cfg.task_name}/checkpoint-{global_step}",
                             )
 
                         if cfg.checkpoints_total_limit is not None:
@@ -755,7 +775,7 @@ class BiBBDMTrainer:
                     unwrapped,
                     scheduler=scheduler,
                     model_name="unet",
-                    pipeline_class_name="BiBBDMPipeline",
+                    pipeline_class_name=self.pipeline_class_name,
                     extra_state_dicts=extra_sd if extra_sd else None,
                 )
                 save_training_config(cfg, epoch_dir)
@@ -765,8 +785,8 @@ class BiBBDMTrainer:
                     push_checkpoint_to_hub(
                         epoch_dir,
                         hub_model_id=cfg.hub_model_id,
-                        commit_message=f"bibbdm {cfg.task_name} epoch {epoch + 1}",
-                        path_in_repo=f"bibbdm/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
+                        commit_message=f"{self.baseline_name} {cfg.task_name} epoch {epoch + 1}",
+                        path_in_repo=f"{self.baseline_name}/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
                     )
 
         accelerator.end_training()

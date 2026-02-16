@@ -54,6 +54,20 @@ def load_ddbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = Tr
     return pipeline.to(device)
 
 
+def load_dbim_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
+    """Load DBIM pipeline from checkpoint."""
+    from src.pipelines.dbim import DBIMPipeline
+    from src.models.unet_dbim import DBIMUNet
+    from src.schedulers import DBIMScheduler
+
+    ckpt = Path(checkpoint)
+    unet_subfolder = "ema_unet" if use_ema and (ckpt / "ema_unet").is_dir() else "unet"
+    unet = DBIMUNet.from_pretrained(str(ckpt), subfolder=unet_subfolder)
+    scheduler = DBIMScheduler.from_pretrained(str(ckpt), subfolder="scheduler")
+    pipeline = DBIMPipeline(unet=unet, scheduler=scheduler)
+    return pipeline.to(device)
+
+
 def load_ddib_pipeline(checkpoint: str, device: str = "cuda"):
     """Load DDIB pipeline from combined checkpoint directory."""
     from examples.pipelines.ddib.pipeline import DDIBPipeline, DDIBUNet, DDIBScheduler
@@ -96,15 +110,29 @@ def load_bibbdm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = 
     return pipeline.to(device)
 
 
+def load_bdbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
+    """Load BDBM pipeline from checkpoint."""
+    from src.pipelines.bdbm import BDBMPipeline
+    from src.models.unet_bdbm import BDBMUNet
+    from src.schedulers import BDBMScheduler
+
+    ckpt = Path(checkpoint)
+    unet_subfolder = "ema_unet" if use_ema and (ckpt / "ema_unet").is_dir() else "unet"
+    unet = BDBMUNet.from_pretrained(str(ckpt), subfolder=unet_subfolder)
+    scheduler = BDBMScheduler.from_pretrained(str(ckpt), subfolder="scheduler")
+    pipeline = BDBMPipeline(unet=unet, scheduler=scheduler)
+    return pipeline.to(device)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run inference with self-contained pipelines.")
-    parser.add_argument("--model", choices=["ddbm", "ddib", "i2sb", "bibbdm"], required=True)
+    parser.add_argument("--model", choices=["ddbm", "dbim", "ddib", "i2sb", "bibbdm", "bdbm"], required=True)
     parser.add_argument("--checkpoint", required=True, help="Path to checkpoint directory")
     parser.add_argument("--input_dir", default=None, help="Directory of input images")
     parser.add_argument("--input_image", default=None, help="Single input image path")
     parser.add_argument("--output_dir", default="./outputs")
-    parser.add_argument("--num_steps", type=int, default=1000, help="Inference steps (DDBM/I2SB/BiBBDM)")
-    parser.add_argument("--direction", default="b2a", choices=["b2a", "a2b"], help="BiBBDM only")
+    parser.add_argument("--num_steps", type=int, default=1000, help="Inference steps (DDBM/I2SB/BiBBDM/BDBM)")
+    parser.add_argument("--direction", default="b2a", choices=["b2a", "a2b"], help="BiBBDM/BDBM only")
     parser.add_argument(
         "--deterministic",
         action="store_true",
@@ -117,12 +145,16 @@ def main():
     # Load pipeline
     if args.model == "ddbm":
         pipe = load_ddbm_pipeline(args.checkpoint, args.device)
+    elif args.model == "dbim":
+        pipe = load_dbim_pipeline(args.checkpoint, args.device)
     elif args.model == "ddib":
         pipe = load_ddib_pipeline(args.checkpoint, args.device)
     elif args.model == "i2sb":
         pipe = load_i2sb_pipeline(args.checkpoint, args.device)
     elif args.model == "bibbdm":
         pipe = load_bibbdm_pipeline(args.checkpoint, args.device)
+    elif args.model == "bdbm":
+        pipe = load_bdbm_pipeline(args.checkpoint, args.device)
     else:
         raise ValueError(f"Unknown model: {args.model}")
 
@@ -142,7 +174,7 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.deterministic and args.model == "bibbdm":
+    if args.deterministic and args.model in {"bibbdm", "bdbm"}:
         pipe.scheduler.eta = 0.0
         pipe.scheduler.config.eta = 0.0
 
@@ -171,6 +203,16 @@ def main():
                 churn_step_ratio=churn,
                 output_type=args.output_type,
             )
+        elif args.model == "dbim":
+            out = pipe(
+                source_image=tensor,
+                sampler="dbim",
+                num_inference_steps=args.num_steps,
+                guidance=1.0,
+                eta=eta,
+                churn_step_ratio=churn,
+                output_type=args.output_type,
+            )
         elif args.model == "ddib":
             out = pipe(
                 source_image=tensor,
@@ -188,6 +230,14 @@ def main():
                 output_type=args.output_type,
             )
         elif args.model == "bibbdm":
+            out = pipe(
+                source_image=tensor,
+                direction=args.direction,
+                num_inference_steps=args.num_steps,
+                clip_denoised=False,
+                output_type=args.output_type,
+            )
+        elif args.model == "bdbm":
             out = pipe(
                 source_image=tensor,
                 direction=args.direction,
