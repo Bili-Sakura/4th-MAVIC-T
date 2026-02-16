@@ -222,6 +222,156 @@ class UniDBScheduler(SchedulerMixin, ConfigMixin):
             mu = torch.zeros_like(x0)
         return self._m(t) * x0 + self._n(t) * mu
 
+    def _f_m(self, t: Union[int, torch.Tensor]) -> torch.Tensor:
+        """Coefficient of x_{t-1} in forward process: m(t)/m(t-1)."""
+        m_t = self._m(t)
+        t_prev = t - 1 if isinstance(t, int) else t - 1
+        m_t_prev = self._m(t_prev)
+        return m_t / m_t_prev
+
+    def _f_n(self, t: Union[int, torch.Tensor]) -> torch.Tensor:
+        """Coefficient of x_T in forward process: n(t) - n(t-1)*m(t)/m(t-1)."""
+        return self._n(t) - self._n(t - 1) * self._f_m(t)
+
+    def _f_sigma_1(self, t: Union[int, torch.Tensor]) -> torch.Tensor:
+        """Forward sigma from t-1 to t."""
+        f_sig = self._f_sigma(t)
+        f_sig_prev = self._f_sigma(t - 1)
+        f_m = self._f_m(t)
+        return torch.sqrt(
+            torch.clamp(f_sig**2 - f_sig_prev**2 * f_m**2, min=1e-20)
+        )
+
+    def _r_mean_1(
+        self,
+        xt: torch.Tensor,
+        x0: torch.Tensor,
+        t: Union[int, torch.Tensor],
+    ) -> torch.Tensor:
+        """Reverse mean from t to t-1 (optimum step)."""
+        mu = self._mu
+        if mu is None:
+            mu = torch.zeros_like(xt)
+        f_sig = self._f_sigma(t)
+        f_sig_prev = self._f_sigma(t - 1)
+        f_sig_1 = self._f_sigma_1(t)
+        f_m = self._f_m(t)
+        f_n = self._f_n(t)
+        f_mean_prev = self._f_mean(x0, t - 1)
+        if isinstance(f_sig, torch.Tensor) and f_sig.ndim < xt.ndim:
+            f_sig = self._append_dims(f_sig, xt.ndim)
+            f_sig_prev = self._append_dims(f_sig_prev, xt.ndim)
+            f_sig_1 = self._append_dims(f_sig_1, xt.ndim)
+            f_m = self._append_dims(f_m, xt.ndim)
+            f_n = self._append_dims(f_n, xt.ndim)
+            f_mean_prev = f_mean_prev if f_mean_prev.shape == xt.shape else self._append_dims(f_mean_prev, xt.ndim)
+        return (
+            f_sig_prev**2 * f_m * (xt - f_n * mu) + f_sig_1**2 * f_mean_prev
+        ) / (f_sig**2)
+
+    def get_score_from_noise(
+        self,
+        noise: torch.Tensor,
+        t: Union[int, torch.Tensor],
+    ) -> torch.Tensor:
+        """Convert model noise output to score: score = -noise / f_sigma(t)."""
+        f_sig = self._f_sigma(t)
+        if isinstance(f_sig, torch.Tensor) and f_sig.ndim < noise.ndim:
+            f_sig = self._append_dims(f_sig, noise.ndim)
+        return -noise / f_sig
+
+    def reverse_sde_step_mean(
+        self,
+        x: torch.Tensor,
+        score: torch.Tensor,
+        t: Union[int, torch.Tensor],
+    ) -> torch.Tensor:
+        """One reverse step (mean, no dispersion) for training."""
+        reverse_drift = self._sde_reverse_drift_1(x, score, t)
+        return x - reverse_drift
+
+    def _sde_reverse_drift_1(
+        self,
+        x: torch.Tensor,
+        score: torch.Tensor,
+        t: Union[int, torch.Tensor],
+    ) -> torch.Tensor:
+        """SDE reverse drift term (with gamma)."""
+        is_scalar = isinstance(t, int)
+        if is_scalar:
+            t_flat = t
+        else:
+            t_flat = t.view(-1)
+
+        th_t = self._thetas[t_flat]
+        sig_t = self._sigmas[t_flat]
+        th_cumsum_t = self._thetas_cumsum[t_flat]
+        th_cumsum_T = self._thetas_cumsum[-1]
+        sigma_t_T_t = self._sigma_t_T[t_flat]
+
+        if not is_scalar:
+            th_t = self._append_dims(th_t, x.ndim)
+            sig_t = self._append_dims(sig_t, x.ndim)
+            th_cumsum_t = self._append_dims(th_cumsum_t, x.ndim)
+            th_cumsum_T = self._append_dims(
+                th_cumsum_T.expand(x.shape[0]), x.ndim
+            )
+            sigma_t_T_t = self._append_dims(sigma_t_T_t, x.ndim)
+
+        base_drift = (th_t * (self._mu - x) - sig_t**2 * score) * self._dt
+
+        tmp = torch.exp(2.0 * (th_cumsum_t - th_cumsum_T) * self._dt)
+        drift_h = (
+            -(self.gamma * sig_t**2 * tmp)
+            / (1.0 + self.gamma * sigma_t_T_t**2)
+            * (x - self._mu)
+        )
+        if is_scalar and t == self.T:
+            drift_h = torch.zeros_like(drift_h)
+        elif not is_scalar:
+            mask = (t_flat == self.T).view(-1, 1, 1, 1).expand_as(drift_h)
+            drift_h = torch.where(mask, torch.zeros_like(drift_h), drift_h)
+
+        return base_drift + drift_h
+
+    def reverse_optimum_step(
+        self,
+        xt: torch.Tensor,
+        x0: torch.Tensor,
+        t: Union[int, torch.Tensor],
+    ) -> torch.Tensor:
+        """Optimum x_{t-1} given xt and x0 (for training target)."""
+        return self._r_mean_1(xt, x0, t)
+
+    def generate_random_states(
+        self,
+        x0: torch.Tensor,
+        mu: torch.Tensor,
+        device: Optional[torch.device] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Sample random (timesteps, noisy_states) for training.
+
+        Returns (timesteps, noisy_states) where timesteps are in 1..T-1.
+        """
+        self._initialize(device=x0.device if device is None else device)
+        self._mu = mu
+
+        x0 = x0.to(self._thetas.device)
+        mu = mu.to(self._thetas.device)
+        batch = x0.shape[0]
+
+        timesteps = torch.randint(
+            1, self.T, (batch, 1, 1, 1), device=x0.device, dtype=torch.long
+        )
+
+        state_mean = self._f_mean(x0, timesteps)
+        noises = torch.randn_like(state_mean, device=x0.device, dtype=x0.dtype)
+        noise_level = self._f_sigma(timesteps)
+        if isinstance(noise_level, torch.Tensor) and noise_level.ndim < 4:
+            noise_level = self._append_dims(noise_level, 4)
+        noisy_states = noises * noise_level + state_mean
+        return timesteps, noisy_states.to(torch.float32)
+
     def set_timesteps(
         self,
         num_inference_steps: int,

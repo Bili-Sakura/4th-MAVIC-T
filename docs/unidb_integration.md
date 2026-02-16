@@ -69,6 +69,34 @@ images = output.images
 
 UniDB checkpoints use `ConditionalUNet` with `in_nc=3, out_nc=3, nf=64, depth=4`. Our `UniDBConditionalUNet` matches this architecture. If your checkpoint uses different keys (e.g. `module.` prefix), strip them before loading.
 
+## Training
+
+Training examples are in `examples/unidb/`:
+
+```bash
+# SAR-to-RGB
+python -m examples.unidb.train_sar2rgb --max_train_steps 10000
+
+# SAR-to-IR
+python -m examples.unidb.train_sar2ir --max_train_steps 10000
+
+# SAR-to-EO
+python -m examples.unidb.train_sar2eo --max_train_steps 10000
+
+# RGB-to-IR
+python -m examples.unidb.train_rgb2ir --max_train_steps 10000
+```
+
+Override any config field via `--field_name value`, e.g.:
+
+```bash
+python -m examples.unidb.train_sar2rgb \
+  --lambda_square 30 \
+  --gamma 1e7 \
+  --train_batch_size 16 \
+  --learning_rate 1e-4
+```
+
 ## References
 
 - [UniDB++ GitHub](https://github.com/2769433owo/UniDB-plusplus)
