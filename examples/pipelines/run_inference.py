@@ -124,9 +124,23 @@ def load_bdbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = Tr
     return pipeline.to(device)
 
 
+def load_cdtsde_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
+    """Load CDTSDE pipeline from checkpoint."""
+    from src.pipelines.cdtsde import CDTSDEPipeline
+    from src.models.unet_cdtsde import CDTSDEUNet
+    from src.schedulers import CDTSDEScheduler
+
+    ckpt = Path(checkpoint)
+    unet_subfolder = "ema_unet" if use_ema and (ckpt / "ema_unet").is_dir() else "unet"
+    unet = CDTSDEUNet.from_pretrained(str(ckpt), subfolder=unet_subfolder)
+    scheduler = CDTSDEScheduler.from_pretrained(str(ckpt), subfolder="scheduler")
+    pipeline = CDTSDEPipeline(unet=unet, scheduler=scheduler)
+    return pipeline.to(device)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run inference with self-contained pipelines.")
-    parser.add_argument("--model", choices=["ddbm", "dbim", "ddib", "i2sb", "bibbdm", "bdbm"], required=True)
+    parser.add_argument("--model", choices=["ddbm", "dbim", "ddib", "i2sb", "bibbdm", "bdbm", "cdtsde"], required=True)
     parser.add_argument("--checkpoint", required=True, help="Path to checkpoint directory")
     parser.add_argument("--input_dir", default=None, help="Directory of input images")
     parser.add_argument("--input_image", default=None, help="Single input image path")
@@ -155,6 +169,8 @@ def main():
         pipe = load_bibbdm_pipeline(args.checkpoint, args.device)
     elif args.model == "bdbm":
         pipe = load_bdbm_pipeline(args.checkpoint, args.device)
+    elif args.model == "cdtsde":
+        pipe = load_cdtsde_pipeline(args.checkpoint, args.device)
     else:
         raise ValueError(f"Unknown model: {args.model}")
 
@@ -243,6 +259,14 @@ def main():
                 direction=args.direction,
                 num_inference_steps=args.num_steps,
                 clip_denoised=False,
+                output_type=args.output_type,
+            )
+        elif args.model == "cdtsde":
+            out = pipe(
+                source_image=tensor,
+                num_inference_steps=args.num_steps,
+                stochastic=not args.deterministic,
+                apply_domain_shift=True,
                 output_type=args.output_type,
             )
 

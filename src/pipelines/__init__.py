@@ -6,5 +6,6 @@ from .bibbdm import BiBBDMPipeline, BiBBDMPipelineOutput, BiBBDMLatentPipeline, 
 from .bdbm import BDBMPipeline, BDBMPipelineOutput, BDBMLatentPipeline, BDBMLatentPipelineOutput
 from .ddib import DDIBPipeline, DDIBPipelineOutput, DDIBLatentPipeline, DDIBLatentPipelineOutput
 from .i2sb import I2SBPipeline, I2SBPipelineOutput, I2SBLatentPipeline, I2SBLatentPipelineOutput
+from .cdtsde import CDTSDEPipeline, CDTSDEPipelineOutput, CDTSDELatentPipeline, CDTSDELatentPipelineOutput
 from .cut import CUTPipeline, CUTPipelineOutput, CUTLatentPipeline, CUTLatentPipelineOutput
 from .turbo import Pix2PixTurboPipeline, CycleGANTurboPipeline, TurboPipelineOutput

@@ -43,6 +43,8 @@ from .unet_i2sb import (
     SiDI2SBUNet,
 )
 from .unet_i2sb import create_model as create_i2sb_model
+from .unet_cdtsde import CDTSDEUNet
+from .unet_cdtsde import create_model as create_cdtsde_model
 from .cut_model import (
     CUTGenerator,
     PatchGANDiscriminator,
@@ -80,6 +82,7 @@ __all__ = [
     "DDIBUNet", "create_ddib_model",
     "I2SBUNet", "EDMI2SBUNet", "EDM2I2SBUNet", "VDMI2SBUNet", "SiDI2SBUNet",
     "create_i2sb_model",
+    "CDTSDEUNet", "create_cdtsde_model",
     "CUTGenerator", "PatchGANDiscriminator", "PatchSampleMLP",
     "GANLoss", "PatchNCELoss",
     "create_generator", "create_discriminator", "create_patch_sample_mlp",

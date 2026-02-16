@@ -139,6 +139,32 @@ class TestDBIMLatentPipeline:
 
 
 # ---------------------------------------------------------------------------
+# CDTSDE Latent Pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestCDTSDELatentPipeline:
+    def test_is_diffusion_pipeline_subclass(self):
+        from src.pipelines.cdtsde import CDTSDELatentPipeline
+
+        assert issubclass(CDTSDELatentPipeline, DiffusionPipeline)
+
+    def test_construction(self):
+        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.schedulers import CDTSDEScheduler
+        from src.pipelines.cdtsde import CDTSDELatentPipeline
+
+        unet = CDTSDEUNet(image_size=32, in_channels=_MIN_CHANNELS, model_channels=_MIN_CHANNELS)
+        scheduler = CDTSDEScheduler(num_train_timesteps=100)
+        vae = _make_mock_vae()
+
+        pipe = CDTSDELatentPipeline(unet=unet, scheduler=scheduler, vae=vae)
+
+        assert pipe.unet is not None
+        assert pipe.scheduler is not None
+        assert pipe.vae is not None
+
+# ---------------------------------------------------------------------------
 # BiBBDM Latent Pipeline
 # ---------------------------------------------------------------------------
 

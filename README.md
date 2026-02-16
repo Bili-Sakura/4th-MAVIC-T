@@ -44,8 +44,8 @@ Without this, paths are inferred from the script location (works when run from t
 | :--- | :--- |
 | **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
 | **`models/`** | Pre-trained model weights. |
-| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_ddib`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
-| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, cut, img2img_turbo, domain_classifier). |
+| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_cdtsde`, `unet_ddib`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
+| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, cdtsde, cut, img2img_turbo, domain_classifier). |
 | **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
 | **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
 
@@ -164,6 +164,14 @@ To sync offline logs later: `swanlab sync ./ckpt/swanlog/run-xxx`
   booktitle = {International Conference on Machine Learning},
   year = {2023},
   url = {https://openreview.net/forum?id=WH2Cy3eQd0}
+}
+
+@inproceedings{wang2026cdtsde,
+  title = {Adaptive Domain Shift in Diffusion Models for Cross-Modality Image Translation},
+  author = {Wang, Zihao and Chen, Yuzhou and Ren, Shaogang},
+  booktitle = {International Conference on Learning Representations},
+  year = {2026},
+  url = {https://openreview.net/forum?id=it0GTdiW9t}
 }
 
 @inproceedings{park2020cut,
