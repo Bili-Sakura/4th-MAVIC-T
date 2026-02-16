@@ -1,3 +1,5 @@
 \begin{abstract}
-In this paper, we present a comprehensive study on cross-modal remote sensing image-to-image translation.
+{\color{gray}
+Cross-modal image-to-image translation across Electro-Optical (EO), Infrared (IR), and Synthetic Aperture Radar (SAR) modalities is essential for multi-modal aerial view analysis, yet remains challenging due to the distinct electromagnetic characteristics of each sensor. We present EarthBridge, our solution for the 4th Multi-modal Aerial View Image Challenge -- Translation (MAVIC-T), based on Denoising Diffusion Bridge Models (DDBM). Our approach conditions the bridge diffusion process on the source image via channel concatenation and trains a UNet denoiser under Karras-weighted bridge scalings. We further explore three complementary techniques: a MAVIC-T-aware auxiliary loss that directly optimizes toward the challenge metrics (LPIPS and L1), representation alignment using frozen MaRS encoders pre-trained on remote sensing data, and latent-space modeling via a pre-trained VAE for high-resolution tasks. We evaluate EarthBridge across all four translation tasks (SAR$\rightarrow$EO, SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR) at resolutions up to $1024\times1024$, comparing against five baselines including CUT, BiBBDM, I2SB, DDIB, and Pix2Pix-Turbo.
+}
 \end{abstract}
