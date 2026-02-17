@@ -38,6 +38,7 @@ def _build_block_types(channel_mult: tuple, attention_resolutions: tuple) -> tup
 
 def _channel_mult_for_resolution(resolution: int) -> tuple:
     return {
+        1024: (1, 1, 2, 2, 4, 4),
         512: (1, 1, 2, 2, 4, 4),
         256: (1, 1, 2, 2, 4, 4),
         128: (1, 1, 2, 3, 4),

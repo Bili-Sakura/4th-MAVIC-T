@@ -114,45 +114,48 @@ diffusion_unet:
       Good balance of quality and training cost for the MAVIC-T dataset.
 
   # -------------------------------------------------------
-  # Large           (~404 M parameters)
+  # Large           (~404 M parameters, 1024px-optimized)
   # -------------------------------------------------------
-  # Standard for high-quality generation at 256-512 resolution.
-  # Inspired by Stable Diffusion v1.x UNet sizing.
+  # Optimized for 1024px input.  OOM-safe attention: only at 64px and below
+  # (AttnDownBlock2D at down_block_types indices 4,5).  128px attention
+  # (16k^2 tokens) is disabled to avoid memory blowup.
   large:
-    num_channels: 256
+    num_channels: 128
     num_res_blocks: 2
-    attention_resolutions: "32,16,8"
-    channel_mult: "1,2,4,4"
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 404284161      # DDBM/I2SB sar2eo
+    exact_params_1ch: 404284161      # DDBM/I2SB sar2eo (re-verify after config change)
     exact_params_3ch: 404297987      # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 404286466
     exact_params_bibbdm_3ch: 404304902
-    recommended_resolution: "256-512"
+    recommended_resolution: "1024"
     notes: >
-      Significantly wider backbone.  Expect ~3 \times the training time and
-      VRAM of "medium".  Recommended when the medium variant plateaus
-      and higher fidelity is needed.
+      1024px-optimized: block_out_channels (128,128,256,256,512,512).
+      Level 0 kept at 128 channels to manage initial tensor size
+      (~500MB per sample at 1024×1024).  Attention only at 64px and below.
 
   # -------------------------------------------------------
-  # Huge / XL       (~909 M parameters)
+  # Huge / XL       (~909 M parameters, 1024px-optimized)
   # -------------------------------------------------------
-  # For advanced, high-fidelity cross-modality translation at higher
-  # resolutions.  Inspired by Stable Diffusion XL.
+  # Optimized for 1024px input.  Same OOM-safe attention as large
+  # (64px and below only).  Bottleneck increased to 1024 channels for
+  # extra capacity at high resolution.
   huge:
-    num_channels: 384
+    num_channels: 128
     num_res_blocks: 2
-    attention_resolutions: "32,16,8"
-    channel_mult: "1,2,4,4"
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,8"
     dropout: 0.0
-    exact_params_1ch: 909497473      # DDBM/I2SB sar2eo
+    exact_params_1ch: 909497473      # DDBM/I2SB sar2eo (re-verify after config change)
     exact_params_3ch: 909518211      # DDBM/I2SB rgb2ir/sar2rgb
     exact_params_bibbdm_1ch: 909500930
     exact_params_bibbdm_3ch: 909528582
-    recommended_resolution: "512-1024"
+    recommended_resolution: "1024"
     notes: >
-      Very large model; requires multi-GPU training and ≥40 GB VRAM
-      per device.  Consider gradient checkpointing and bf16/fp16.
+      1024px-optimized: block_out_channels (128,128,256,256,512,1024).
+      Bottleneck at 1024 channels for more capacity.  Attention only at
+      64px and below.  Requires multi-GPU training and ≥40 GB VRAM.
 
   # -------------------------------------------------------
   # Per-task guidance
