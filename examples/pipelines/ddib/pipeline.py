@@ -27,8 +27,8 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 def _channel_mult_for_resolution(resolution: int) -> tuple:
     return {
         1024: (1, 1, 2, 2, 4, 4),
-        512: (1, 1, 2, 2, 4, 4),
-        256: (1, 1, 2, 2, 4, 4),
+        512: (1, 2, 4, 4, 8),
+        256: (1, 2, 2, 4),
         128: (1, 1, 2, 3, 4),
         64: (1, 2, 3, 4),
         32: (1, 2, 3, 4),

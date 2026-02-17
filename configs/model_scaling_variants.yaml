@@ -96,9 +96,9 @@ diffusion_unet:
   # -------------------------------------------------------
   # Resolution-aware tiers: medium-{256,512,1024}px, large-*, huge-*
   # -------------------------------------------------------
-  # Each tier (medium/large/huge) has resolution-specific configs.
-  # 256px: attention at 32,16,8.  512px/1024px: attention at 64,32 only (OOM-safe).
-  # medium = 64 base channels; large = 128; huge = 128 with 1024 bottleneck.
+  # ADM-style I2I: 256px=4 stages (256→16), 512px=5 stages (512→16), 1024px=6 stages.
+  # Attention: 256/512/1024 all use 64,32 only (OOM-safe; 64px has 4k tokens).
+  # Optional: attention_head_dim=64 stabilizes training (heads scale with channels).
   #
   #   *** medium-256px is current default for sar2eo ***
   # -------------------------------------------------------
@@ -106,30 +106,34 @@ diffusion_unet:
   medium-256px:
     num_channels: 64
     num_res_blocks: 2
-    attention_resolutions: "32,16,8"
-    channel_mult: "1,1,2,2,4,4"
+    attention_resolutions: "64,32"
+    channel_mult: "1,2,2,4"
     dropout: 0.0
-    exact_params_1ch: 30095425       # DDBM/I2SB sar2eo
-    exact_params_3ch: 30098883      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 30096002
-    exact_params_bibbdm_3ch: 30100614
+    attention_head_dim: 64
+    exact_params_1ch: 18534593       # DDBM/I2SB sar2eo
+    exact_params_3ch: 18538051      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 18535170
+    exact_params_bibbdm_3ch: 18539782
     recommended_resolution: "256"
     notes: >
-      block_out_channels (64,64,128,128,256,256).  Default for 256 \times256 tasks.
+      4 stages: 256→128→64→32→16.  block_out_channels (64,128,128,256).
+      Attn at 64→32 and 32→16.  Default for 256 \times256 tasks.
 
   medium-512px:
     num_channels: 64
     num_res_blocks: 2
     attention_resolutions: "64,32"
-    channel_mult: "1,1,2,2,4,4"
+    channel_mult: "1,2,4,4,8"
     dropout: 0.0
-    exact_params_1ch: 28777025
-    exact_params_3ch: 28780483
-    exact_params_bibbdm_1ch: 28777602
-    exact_params_bibbdm_3ch: 28782214
+    attention_head_dim: 64
+    exact_params_1ch: 72729537
+    exact_params_3ch: 72732995
+    exact_params_bibbdm_1ch: 72730114
+    exact_params_bibbdm_3ch: 72734726
     recommended_resolution: "512"
     notes: >
-      block_out_channels (64,64,128,128,256,256).  Attention at 64px and below.
+      5 stages: 512→256→128→64→32→16.  block_out_channels (64,128,256,256,512).
+      No attn at 128→64 to save VRAM.  Attn at 64→32 and 32→16.
 
   medium-1024px:
     num_channels: 64
@@ -137,6 +141,7 @@ diffusion_unet:
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
+    attention_head_dim: 64
     exact_params_1ch: 29763905
     exact_params_3ch: 29767363
     exact_params_bibbdm_1ch: 29764482
@@ -148,30 +153,32 @@ diffusion_unet:
   large-256px:
     num_channels: 128
     num_res_blocks: 2
-    attention_resolutions: "32,16,8"
-    channel_mult: "1,1,2,2,4,4"
+    attention_resolutions: "64,32"
+    channel_mult: "1,2,2,4"
     dropout: 0.0
-    exact_params_1ch: 120246401      # DDBM/I2SB sar2eo
-    exact_params_3ch: 120253315      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 120247554
-    exact_params_bibbdm_3ch: 120256774
+    attention_head_dim: 64
+    exact_params_1ch: 74047873      # DDBM/I2SB sar2eo
+    exact_params_3ch: 74054787      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 74049026
+    exact_params_bibbdm_3ch: 74058246
     recommended_resolution: "256"
     notes: >
-      block_out_channels (128,128,256,256,512,512).  ~120 M params.
+      4 stages: block_out_channels (128,256,256,512).  Matches ADM 256px spec.
 
   large-512px:
     num_channels: 128
     num_res_blocks: 2
     attention_resolutions: "64,32"
-    channel_mult: "1,1,2,2,4,4"
+    channel_mult: "1,2,4,4,8"
     dropout: 0.0
-    exact_params_1ch: 114988161
-    exact_params_3ch: 114995075
-    exact_params_bibbdm_1ch: 114989314
-    exact_params_bibbdm_3ch: 114998534
+    attention_head_dim: 64
+    exact_params_1ch: 290736001
+    exact_params_3ch: 290742915
+    exact_params_bibbdm_1ch: 290737154
+    exact_params_bibbdm_3ch: 290746374
     recommended_resolution: "512"
     notes: >
-      block_out_channels (128,128,256,256,512,512).  ~115 M params.
+      5 stages: block_out_channels (128,256,512,512,1024).  Matches ADM 512px spec.
 
   large-1024px:
     num_channels: 128
@@ -179,6 +186,7 @@ diffusion_unet:
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
+    attention_head_dim: 64
     exact_params_1ch: 118928001
     exact_params_3ch: 118934915
     exact_params_bibbdm_1ch: 118929154
@@ -190,30 +198,32 @@ diffusion_unet:
   huge-256px:
     num_channels: 128
     num_res_blocks: 2
-    attention_resolutions: "32,16,8"
-    channel_mult: "1,1,2,2,4,8"
+    attention_resolutions: "64,32"
+    channel_mult: "1,2,2,8"
     dropout: 0.0
-    exact_params_1ch: 266309249
-    exact_params_3ch: 266316163
-    exact_params_bibbdm_1ch: 266310402
-    exact_params_bibbdm_3ch: 266319622
+    attention_head_dim: 64
+    exact_params_1ch: 215915905
+    exact_params_3ch: 215922819
+    exact_params_bibbdm_1ch: 215917058
+    exact_params_bibbdm_3ch: 215926278
     recommended_resolution: "256"
     notes: >
-      block_out_channels (128,128,256,256,512,1024).  ~266 M params.
+      4 stages: block_out_channels (128,256,256,1024).  1024 bottleneck.
 
   huge-512px:
     num_channels: 128
     num_res_blocks: 2
     attention_resolutions: "64,32"
-    channel_mult: "1,1,2,2,4,8"
+    channel_mult: "1,2,4,4,8"
     dropout: 0.0
-    exact_params_1ch: 245307009
-    exact_params_3ch: 245313923
-    exact_params_bibbdm_1ch: 245308162
-    exact_params_bibbdm_3ch: 245317382
+    attention_head_dim: 64
+    exact_params_1ch: 290736001
+    exact_params_3ch: 290742915
+    exact_params_bibbdm_1ch: 290737154
+    exact_params_bibbdm_3ch: 290746374
     recommended_resolution: "512"
     notes: >
-      block_out_channels (128,128,256,256,512,1024).  ~245 M params.
+      5 stages: same as large-512px (128,256,512,512,1024).  1024 bottleneck.
 
   huge-1024px:
     num_channels: 128
@@ -221,6 +231,7 @@ diffusion_unet:
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,8"
     dropout: 0.0
+    attention_head_dim: 64
     exact_params_1ch: 264990849
     exact_params_3ch: 264997763
     exact_params_bibbdm_1ch: 264992002
@@ -576,15 +587,15 @@ img2img_turbo:
 #  Tier          | DDBM/I2SB (1ch) | BiBBDM (1ch)   | Notes
 # ---------------|-----------------|----------------|---------------------------
 #  small         |  20,017,153     |  20,017,730    | 32–128 px
-#  medium-256px ★|  30,095,425     |  30,096,002    | 256 px default
-#  medium-512px  |  28,777,025     |  28,777,602    | 512 px
-#  medium-1024px |  29,763,905     |  29,764,482    | 1024 px
-#  large-256px   | 120,246,401     | 120,247,554    | 256 px
-#  large-512px   | 114,988,161     | 114,989,314    | 512 px
-#  large-1024px  | 118,928,001     | 118,929,154    | 1024 px
-#  huge-256px    | 266,309,249     | 266,310,402    | 256 px
-#  huge-512px    | 245,307,009     | 245,308,162    | 512 px
-#  huge-1024px   | 264,990,849     | 264,992,002    | 1024 px
+#  medium-256px ★|  18,534,593     |  18,535,170    | 256 px, 4 stages
+#  medium-512px  |  72,729,537     |  72,730,114    | 512 px, 5 stages
+#  medium-1024px |  29,763,905     |  29,764,482    | 1024 px, 6 stages
+#  large-256px   |  74,047,873     |  74,049,026    | 256 px, 4 stages
+#  large-512px   | 290,736,001     | 290,737,154    | 512 px, 5 stages
+#  large-1024px  | 118,928,001     | 118,929,154    | 1024 px, 6 stages
+#  huge-256px    | 215,915,905     | 215,917,058    | 256 px, 4 stages
+#  huge-512px    | 290,736,001     | 290,737,154    | 512 px, 5 stages
+#  huge-1024px   | 264,990,849     | 264,992,002    | 1024 px, 6 stages
 #
 #  ★ = current project default
 #
@@ -614,3 +625,7 @@ img2img_turbo:
 #
 # Or pass them as command-line overrides to the train scripts that accept
 # arbitrary keyword arguments forwarded to the config function.
+#
+# Implementation tip: attention_head_dim=64 (ADM-style) stabilizes training by
+# keeping per-head dimension constant as channel count grows. Pass via config
+# or add to UNet2DModel(...) when creating the model.
