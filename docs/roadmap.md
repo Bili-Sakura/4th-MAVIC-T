@@ -38,3 +38,25 @@ bash scripts/DBIM_Pixel_Medium-0216/train_sar2ir.sh
 bash scripts/DBIM_Pixel_Medium-0216/train_sar2rgb.sh
 bash scripts/DBIM_Pixel_Medium-0216/train_sar2eo.sh
 ```
+
+## CUT SAR2EO medium/large (2026/02/17)
+
+**Note:** Conducted on simple GPUs (e.g. RTX 3090 / 4090), not on a heavy H800 cluster. **Task:** SAR → EO only, using **medium** and **large** CUT sizes from `configs/model_scaling_variants.yaml`. Logging is to **TensorBoard locally** (no SwanLab).
+
+**Pipeline:** `CUTPipeline` (CUT in pixel space, 256×256).
+
+| CUT size | Pixel shape    | ~Params (1ch) | Script                          |
+|----------|----------------|---------------|----------------------------------|
+| medium   | `(256, 256)`   | ~14.1 M       | `train_sar2eo_medium.sh`         |
+| large    | `(256, 256)`   | ~56.5 M       | `train_sar2eo_large.sh`          |
+
+View TensorBoard (after starting a run):
+
+```bash
+tensorboard --logdir ./ckpt/4th-MAVIC-T-ckpt-0217
+```
+
+```bash
+bash scripts/CUT_SAR2EO_0217/train_sar2eo_medium.sh
+bash scripts/CUT_SAR2EO_0217/train_sar2eo_large.sh
+```
