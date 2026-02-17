@@ -3,20 +3,20 @@
 # =============================================================================
 #
 # Comprehensive reference of model-size configurations for all baselines and
-# tasks in 4th-MAVIC-T.  Each baseline offers four size tiers (small, medium,
-# large, huge) so that users can trade off parameter count against hardware
-# budget and target resolution.
+# tasks in 4th-MAVIC-T.  The diffusion_unet baseline uses resolution-aware
+# tiers: medium-{256,512,1024}px, large-*, huge-* so users match config to
+# target resolution.
 #
 # **Parameter counts are exact**, obtained by instantiating each model with
 # PyTorch / diffusers and calling ``sum(p.numel() for p in model.parameters())``.
-# Counts shown are for the 1-channel sar2eo task unless noted; 3-channel tasks
+# Counts shown are for the 1-channel task unless noted; 3-channel tasks
 # (rgb2ir, sar2rgb) add a negligible number of extra parameters (<0.01%).
 #
-# The "current default" tag marks the configuration already used in the
-# per-task config.py files.
+# The "current default" tag marks the configuration used for sar2eo
+# (medium-256px).
 #
-# For cross-modality image-to-image translation, start with "medium" or "large"
-# and adjust based on dataset size, resolution, and GPU VRAM.
+# For cross-modality translation, pick the tier and resolution that matches
+# your task (e.g. large-1024px for 1024 \times1024).
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -52,9 +52,10 @@
 # (e.g. in ddbm/config.py).  It does not affect the parameter counts below;
 # all variants share the same spatial layout (channel_mult, blocks, etc.).
 #
-# Exact parameter counts (sar2eo, 1ch conditional):
-#   DDBM/I2SB  small=20,017,153  medium=120,246,401  medium_v2=29,763,905  large=118,928,001  huge=264,990,849
-#   BiBBDM     small=20,017,730  medium=120,247,554  medium_v2=29,764,482  large=118,929,154  huge=264,992,002
+# Exact parameter counts (1ch conditional).  Resolution-aware tiers:
+#   medium-256px ~30M  medium-512px ~29M  medium-1024px ~30M
+#   large-256px ~120M  large-512px ~115M  large-1024px ~119M
+#   huge-256px ~266M   huge-512px ~245M   huge-1024px ~265M
 #
 # ---------------------------------------------------------------------------
 # UNet type options (unet_type)
@@ -93,89 +94,140 @@ diffusion_unet:
       than doubling at each level to stay within the ~20 M target.
 
   # -------------------------------------------------------
-  # Medium / Base   (~120 M parameters)
-  #   *** current default ***
+  # Resolution-aware tiers: medium-{256,512,1024}px, large-*, huge-*
   # -------------------------------------------------------
-  # Balanced for mid-resolution tasks (128-256).  This is the default
-  # configuration already used in each baseline's config.py.
-  medium:
-    num_channels: 128
+  # Each tier (medium/large/huge) has resolution-specific configs.
+  # 256px: attention at 32,16,8.  512px/1024px: attention at 64,32 only (OOM-safe).
+  # medium = 64 base channels; large = 128; huge = 128 with 1024 bottleneck.
+  #
+  #   *** medium-256px is current default for sar2eo ***
+  # -------------------------------------------------------
+
+  medium-256px:
+    num_channels: 64
     num_res_blocks: 2
     attention_resolutions: "32,16,8"
-    channel_mult: "1,1,2,2,4,4"       # auto-detected when left empty
+    channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 120246401      # DDBM/I2SB sar2eo
-    exact_params_3ch: 120253315      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 120247554
-    exact_params_bibbdm_3ch: 120256774
-    recommended_resolution: "128-256"
+    exact_params_1ch: 30095425       # DDBM/I2SB sar2eo
+    exact_params_3ch: 30098883      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 30096002
+    exact_params_bibbdm_3ch: 30100614
+    recommended_resolution: "256"
     notes: >
-      Current project default (~120 M for sar2eo at 256 \times256).
-      Good balance of quality and training cost for the MAVIC-T dataset.
+      block_out_channels (64,64,128,128,256,256).  Default for 256 \times256 tasks.
 
-  # -------------------------------------------------------
-  # Medium-v2        (~30 M parameters, 1024px-optimized)
-  # -------------------------------------------------------
-  # Same 1024px structure as large/huge (6 levels, attention at 64px and below)
-  # but with half the channel width.  Lighter alternative for 1024px tasks.
-  medium_v2:
+  medium-512px:
     num_channels: 64
     num_res_blocks: 2
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 29763905       # DDBM/I2SB sar2eo
-    exact_params_3ch: 29767363       # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_1ch: 28777025
+    exact_params_3ch: 28780483
+    exact_params_bibbdm_1ch: 28777602
+    exact_params_bibbdm_3ch: 28782214
+    recommended_resolution: "512"
+    notes: >
+      block_out_channels (64,64,128,128,256,256).  Attention at 64px and below.
+
+  medium-1024px:
+    num_channels: 64
+    num_res_blocks: 2
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,4"
+    dropout: 0.0
+    exact_params_1ch: 29763905
+    exact_params_3ch: 29767363
     exact_params_bibbdm_1ch: 29764482
     exact_params_bibbdm_3ch: 29769094
     recommended_resolution: "1024"
     notes: >
-      1024px-optimized: block_out_channels (64,64,128,128,256,256).
-      Aligns with large/huge structure; ~4 \times smaller than large.
+      block_out_channels (64,64,128,128,256,256).  Lighter 1024px option.
 
-  # -------------------------------------------------------
-  # Large           (~119 M parameters, 1024px-optimized)
-  # -------------------------------------------------------
-  # Optimized for 1024px input.  OOM-safe attention: only at 64px and below
-  # (AttnDownBlock2D at down_block_types indices 4,5).  128px attention
-  # (16k^2 tokens) is disabled to avoid memory blowup.
-  large:
+  large-256px:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,1,2,2,4,4"
+    dropout: 0.0
+    exact_params_1ch: 120246401      # DDBM/I2SB sar2eo
+    exact_params_3ch: 120253315      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 120247554
+    exact_params_bibbdm_3ch: 120256774
+    recommended_resolution: "256"
+    notes: >
+      block_out_channels (128,128,256,256,512,512).  ~120 M params.
+
+  large-512px:
     num_channels: 128
     num_res_blocks: 2
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 118928001      # DDBM/I2SB sar2eo
-    exact_params_3ch: 118934915      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_1ch: 114988161
+    exact_params_3ch: 114995075
+    exact_params_bibbdm_1ch: 114989314
+    exact_params_bibbdm_3ch: 114998534
+    recommended_resolution: "512"
+    notes: >
+      block_out_channels (128,128,256,256,512,512).  ~115 M params.
+
+  large-1024px:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,4"
+    dropout: 0.0
+    exact_params_1ch: 118928001
+    exact_params_3ch: 118934915
     exact_params_bibbdm_1ch: 118929154
     exact_params_bibbdm_3ch: 118938374
     recommended_resolution: "1024"
     notes: >
-      1024px-optimized: block_out_channels (128,128,256,256,512,512).
-      Level 0 kept at 128 channels to manage initial tensor size
-      (~500MB per sample at 1024×1024).  Attention only at 64px and below.
+      block_out_channels (128,128,256,256,512,512).  ~119 M params.
 
-  # -------------------------------------------------------
-  # Huge / XL       (~265 M parameters, 1024px-optimized)
-  # -------------------------------------------------------
-  # Optimized for 1024px input.  Same OOM-safe attention as large
-  # (64px and below only).  Bottleneck increased to 1024 channels for
-  # extra capacity at high resolution.
-  huge:
+  huge-256px:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "32,16,8"
+    channel_mult: "1,1,2,2,4,8"
+    dropout: 0.0
+    exact_params_1ch: 266309249
+    exact_params_3ch: 266316163
+    exact_params_bibbdm_1ch: 266310402
+    exact_params_bibbdm_3ch: 266319622
+    recommended_resolution: "256"
+    notes: >
+      block_out_channels (128,128,256,256,512,1024).  ~266 M params.
+
+  huge-512px:
     num_channels: 128
     num_res_blocks: 2
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,8"
     dropout: 0.0
-    exact_params_1ch: 264990849      # DDBM/I2SB sar2eo
-    exact_params_3ch: 264997763      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_1ch: 245307009
+    exact_params_3ch: 245313923
+    exact_params_bibbdm_1ch: 245308162
+    exact_params_bibbdm_3ch: 245317382
+    recommended_resolution: "512"
+    notes: >
+      block_out_channels (128,128,256,256,512,1024).  ~245 M params.
+
+  huge-1024px:
+    num_channels: 128
+    num_res_blocks: 2
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,8"
+    dropout: 0.0
+    exact_params_1ch: 264990849
+    exact_params_3ch: 264997763
     exact_params_bibbdm_1ch: 264992002
     exact_params_bibbdm_3ch: 265001222
     recommended_resolution: "1024"
     notes: >
-      1024px-optimized: block_out_channels (128,128,256,256,512,1024).
-      Bottleneck at 1024 channels for more capacity.  Attention only at
-      64px and below.  Requires multi-GPU training and ≥40 GB VRAM.
+      block_out_channels (128,128,256,256,512,1024).  ~265 M params.
 
   # -------------------------------------------------------
   # Per-task guidance
@@ -190,41 +242,38 @@ diffusion_unet:
       target_channels: 1
       model_channels: 1
       resolution: 256
-      recommended_size: "medium"
+      recommended_size: "medium-256px"
       notes: >
-        256 \times256 single-channel task.  "medium" is sufficient for
-        current dataset size.  Scale to "large" only if quality
-        plateaus.
+        256 \times256 single-channel task.  Scale to "large-256px" if
+        quality plateaus.
 
     rgb2ir:
       source_channels: 3
       target_channels: 1
       model_channels: 3
       resolution: 1024
-      recommended_size: "medium or large"
+      recommended_size: "medium-1024px or large-1024px"
       notes: >
-        High-resolution 3-channel input.  "medium" works at 256
-        crop training; consider "large" for full 1024 resolution.
+        1024 \times1024.  Use medium-1024px for lighter training;
+        large-1024px for higher fidelity.
 
     sar2ir:
       source_channels: 1
       target_channels: 1
       model_channels: 1
       resolution: 1024
-      recommended_size: "medium or large"
+      recommended_size: "medium-1024px or large-1024px"
       notes: >
-        1024 \times1024 single-channel cross-modality.  Similar guidance
-        to rgb2ir.
+        1024 \times1024 single-channel cross-modality.  Similar to rgb2ir.
 
     sar2rgb:
       source_channels: 1
       target_channels: 3
       model_channels: 3
       resolution: 1024
-      recommended_size: "medium or large"
+      recommended_size: "medium-1024px or large-1024px"
       notes: >
-        1024 \times1024 with 3-channel output.  Wider output head benefits
-        from "large" if VRAM allows.
+        1024 \times1024 with 3-channel output.  large-1024px if VRAM allows.
 
 
 # ============================================================
@@ -524,32 +573,36 @@ img2img_turbo:
 # ============================================================
 # Exact parameter counts for sar2eo task (1-channel):
 #
-#  Tier      | DDBM/I2SB      | BiBBDM         | DDIB (total)     | CUT (total)  | Turbo LoRA
-# -----------|----------------|----------------|------------------|--------------|------------
-#  small     |  20,017,153    |  20,017,730    |  40,033,154      |  2,125,410   |  ~50 K
-#  medium    | 120,246,401 ★  | 120,247,554 ★  | 240,490,498  ★   | 14,128,322 ★ |  ~138 K ★
-#  medium_v2 |  29,763,905    |  29,764,482    |  59,526,658      |      —       |    —
-#  large     | 118,928,001    | 118,929,154    | 808,563,714      | 56,469,890   |  ~500 K
-#  huge      | 264,990,849    | 264,992,002    | 1,818,988,034    | 292,903,682  |  ~2 M
+#  Tier          | DDBM/I2SB (1ch) | BiBBDM (1ch)   | Notes
+# ---------------|-----------------|----------------|---------------------------
+#  small         |  20,017,153     |  20,017,730    | 32–128 px
+#  medium-256px ★|  30,095,425     |  30,096,002    | 256 px default
+#  medium-512px  |  28,777,025     |  28,777,602    | 512 px
+#  medium-1024px |  29,763,905     |  29,764,482    | 1024 px
+#  large-256px   | 120,246,401     | 120,247,554    | 256 px
+#  large-512px   | 114,988,161     | 114,989,314    | 512 px
+#  large-1024px  | 118,928,001     | 118,929,154    | 1024 px
+#  huge-256px    | 266,309,249     | 266,310,402    | 256 px
+#  huge-512px    | 245,307,009     | 245,308,162    | 512 px
+#  huge-1024px   | 264,990,849     | 264,992,002    | 1024 px
 #
 #  ★ = current project default
 #
 # ---------------------------------------------------------------------------
 # VRAM Guidelines (approximate, fp16/bf16, batch_size=1)
 # ---------------------------------------------------------------------------
-#  Tier      | Single Model VRAM | Notes
-# -----------|-------------------|-------
-#  small     |  2-4 GB           | Consumer GPU (RTX 3060)
-#  medium    |  6-12 GB          | Mid-range GPU (RTX 3090 / A5000)
-#  medium_v2 |  4-8 GB           | 1024px-optimized; lighter than large
-#  large     |  16-24 GB         | High-end GPU (A100-40G)
-#  huge      |  40+ GB           | Multi-GPU (A100-80G)
+#  Tier          | Single Model VRAM | Notes
+# ---------------|-------------------|---------------------------
+#  small         |  2-4 GB           | Consumer GPU (RTX 3060)
+#  medium-*px    |  4-8 GB          | Resolution-aware; lighter
+#  large-*px     |  12-24 GB        | High-end GPU (A100-40G)
+#  huge-*px      |  24-40+ GB       | Multi-GPU (A100-80G)
 #
 # ---------------------------------------------------------------------------
 # How to use these variants
 # ---------------------------------------------------------------------------
 # Override the relevant fields in your per-task config function.  Example
-# for DDBM sar2eo with the "large" variant:
+# for DDBM sar2ir with the "large-1024px" variant:
 #
 #   from examples.ddbm.config import sar2ir_config
 #   cfg = sar2ir_config(
