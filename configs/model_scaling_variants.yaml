@@ -53,7 +53,7 @@
 # all variants share the same spatial layout (channel_mult, blocks, etc.).
 #
 # Exact parameter counts (sar2eo, 1ch conditional):
-#   DDBM/I2SB  small=20,017,153  medium=120,246,401  large=404,284,161  huge=909,497,473
+#   DDBM/I2SB  small=20,017,153  medium=120,246,401  large=118,928,001  huge=264,990,849
 #   BiBBDM     small=20,017,730  medium=120,247,554  large=404,286,466  huge=909,500,930
 #
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ diffusion_unet:
       Good balance of quality and training cost for the MAVIC-T dataset.
 
   # -------------------------------------------------------
-  # Large           (~404 M parameters, 1024px-optimized)
+  # Large           (~119 M parameters, 1024px-optimized)
   # -------------------------------------------------------
   # Optimized for 1024px input.  OOM-safe attention: only at 64px and below
   # (AttnDownBlock2D at down_block_types indices 4,5).  128px attention
@@ -125,10 +125,10 @@ diffusion_unet:
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,4"
     dropout: 0.0
-    exact_params_1ch: 404284161      # DDBM/I2SB sar2eo (re-verify after config change)
-    exact_params_3ch: 404297987      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 404286466
-    exact_params_bibbdm_3ch: 404304902
+    exact_params_1ch: 118928001      # DDBM/I2SB sar2eo
+    exact_params_3ch: 118934915      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 118929154
+    exact_params_bibbdm_3ch: 118938374
     recommended_resolution: "1024"
     notes: >
       1024px-optimized: block_out_channels (128,128,256,256,512,512).
@@ -136,7 +136,7 @@ diffusion_unet:
       (~500MB per sample at 1024×1024).  Attention only at 64px and below.
 
   # -------------------------------------------------------
-  # Huge / XL       (~909 M parameters, 1024px-optimized)
+  # Huge / XL       (~265 M parameters, 1024px-optimized)
   # -------------------------------------------------------
   # Optimized for 1024px input.  Same OOM-safe attention as large
   # (64px and below only).  Bottleneck increased to 1024 channels for
@@ -147,10 +147,10 @@ diffusion_unet:
     attention_resolutions: "64,32"
     channel_mult: "1,1,2,2,4,8"
     dropout: 0.0
-    exact_params_1ch: 909497473      # DDBM/I2SB sar2eo (re-verify after config change)
-    exact_params_3ch: 909518211      # DDBM/I2SB rgb2ir/sar2rgb
-    exact_params_bibbdm_1ch: 909500930
-    exact_params_bibbdm_3ch: 909528582
+    exact_params_1ch: 264990849      # DDBM/I2SB sar2eo
+    exact_params_3ch: 264997763      # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 264992002
+    exact_params_bibbdm_3ch: 265001222
     recommended_resolution: "1024"
     notes: >
       1024px-optimized: block_out_channels (128,128,256,256,512,1024).
@@ -508,8 +508,8 @@ img2img_turbo:
 # ---------|----------------|----------------|------------------|--------------|------------
 #  small   |  20,017,153    |  20,017,730    |  40,033,154      |  2,125,410   |  ~50 K
 #  medium  | 120,246,401 ★  | 120,247,554 ★  | 240,490,498  ★   | 14,128,322 ★ |  ~138 K ★
-#  large   | 404,284,161    | 404,286,466    | 808,563,714      | 56,469,890   |  ~500 K
-#  huge    | 909,497,473    | 909,500,930    | 1,818,988,034    | 292,903,682  |  ~2 M
+#  large   | 118,928,001    | 118,929,154    | 808,563,714      | 56,469,890   |  ~500 K
+#  huge    | 264,990,849    | 264,992,002    | 1,818,988,034    | 292,903,682  |  ~2 M
 #
 #  ★ = current project default
 #
@@ -529,12 +529,12 @@ img2img_turbo:
 # Override the relevant fields in your per-task config function.  Example
 # for DDBM sar2eo with the "large" variant:
 #
-#   from examples.ddbm.config import sar2eo_config
-#   cfg = sar2eo_config(
-#       num_channels=256,
+#   from examples.ddbm.config import sar2ir_config
+#   cfg = sar2ir_config(
+#       num_channels=128,
 #       num_res_blocks=2,
-#       attention_resolutions="32,16,8",
-#       channel_mult="1,2,4,4",
+#       attention_resolutions="64,32",
+#       channel_mult="1,1,2,2,4,4",
 #   )
 #
 # Or pass them as command-line overrides to the train scripts that accept
