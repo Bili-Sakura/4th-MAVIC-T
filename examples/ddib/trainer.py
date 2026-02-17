@@ -518,6 +518,14 @@ class DDIBTrainer:
                         request_timeout=30,
                     )
 
+                if cfg.checkpoints_total_limit is not None:
+                    ckpts = sorted(
+                        [d for d in os.listdir(domain_output_dir) if d.startswith("checkpoint")],
+                        key=checkpoint_dir_sort_key,
+                    )
+                    for old in ckpts[: -cfg.checkpoints_total_limit]:
+                        shutil.rmtree(os.path.join(domain_output_dir, old))
+
         accelerator.end_training()
         logger.info(f"[{cfg.task_name}] DDIB {domain_label} training complete!")
 
