@@ -53,8 +53,8 @@
 # all variants share the same spatial layout (channel_mult, blocks, etc.).
 #
 # Exact parameter counts (sar2eo, 1ch conditional):
-#   DDBM/I2SB  small=20,017,153  medium=120,246,401  large=118,928,001  huge=264,990,849
-#   BiBBDM     small=20,017,730  medium=120,247,554  large=404,286,466  huge=909,500,930
+#   DDBM/I2SB  small=20,017,153  medium=120,246,401  medium_v2=29,763,905  large=118,928,001  huge=264,990,849
+#   BiBBDM     small=20,017,730  medium=120,247,554  medium_v2=29,764,482  large=118,929,154  huge=264,992,002
 #
 # ---------------------------------------------------------------------------
 # UNet type options (unet_type)
@@ -112,6 +112,26 @@ diffusion_unet:
     notes: >
       Current project default (~120 M for sar2eo at 256 \times256).
       Good balance of quality and training cost for the MAVIC-T dataset.
+
+  # -------------------------------------------------------
+  # Medium-v2        (~30 M parameters, 1024px-optimized)
+  # -------------------------------------------------------
+  # Same 1024px structure as large/huge (6 levels, attention at 64px and below)
+  # but with half the channel width.  Lighter alternative for 1024px tasks.
+  medium_v2:
+    num_channels: 64
+    num_res_blocks: 2
+    attention_resolutions: "64,32"
+    channel_mult: "1,1,2,2,4,4"
+    dropout: 0.0
+    exact_params_1ch: 29763905       # DDBM/I2SB sar2eo
+    exact_params_3ch: 29767363       # DDBM/I2SB rgb2ir/sar2rgb
+    exact_params_bibbdm_1ch: 29764482
+    exact_params_bibbdm_3ch: 29769094
+    recommended_resolution: "1024"
+    notes: >
+      1024px-optimized: block_out_channels (64,64,128,128,256,256).
+      Aligns with large/huge structure; ~4 \times smaller than large.
 
   # -------------------------------------------------------
   # Large           (~119 M parameters, 1024px-optimized)
@@ -504,24 +524,26 @@ img2img_turbo:
 # ============================================================
 # Exact parameter counts for sar2eo task (1-channel):
 #
-#  Tier    | DDBM/I2SB      | BiBBDM         | DDIB (total)     | CUT (total)  | Turbo LoRA
-# ---------|----------------|----------------|------------------|--------------|------------
-#  small   |  20,017,153    |  20,017,730    |  40,033,154      |  2,125,410   |  ~50 K
-#  medium  | 120,246,401 ★  | 120,247,554 ★  | 240,490,498  ★   | 14,128,322 ★ |  ~138 K ★
-#  large   | 118,928,001    | 118,929,154    | 808,563,714      | 56,469,890   |  ~500 K
-#  huge    | 264,990,849    | 264,992,002    | 1,818,988,034    | 292,903,682  |  ~2 M
+#  Tier      | DDBM/I2SB      | BiBBDM         | DDIB (total)     | CUT (total)  | Turbo LoRA
+# -----------|----------------|----------------|------------------|--------------|------------
+#  small     |  20,017,153    |  20,017,730    |  40,033,154      |  2,125,410   |  ~50 K
+#  medium    | 120,246,401 ★  | 120,247,554 ★  | 240,490,498  ★   | 14,128,322 ★ |  ~138 K ★
+#  medium_v2 |  29,763,905    |  29,764,482    |  59,526,658      |      —       |    —
+#  large     | 118,928,001    | 118,929,154    | 808,563,714      | 56,469,890   |  ~500 K
+#  huge      | 264,990,849    | 264,992,002    | 1,818,988,034    | 292,903,682  |  ~2 M
 #
 #  ★ = current project default
 #
 # ---------------------------------------------------------------------------
 # VRAM Guidelines (approximate, fp16/bf16, batch_size=1)
 # ---------------------------------------------------------------------------
-#  Tier    | Single Model VRAM | Notes
-# ---------|-------------------|-------
-#  small   |  2-4 GB           | Consumer GPU (RTX 3060)
-#  medium  |  6-12 GB          | Mid-range GPU (RTX 3090 / A5000)
-#  large   |  16-24 GB         | High-end GPU (A100-40G)
-#  huge    |  40+ GB           | Multi-GPU (A100-80G)
+#  Tier      | Single Model VRAM | Notes
+# -----------|-------------------|-------
+#  small     |  2-4 GB           | Consumer GPU (RTX 3060)
+#  medium    |  6-12 GB          | Mid-range GPU (RTX 3090 / A5000)
+#  medium_v2 |  4-8 GB           | 1024px-optimized; lighter than large
+#  large     |  16-24 GB         | High-end GPU (A100-40G)
+#  huge      |  40+ GB           | Multi-GPU (A100-80G)
 #
 # ---------------------------------------------------------------------------
 # How to use these variants
