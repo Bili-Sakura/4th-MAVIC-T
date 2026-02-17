@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from src.utils.metrics import MetricResults
 
 import torch
 from torch.utils.data import DataLoader
@@ -44,7 +47,7 @@ def run_metric_evaluation(
     batch_size: int,
     no_fid: bool,
     inference_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-) -> "MetricResults":
+) -> MetricResults:
     """Run MAVIC-T metrics over a paired val set.
 
     inference_fn(source_batch, target_batch) must return predictions in [0, 1]
