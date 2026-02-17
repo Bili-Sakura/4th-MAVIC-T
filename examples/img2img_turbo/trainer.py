@@ -645,6 +645,14 @@ class Pix2PixTurboTrainer:
                         request_timeout=30,
                     )
 
+                if cfg.checkpoints_total_limit is not None:
+                    ckpts = sorted(
+                        [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
+                        key=checkpoint_dir_sort_key,
+                    )
+                    for old in ckpts[: -cfg.checkpoints_total_limit]:
+                        shutil.rmtree(os.path.join(cfg.output_dir, old))
+
         # Save final model
         if accelerator.is_main_process:
             checkpoints_dir = os.path.join(cfg.output_dir, "checkpoints")

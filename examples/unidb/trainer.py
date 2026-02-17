@@ -536,5 +536,13 @@ class UniDBTrainer:
                 save_training_config(cfg, epoch_dir)
                 logger.info("Saved model at epoch %d", epoch + 1)
 
+                if cfg.checkpoints_total_limit:
+                    ckpts = sorted(
+                        [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
+                        key=checkpoint_dir_sort_key,
+                    )
+                    for old in ckpts[:-cfg.checkpoints_total_limit]:
+                        shutil.rmtree(os.path.join(cfg.output_dir, old))
+
         accelerator.end_training()
         logger.info("[%s] Training complete!", cfg.task_name)
