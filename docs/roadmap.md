@@ -60,3 +60,21 @@ tensorboard --logdir ./ckpt/4th-MAVIC-T-ckpt-0217
 bash scripts/CUT_SAR2EO_0217/train_sar2eo_medium.sh # save checkpoint as -0217
 bash scripts/CUT_SAR2EO_0217/train_sar2eo_large.sh # save checkpoint as -0218
 ```
+
+## DBIM-Pixel-Scaled (2026/02/19)
+
+Based on [DBIM-Pixel-Medium (02/16)](#dbim-pixel-medium-20260216) with **scaled model size** per [Stage 3 — Pixel-Space Modelling](staled-roadmaps-experiments/roadmap.md#stage-3--pixel-space-modelling-more-compute): 1024×1024 tasks use **large** tier (~404 M); SAR→EO stays 256×256 with **medium** (~120 M). Pipeline remains `DBIMPipeline` (pixel space, no VAE).
+
+| Task      | Pixel shape    | DBIM tier | ~Params |
+|-----------|----------------|-----------|---------|
+| RGB → IR  | `(1024, 1024)` | large     | ~404 M  |
+| SAR → IR  | `(1024, 1024)` | large     | ~404 M  |
+| SAR → RGB | `(1024, 1024)` | large     | ~404 M  |
+| SAR → EO  | `(256, 256)`   | medium    | ~120 M  |
+
+```bash
+bash scripts/DBIM_Pixel_Scaled-0219/train_rgb2ir.sh
+bash scripts/DBIM_Pixel_Scaled-0219/train_sar2ir.sh
+bash scripts/DBIM_Pixel_Scaled-0219/train_sar2rgb.sh
+bash scripts/DBIM_Pixel_Scaled-0219/train_sar2eo.sh
+```

@@ -44,6 +44,7 @@ USE_AUGMENTED=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
+PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2rgb.txt"
 
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
@@ -56,7 +57,7 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=1000
+VALIDATION_STEPS=10000
 VALIDATION_EPOCHS=
 NUM_INFERENCE_STEPS=100
 PUSH_TO_HUB=true
@@ -96,6 +97,7 @@ COMMON_ARGS=(
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
   --use_vertical_flip "${USE_VERTICAL_FLIP}"
   --exclude_file "${EXCLUDE_FILE}"
+  --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
   --optimizer_type "${OPTIMIZER_TYPE}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"

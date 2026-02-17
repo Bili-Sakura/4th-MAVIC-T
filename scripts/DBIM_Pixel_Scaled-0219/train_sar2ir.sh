@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# DBIM-Pixel-Medium-0216 — SAR→EO — Pixel-space DBIM (no VAE)
-# DBIM small config, (256, 256) per roadmap (same as DDBM-Pixel-Medium)
+# DBIM-Pixel-Scaled-0219 — SAR→IR — Pixel-space DBIM (no VAE)
+# Large config, (1024, 1024) per roadmap (Stage 3 scaling).
 #
 # Usage:
-#   bash scripts/DBIM_Pixel_Medium-0216/train_sar2eo.sh
-#   # run on a specific GPU (e.g., cuda:0):
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/DBIM_Pixel_Medium-0216/train_sar2eo.sh
-#   # (pick 0-3 to spread stages across 4 GPUs)
-#   # or multi-GPU:
-#   NGPU=4 bash scripts/DBIM_Pixel_Medium-0216/train_sar2eo.sh
+#   bash scripts/DBIM_Pixel_Scaled-0219/train_sar2ir.sh
+#   CUDA_VISIBLE_DEVICES=2 bash scripts/DBIM_Pixel_Scaled-0219/train_sar2ir.sh
+#   NGPU=4 bash scripts/DBIM_Pixel_Scaled-0219/train_sar2ir.sh
 
 set -euo pipefail
 
@@ -18,19 +15,19 @@ export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs"
-LOG_FILE="${LOG_DIR}/train_sar2eo_dbim.log"
+LOG_FILE="${LOG_DIR}/train_sar2ir_dbim_scaled.log"
 
 mkdir -p "${LOG_DIR}"
 
-# --- Small config from configs/model_scaling_variants.yaml ---
-NUM_CHANNELS=64
+# --- Large config from configs/model_scaling_variants.yaml (~404 M) ---
+NUM_CHANNELS=256
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS=""
-CHANNEL_MULT="1,2,3,4"
+ATTENTION_RESOLUTIONS="32,16,8"
+CHANNEL_MULT="1,2,4,4"
 
-# --- Pixel-space DBIM (no VAE) ---
+# --- Pixel-space DBIM (no VAE), 1024 resolution ---
 USE_LATENT_TARGET=false
-RESOLUTION=256
+RESOLUTION=1024
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=false
@@ -41,12 +38,12 @@ USE_AUGMENTED=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
-PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2eo.txt"
+PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2ir.txt"
 
-# --- Training settings ---
+# --- Training settings (smaller batch for 1024 + large model) ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=48
+TRAIN_BATCH_SIZE=4
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=100000
 GRADIENT_ACCUMULATION_STEPS=1
@@ -58,18 +55,18 @@ VALIDATION_STEPS=10000
 VALIDATION_EPOCHS=
 NUM_INFERENCE_STEPS=100
 PUSH_TO_HUB=true
-HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0216"
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0219"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-OUTPUT_DIR="./ckpt/DBIM_Pixel_Medium-0216/sar2eo"
+OUTPUT_DIR="./ckpt/DBIM_Pixel_Scaled-0219/sar2ir"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="dbim-pixel-medium-sar2eo"
-SWANLAB_DESCRIPTION="DBIM Pixel Medium SAR→EO"
-SWANLAB_TAGS="dbim,pixel,sar2eo"
+SWANLAB_EXPERIMENT_NAME="dbim-pixel-scaled-sar2ir"
+SWANLAB_DESCRIPTION="DBIM Pixel Scaled SAR→IR (1024, large)"
+SWANLAB_TAGS="dbim,pixel,scaled,sar2ir"
 
 # --- Resume from checkpoint ---
 RESUME_FROM_CHECKPOINT="latest"
@@ -120,9 +117,9 @@ if [ -n "${VALIDATION_EPOCHS}" ]; then
   COMMON_ARGS+=(--validation_epochs "${VALIDATION_EPOCHS}")
 fi
 if [ "${NGPU}" -gt 1 ]; then
-  nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2eo \
+  nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 else
-  nohup python -m examples.dbim.train_sar2eo \
+  nohup python -m examples.dbim.train_sar2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 fi

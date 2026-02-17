@@ -104,17 +104,20 @@ def _load_paired_val_exclude_set(manifest_path: Optional[str]) -> Set[str]:
 
 
 def resolve_paired_val_manifest(raw: str | None) -> Path | None:
-    """Resolve paired_val_manifest to an existing file (cwd or project root).
-    Used by trainers so validation uses the paired val set regardless of CWD."""
+    """Resolve paired_val_manifest to an existing file (project root preferred, then cwd).
+    Prefer project root for relative paths so validation consistently uses pair_val_set
+    regardless of CWD; avoids falling back to official val (test split) without ground truth."""
     if not raw:
         return None
     p = Path(raw)
+    if p.is_absolute():
+        return p if p.is_file() else None
+    # Prefer project root first so pair_val_set is used from any working directory
+    candidate = _PROJECT_ROOT / p
+    if candidate.is_file():
+        return candidate
     if p.is_file():
         return p
-    if not p.is_absolute():
-        candidate = _PROJECT_ROOT / p
-        if candidate.is_file():
-            return candidate
     return None
 
 

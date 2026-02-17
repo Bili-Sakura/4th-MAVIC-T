@@ -59,6 +59,7 @@ class BDBMTrainer(BiBBDMTrainer):
         resolved_paired = resolve_paired_val_manifest(
             getattr(self.cfg, "paired_val_manifest", None)
         )
+        self._resolved_paired_val_manifest = resolved_paired
         paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
             self.cfg, "paired_val_manifest", None
         )
