@@ -61,6 +61,32 @@ bash scripts/CUT_SAR2EO_0217/train_sar2eo_medium.sh # save checkpoint as -0217
 bash scripts/CUT_SAR2EO_0217/train_sar2eo_large.sh # save checkpoint as -0218
 ```
 
+**Experiment results / observations (SAR2EO medium, paired val):**
+
+Evaluated checkpoints `ckpt/4th-MAVIC-T-ckpt-0217/sar2eo_medium/cut/sar2eo/checkpoint-epoch-{1..10}` on `paired_val_sar2eo.txt` (64 pairs, 256×256) with:
+
+```bash
+python -m examples.cut.evaluate_metrics \
+  --checkpoint_dir ckpt/4th-MAVIC-T-ckpt-0217/sar2eo_medium/cut/sar2eo/checkpoint-epoch-<N> \
+  --manifest datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2eo.txt \
+  --task sar2eo --batch_size 16
+```
+
+| Epoch | Steps  | LPIPS | L1   | FID     | Task score |
+|-------|--------|-------|------|---------|------------|
+| 1     | 11,106 | 0.6030 | 0.1362 | 304.30 | 0.5790 |
+| 2     | 22,212 | 0.5985 | 0.1320 | 259.63 | 0.5760 |
+| 3     | 33,318 | 0.5896 | 0.1289 | 251.78 | 0.5720 |
+| 4     | 44,424 | 0.6086 | 0.1304 | 308.93 | 0.5790 |
+| 5     | 55,530 | 0.5752 | 0.1412 | 227.79 | 0.5712 |
+| 6     | 66,636 | 0.5685 | 0.1310 | 232.25 | **0.5656** |
+| 7     | 77,742 | 0.5710 | 0.1335 | **223.21** | 0.5672 |
+| 8     | 88,848 | 0.5670 | 0.1350 | 223.74 | 0.5664 |
+| 9     | 99,954 | 0.5691 | 0.1357 | 228.89 | 0.5673 |
+| 10    | 111,060 | 0.5688 | 0.1428 | 235.13 | 0.5697 |
+
+- **Best task score:** epoch 6 (0.5656). Best FID: epoch 7 (223.21). Task score improves from epoch 1–3 and 4–8, with some fluctuation; epoch 6 is the best checkpoint by composite score.
+
 ## DBIM-Pixel-Scaled (2026/02/19)
 
 Based on [DBIM-Pixel-Medium (02/16)](#dbim-pixel-medium-20260216) with **scaled model size** per [Stage 3 — Pixel-Space Modelling](staled-roadmaps-experiments/roadmap.md#stage-3--pixel-space-modelling-more-compute): 1024×1024 tasks use **large** tier (~404 M); SAR→EO stays 256×256 with **medium** (~120 M). Pipeline remains `DBIMPipeline` (pixel space, no VAE).
