@@ -115,10 +115,14 @@ def _build_block_types(
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
-    """Return a sensible default channel multiplier tuple."""
+    """Return a sensible default channel multiplier tuple.
+
+    ADM-style: 256px=4 stages (256→16), 512px=5 stages (512→16), 1024px=6 stages.
+    """
     return {
-        512: (1, 1, 2, 2, 4, 4),
-        256: (1, 1, 2, 2, 4, 4),
+        1024: (1, 1, 2, 2, 4, 4),
+        512: (1, 2, 4, 4, 8),
+        256: (1, 2, 2, 4),
         128: (1, 1, 2, 3, 4),
         64:  (1, 2, 3, 4),
         32:  (1, 2, 3, 4),
@@ -153,6 +157,9 @@ class DDBMUNet(ModelMixin, ConfigMixin):
         for unconditional mode.
     channel_mult : tuple of int or None
         Per-level channel multipliers. Auto-detected if ``None``.
+    attention_head_dim : int or None
+        Dimension per attention head. 64 stabilizes training (ADM-style).
+        If None, diffusers default is used.
     """
 
     @register_to_config
@@ -166,6 +173,7 @@ class DDBMUNet(ModelMixin, ConfigMixin):
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
         channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -178,7 +186,7 @@ class DDBMUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
-        self.unet = UNet2DModel(
+        unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
@@ -188,6 +196,10 @@ class DDBMUNet(ModelMixin, ConfigMixin):
             layers_per_block=num_res_blocks,
             dropout=dropout,
         )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
 
     def forward(
         self,
@@ -257,6 +269,7 @@ class EDMUNet(ModelMixin, ConfigMixin):
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
         channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -269,7 +282,7 @@ class EDMUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
-        self.unet = UNet2DModel(
+        unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
@@ -280,6 +293,10 @@ class EDMUNet(ModelMixin, ConfigMixin):
             dropout=dropout,
             time_embedding_type="fourier",
         )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
 
     def forward(
         self,
@@ -420,6 +437,7 @@ class VDMUNet(ModelMixin, ConfigMixin):
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
         channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
         gamma_min: float = -13.3,
         gamma_max: float = 5.0,
     ) -> None:
@@ -436,7 +454,7 @@ class VDMUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
-        self.unet = UNet2DModel(
+        unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
@@ -446,6 +464,10 @@ class VDMUNet(ModelMixin, ConfigMixin):
             layers_per_block=num_res_blocks,
             dropout=dropout,
         )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
 
     def forward(
         self,
@@ -492,6 +514,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
         channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -504,7 +527,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
-        self.unet = UNet2DModel(
+        unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
@@ -514,6 +537,10 @@ class SiDUNet(ModelMixin, ConfigMixin):
             layers_per_block=num_res_blocks,
             dropout=dropout,
         )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
 
     def forward(
         self,
@@ -577,6 +604,7 @@ def create_model(
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
     unet_type: str = UNET_TYPE_ADM,
+    attention_head_dim: Optional[int] = 64,
     **kwargs: Any,
 ) -> Union[DDBMUNet, EDMUNet, VDMUNet, SiDUNet]:
     """Factory for DDBM-compatible UNet models.
@@ -613,6 +641,7 @@ def create_model(
         dropout=dropout,
         condition_mode=condition_mode,
         channel_mult=cm_tuple,
+        attention_head_dim=attention_head_dim,
     )
 
     cls = _UNET_CLASS_MAP[unet_type]

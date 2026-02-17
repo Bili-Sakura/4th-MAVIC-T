@@ -40,10 +40,14 @@ from .unet_ddbm import (
 
 
 def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
-    """Return a sensible default channel multiplier tuple."""
+    """Return a sensible default channel multiplier tuple.
+
+    ADM-style: 256px=4 stages (256→16), 512px=5 stages (512→16), 1024px=6 stages.
+    """
     return {
-        512: (1, 1, 2, 2, 4, 4),
-        256: (1, 1, 2, 2, 4, 4),
+        1024: (1, 1, 2, 2, 4, 4),
+        512: (1, 2, 4, 4, 8),
+        256: (1, 2, 2, 4),
         128: (1, 1, 2, 3, 4),
         64:  (1, 2, 3, 4),
         32:  (1, 2, 3, 4),

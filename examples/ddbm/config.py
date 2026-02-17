@@ -35,10 +35,11 @@ class TaskConfig:
     unet_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2
-    attention_resolutions: str = "32,16,8"
+    attention_resolutions: str = "64,32"  # ADM-style; 64px and below
     dropout: float = 0.0
     condition_mode: str = "concat"
     channel_mult: str = ""  # auto-detected from resolution when empty
+    attention_head_dim: Optional[int] = 64  # ADM-style; stabilizes training
 
     # ---- scheduler ----
     pred_mode: str = "vp"
@@ -154,6 +155,9 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
         resolution=1024,
+        num_channels=160,  # huge tier for 1024px
+        attention_resolutions="128,64,32",
+        channel_mult="1,1,2,2,4,8",
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -175,6 +179,9 @@ def sar2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=1024,
+        num_channels=160,  # huge tier for 1024px
+        attention_resolutions="128,64,32",
+        channel_mult="1,1,2,2,4,8",
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -196,6 +203,9 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
         resolution=1024,
+        num_channels=160,  # huge tier for 1024px
+        attention_resolutions="128,64,32",
+        channel_mult="1,1,2,2,4,8",
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,

@@ -291,6 +291,7 @@ class DDBMTrainer:
             dropout=self.cfg.dropout,
             condition_mode=self.cfg.condition_mode,
             channel_mult=self.cfg.channel_mult,
+            attention_head_dim=getattr(self.cfg, "attention_head_dim", 64),
         )
 
     def build_scheduler(self):
