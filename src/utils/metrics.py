@@ -2,13 +2,15 @@
 
 This module implements the three evaluation metrics used by the 4th MAVIC-T
 challenge (https://www.codabench.org/competitions/12566/) together with the
-composite task-score and overall-score formulas.
+composite task-score and overall-score formulas. Normalization follows the
+official evaluation statement (see ``official-docs/evaluation.md``): all
+three components are scaled to [0, 1] so the task score is their average.
 
 Metrics
 -------
-- **LPIPS** – Learned Perceptual Image Patch Similarity (VGG-16).
-- **FID**  – Fréchet Inception Distance (InceptionV3 features).
-- **L1**   – Mean pixel-wise absolute difference.
+- **LPIPS** - Learned Perceptual Image Patch Similarity (VGG-16); output scaled for normalization.
+- **FID**  - Fréchet Inception Distance (InceptionV3); normalized via 2/π · arctan(FID) in the score.
+- **L1**   - Mean pixel-wise absolute difference; pixel values in [0, 1] so L1 is in [0, 1].
 
 Scoring
 -------
@@ -39,7 +41,7 @@ import numpy as np
 # LPIPS (torchmetrics exposes it under torchmetrics.image.lpip)
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
-# FID (optional – requires torchvision for InceptionV3 weights)
+# FID (optional - requires torchvision for InceptionV3 weights)
 try:
     from torchmetrics.image.fid import FrechetInceptionDistance
     FID_AVAILABLE = True
@@ -187,7 +189,7 @@ class MetricResults:
 
 
 # ---------------------------------------------------------------------------
-# MetricCalculator – batch-wise accumulation using torchmetrics
+# MetricCalculator - batch-wise accumulation using torchmetrics
 # ---------------------------------------------------------------------------
 
 class MetricCalculator:
@@ -215,10 +217,10 @@ class MetricCalculator:
         self.device = device
         self._compute_fid = compute_fid and FID_AVAILABLE
 
-        # LPIPS – torchmetrics (expects [-1, 1])
+        # LPIPS - torchmetrics (expects [-1, 1])
         self._lpips = LearnedPerceptualImagePatchSimilarity(net_type=net_type).to(device)
 
-        # FID – torchmetrics (expects uint8 [0, 255])
+        # FID - torchmetrics (expects uint8 [0, 255])
         self._fid: Optional[FrechetInceptionDistance] = None
         if self._compute_fid and FrechetInceptionDistance is not None:
             try:
@@ -228,11 +230,13 @@ class MetricCalculator:
 
         self._l1_total: float = 0.0
         self._num_samples: int = 0
+        self._num_pixels: int = 0  # for L1: mean over pixels so value is in [0, 1] (official normalization)
 
     def reset(self) -> None:
         """Clear all accumulated state."""
         self._l1_total = 0.0
         self._num_samples = 0
+        self._num_pixels = 0
         self._lpips.reset()
         if self._fid is not None:
             self._fid.reset()
@@ -249,12 +253,13 @@ class MetricCalculator:
         predictions = predictions.clamp(0, 1)
         targets = targets.clamp(0, 1)
 
-        # L1 - accumulate weighted by batch size to avoid per-batch bias
+        # L1 - mean absolute pixel error in [0, 1] (official: "Pixel values adjusted to fit within the desired range")
         batch_size = predictions.shape[0]
         self._l1_total += F.l1_loss(predictions, targets, reduction="sum").item()
         self._num_samples += batch_size
+        self._num_pixels += predictions.numel()
 
-        # LPIPS (expects [-1, 1], 3 channels) – accumulates internally
+        # LPIPS (expects [-1, 1], 3 channels) - accumulates internally
         preds_lp = predictions * 2 - 1
         tgts_lp = targets * 2 - 1
         if preds_lp.shape[1] == 1:
@@ -277,6 +282,9 @@ class MetricCalculator:
         if self._num_samples == 0:
             return MetricResults(lpips=0.0, l1=0.0, fid=None)
 
+        # L1: mean over all pixels so score is in [0, 1] per official normalization
+        l1_val = float(self._l1_total / self._num_pixels) if self._num_pixels > 0 else 0.0
+
         fid_val: Optional[float] = None
         if self._fid is not None:
             try:
@@ -286,7 +294,7 @@ class MetricCalculator:
 
         return MetricResults(
             lpips=self._lpips.compute().item(),
-            l1=float(self._l1_total / self._num_samples),
+            l1=l1_val,
             fid=fid_val,
         )
 
