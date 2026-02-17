@@ -73,6 +73,22 @@ def lambda_repa_cosine(step: int, start: float, end: float, decay_steps: int) ->
     return end + 0.5 * (start - end) * (1 + math.cos(math.pi * progress))
 
 
+def checkpoint_dir_sort_key(name: str) -> tuple[int, int]:
+    """Sort key for checkpoint dirs: (0, step) for checkpoint-{step}, (1, epoch) for checkpoint-epoch-{epoch}.
+
+    Use for sorting and for resume: only dirs with key[0] == 0 (step checkpoints) have full
+    accelerator state; checkpoint-epoch-* dirs are model-only saves.
+    """
+    if not name.startswith("checkpoint"):
+        return (2, 0)
+    parts = name.split("-")
+    if len(parts) >= 2 and parts[1].isdigit():
+        return (0, int(parts[1]))
+    if len(parts) >= 3 and parts[1] == "epoch" and parts[2].isdigit():
+        return (1, int(parts[2]))
+    return (2, 0)
+
+
 # ---------------------------------------------------------------------------
 # Accelerate tracker helpers
 # ---------------------------------------------------------------------------
@@ -501,6 +517,7 @@ def push_checkpoint_to_hub(
     commit_message: str = "Update checkpoint",
     token: Optional[str] = None,
     path_in_repo: Optional[str] = None,
+    request_timeout: float = 300.0,
 ) -> None:
     """Upload a checkpoint directory or file to the Hugging Face Hub.
 
@@ -520,6 +537,9 @@ def push_checkpoint_to_hub(
         organise checkpoints by baseline and task, e.g.
         ``"ddbm/sar2eo/checkpoint-epoch-5"``.  When *None* the files are
         uploaded to the repository root (legacy behaviour).
+    request_timeout : float, optional
+        Timeout in seconds for Hub HTTP requests (upload/commit). Default 300.
+        Increase for slow networks or large checkpoints to avoid ReadTimeout.
     """
     try:
         from huggingface_hub import HfApi
@@ -532,21 +552,41 @@ def push_checkpoint_to_hub(
         logger.warning("Checkpoint path does not exist – skipping push to hub: %s", save_dir)
         return
 
-    api = HfApi(token=token)
-    api.create_repo(repo_id=hub_model_id, exist_ok=True)
-    if save_path.is_dir():
-        api.upload_folder(
-            repo_id=hub_model_id,
-            folder_path=str(save_path),
-            path_in_repo=path_in_repo,
-            commit_message=commit_message,
-        )
-    else:
-        target_path = path_in_repo if path_in_repo is not None else save_path.name
-        api.upload_file(
-            repo_id=hub_model_id,
-            path_or_fileobj=str(save_path),
-            path_in_repo=target_path,
-            commit_message=commit_message,
-        )
-    logger.info(f"Pushed checkpoint to hub: {hub_model_id} (path_in_repo={path_in_repo})")
+    # Use a longer timeout for upload/commit to avoid ReadTimeout on slow or busy Hub
+    prev_timeout = None
+    if request_timeout > 0:
+        try:
+            import huggingface_hub.constants as hf_constants
+            from huggingface_hub.utils import reset_sessions
+            os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = str(int(request_timeout))
+            prev_timeout = getattr(hf_constants, "HF_HUB_DOWNLOAD_TIMEOUT", None)
+            hf_constants.HF_HUB_DOWNLOAD_TIMEOUT = request_timeout
+            reset_sessions()
+        except ImportError:
+            pass
+
+    try:
+        api = HfApi(token=token)
+        api.create_repo(repo_id=hub_model_id, exist_ok=True)
+        if save_path.is_dir():
+            api.upload_folder(
+                repo_id=hub_model_id,
+                folder_path=str(save_path),
+                path_in_repo=path_in_repo,
+                commit_message=commit_message,
+            )
+        else:
+            target_path = path_in_repo if path_in_repo is not None else save_path.name
+            api.upload_file(
+                repo_id=hub_model_id,
+                path_or_fileobj=str(save_path),
+                path_in_repo=target_path,
+                commit_message=commit_message,
+            )
+        logger.info(f"Pushed checkpoint to hub: {hub_model_id} (path_in_repo={path_in_repo})")
+    finally:
+        if prev_timeout is not None:
+            import huggingface_hub.constants as hf_constants
+            from huggingface_hub.utils import reset_sessions
+            hf_constants.HF_HUB_DOWNLOAD_TIMEOUT = prev_timeout
+            reset_sessions()

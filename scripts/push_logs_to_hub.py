@@ -55,6 +55,7 @@ def push_logs(
         hub_model_id=hub_model_id,
         commit_message=f"ddbm {task_name} TensorBoard logs",
         path_in_repo=path_in_repo,
+        request_timeout=30,
     )
     print(f"✓ Successfully pushed {task_name} logs to hub")
 

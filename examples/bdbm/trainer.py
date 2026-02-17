@@ -12,6 +12,7 @@ from src.schedulers import BDBMScheduler
 from src.models.unet_bdbm import create_model as create_bdbm_model
 
 from examples.bibbdm.trainer import BiBBDMTrainer
+from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from .dataset_wrapper import MavicTBDBMDataset, PairedValDataset
 
 
@@ -55,6 +56,13 @@ class BDBMTrainer(BiBBDMTrainer):
             src_ch = self.cfg.model_channels
             tgt_ch = self.cfg.model_channels
 
+        resolved_paired = resolve_paired_val_manifest(
+            getattr(self.cfg, "paired_val_manifest", None)
+        )
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            self.cfg, "paired_val_manifest", None
+        )
+
         train_ds = MavicTBDBMDataset(
             task=self.cfg.task_name,
             split="train",
@@ -65,20 +73,28 @@ class BDBMTrainer(BiBBDMTrainer):
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
-            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
+            paired_val_manifest=paired_val_manifest_str,
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
             val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
-            if getattr(self.cfg, "paired_val_manifest", None):
-                manifest_path = Path(self.cfg.paired_val_manifest)
-                if manifest_path.is_file():
-                    val_ds = PairedValDataset(
-                        manifest_path=manifest_path,
-                        resolution=val_resolution,
-                        source_channels=src_ch,
-                        target_channels=tgt_ch,
-                    )
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=val_resolution,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
+                )
+                logger.info(
+                    "Using paired val set for validation: %s (%d pairs)",
+                    resolved_paired,
+                    len(val_ds),
+                )
+            elif getattr(self.cfg, "paired_val_manifest", None):
+                logger.warning(
+                    "Paired val manifest not found at %s (tried cwd and project root) – falling back to test split",
+                    self.cfg.paired_val_manifest,
+                )
             if val_ds is None:
                 try:
                     val_ds = MavicTBDBMDataset(
@@ -89,6 +105,7 @@ class BDBMTrainer(BiBBDMTrainer):
                         target_channels=tgt_ch,
                         with_target=False,
                     )
+                    logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
                     logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds

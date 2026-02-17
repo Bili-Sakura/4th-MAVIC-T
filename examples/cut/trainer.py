@@ -38,9 +38,25 @@ from accelerate.utils import ProjectConfiguration
 from tqdm.auto import tqdm
 from datetime import timedelta
 
-from examples.ddbm.dataset_wrapper import PairedValDataset
+from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_manifest
 from .config import TaskConfig
 from .dataset_wrapper import MavicTCUTDataset
+
+# Resolve paths relative to project root so scripts work regardless of CWD
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_path(path: str | Path) -> Path:
+    """Resolve path; if relative, try project root so CWD-independent."""
+    p = Path(path)
+    if p.is_absolute() and p.is_file():
+        return p
+    if p.is_file():
+        return p.resolve()
+    root_path = _PROJECT_ROOT / p
+    if root_path.is_file():
+        return root_path
+    return p  # return as-is for clearer error messages
 from src.models.cut_model import (
     create_generator,
     create_discriminator,
@@ -53,6 +69,7 @@ from src.utils.metrics import MavicCriterion  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
+    checkpoint_dir_sort_key,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -85,8 +102,14 @@ class CUTTrainer:
     def build_datasets(self):
         """Return ``(train_dataset, val_dataset)``.
         
-        The validation loader now uses the *test* split and is used only for
-        sample generation."""
+        The validation loader uses the paired val set when the manifest exists
+        (resolved from cwd or project root), otherwise the test split."""
+        resolved_paired = resolve_paired_val_manifest(
+            getattr(self.cfg, "paired_val_manifest", None)
+        )
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            self.cfg, "paired_val_manifest", None
+        )
         train_ds = MavicTCUTDataset(
             task=self.cfg.task_name,
             split="train",
@@ -99,21 +122,29 @@ class CUTTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
-            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
+            paired_val_manifest=paired_val_manifest_str,
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
             val_res = self.cfg.validation_resolution if self.cfg.validation_resolution is not None else self.cfg.resolution
-            if getattr(self.cfg, "paired_val_manifest", None):
-                manifest_path = Path(self.cfg.paired_val_manifest)
-                if manifest_path.is_file():
-                    val_ds = PairedValDataset(
-                        manifest_path=manifest_path,
-                        resolution=val_res,
-                        source_channels=self.cfg.source_channels,
-                        target_channels=self.cfg.target_channels,
-                        return_order="source_target",
-                    )
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=val_res,
+                    source_channels=self.cfg.source_channels,
+                    target_channels=self.cfg.target_channels,
+                    return_order="source_target",
+                )
+                logger.info(
+                    "Using paired val set for validation: %s (%d pairs)",
+                    resolved_paired,
+                    len(val_ds),
+                )
+            elif getattr(self.cfg, "paired_val_manifest", None):
+                logger.warning(
+                    "Paired val manifest not found at %s (tried cwd and project root) – falling back to test split",
+                    self.cfg.paired_val_manifest,
+                )
             if val_ds is None:
                 try:
                     val_ds = MavicTCUTDataset(
@@ -126,6 +157,7 @@ class CUTTrainer:
                         model_channels=self.cfg.model_channels,
                         with_target=False,
                     )
+                    logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
                     logger.warning("Test split unavailable for %s – skipping validation", self.cfg.task_name)
         return train_ds, val_ds
@@ -659,13 +691,16 @@ class CUTTrainer:
         if cfg.resume_from_checkpoint:
             path = cfg.resume_from_checkpoint
             if path == "latest":
-                dirs = sorted(
-                    [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
-                    key=lambda x: int(x.split("-")[1]),
-                )
+                # Only step checkpoints (checkpoint-{step}) have full accelerator state; ignore checkpoint-epoch-*
+                all_ckpt_dirs = [
+                    d for d in os.listdir(cfg.output_dir)
+                    if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 0
+                ]
+                dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
                 path = dirs[-1] if dirs else None
             if path is not None:
                 accelerator.load_state(os.path.join(cfg.output_dir, path))
+                # path is checkpoint-{global_step} when from "latest"
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
@@ -828,12 +863,13 @@ class CUTTrainer:
                                 hub_model_id=cfg.hub_model_id,
                                 commit_message=f"cut {cfg.task_name} step {global_step}",
                                 path_in_repo=f"cut/{cfg.task_name}/checkpoint-{global_step}",
+                                request_timeout=30,
                             )
 
                         if cfg.checkpoints_total_limit is not None:
                             ckpts = sorted(
                                 [d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")],
-                                key=lambda x: int(x.split("-")[1]),
+                                key=checkpoint_dir_sort_key,
                             )
                             for old in ckpts[: -cfg.checkpoints_total_limit]:
                                 shutil.rmtree(os.path.join(cfg.output_dir, old))
@@ -887,6 +923,7 @@ class CUTTrainer:
                         hub_model_id=cfg.hub_model_id,
                         commit_message=f"cut {cfg.task_name} epoch {epoch + 1}",
                         path_in_repo=f"cut/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
+                        request_timeout=30,
                     )
 
         accelerator.end_training()

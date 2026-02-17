@@ -15,6 +15,7 @@ from src.models.unet_dbim import create_dbim_model
 from src.schedulers import DBIMScheduler
 
 from examples.ddbm.trainer import DDBMTrainer
+from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from .dataset_wrapper import MavicTDBIMDataset, PairedValDataset
 
 
@@ -62,6 +63,13 @@ class DBIMTrainer(DDBMTrainer):
             src_ch = self.cfg.model_channels
             tgt_ch = self.cfg.model_channels
 
+        resolved_paired = resolve_paired_val_manifest(
+            getattr(self.cfg, "paired_val_manifest", None)
+        )
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            self.cfg, "paired_val_manifest", None
+        )
+
         train_ds = MavicTDBIMDataset(
             task=self.cfg.task_name,
             split="train",
@@ -72,7 +80,7 @@ class DBIMTrainer(DDBMTrainer):
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
-            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
+            paired_val_manifest=paired_val_manifest_str,
         )
         val_ds = None
         if (
@@ -80,15 +88,23 @@ class DBIMTrainer(DDBMTrainer):
             or (self.cfg.validation_steps is not None and self.cfg.validation_steps > 0)
         ):
             val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
-            if getattr(self.cfg, "paired_val_manifest", None):
-                manifest_path = Path(self.cfg.paired_val_manifest)
-                if manifest_path.is_file():
-                    val_ds = PairedValDataset(
-                        manifest_path=manifest_path,
-                        resolution=val_resolution,
-                        source_channels=src_ch,
-                        target_channels=tgt_ch,
-                    )
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=val_resolution,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
+                )
+                logger.info(
+                    "Using paired val set for validation: %s (%d pairs)",
+                    resolved_paired,
+                    len(val_ds),
+                )
+            elif getattr(self.cfg, "paired_val_manifest", None):
+                logger.warning(
+                    "Paired val manifest not found at %s (tried cwd and project root) – falling back to test split",
+                    self.cfg.paired_val_manifest,
+                )
             if val_ds is None:
                 try:
                     val_ds = MavicTDBIMDataset(
@@ -99,6 +115,7 @@ class DBIMTrainer(DDBMTrainer):
                         target_channels=tgt_ch,
                         with_target=False,
                     )
+                    logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
                     logger.warning(
                         "Test split unavailable for %s - skipping validation",

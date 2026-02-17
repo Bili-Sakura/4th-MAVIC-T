@@ -39,6 +39,7 @@ from tqdm.auto import tqdm
 from datetime import timedelta
 
 from src.schedulers import DDIBScheduler
+from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from .config import TaskConfig
 from .dataset_wrapper import MavicTDDIBDataset
 from src.models.unet_ddib import create_model
@@ -46,6 +47,7 @@ from src.models.unet_ddib import create_model
 from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
+    checkpoint_dir_sort_key,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -80,6 +82,12 @@ class DDIBTrainer:
 
     def build_datasets(self):
         """Return ``(source_dataset, target_dataset)`` for single-domain training."""
+        resolved_paired = resolve_paired_val_manifest(
+            getattr(self.cfg, "paired_val_manifest", None)
+        )
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            self.cfg, "paired_val_manifest", None
+        )
         common = dict(
             task=self.cfg.task_name,
             split="train",
@@ -88,7 +96,7 @@ class DDIBTrainer:
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
-            paired_val_manifest=getattr(self.cfg, "paired_val_manifest", None),
+            paired_val_manifest=paired_val_manifest_str,
         )
         source_ds = MavicTDDIBDataset(
             domain="source",
@@ -327,10 +335,11 @@ class DDIBTrainer:
         if cfg.resume_from_checkpoint:
             path = cfg.resume_from_checkpoint
             if path == "latest":
-                dirs = sorted(
-                    [d for d in os.listdir(domain_output_dir) if d.startswith("checkpoint")],
-                    key=lambda x: int(x.split("-")[1]),
-                )
+                all_ckpt_dirs = [
+                    d for d in os.listdir(domain_output_dir)
+                    if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 0
+                ]
+                dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
                 path = dirs[-1] if dirs else None
             if path is not None:
                 full_path = os.path.join(domain_output_dir, path)
@@ -455,12 +464,13 @@ class DDIBTrainer:
                                 hub_model_id=cfg.hub_model_id,
                                 commit_message=f"ddib {domain_label} {cfg.task_name} step {global_step}",
                                 path_in_repo=f"ddib/{domain_label}/{cfg.task_name}/checkpoint-{global_step}",
+                                request_timeout=30,
                             )
 
                         if cfg.checkpoints_total_limit is not None:
                             ckpts = sorted(
                                 [d for d in os.listdir(domain_output_dir) if d.startswith("checkpoint")],
-                                key=lambda x: int(x.split("-")[1]),
+                                key=checkpoint_dir_sort_key,
                             )
                             for old in ckpts[: -cfg.checkpoints_total_limit]:
                                 shutil.rmtree(os.path.join(domain_output_dir, old))
@@ -505,6 +515,7 @@ class DDIBTrainer:
                         hub_model_id=cfg.hub_model_id,
                         commit_message=f"ddib {domain_label} {cfg.task_name} epoch {epoch + 1}",
                         path_in_repo=f"ddib/{domain_label}/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
+                        request_timeout=30,
                     )
 
         accelerator.end_training()
@@ -632,16 +643,25 @@ class DDIBTrainer:
             and (cfg.validation_epochs is not None or cfg.validation_steps is not None)
         ):
             from examples.ddbm.dataset_wrapper import MavicTDDBMDataset, PairedValDataset
+            resolved_paired = resolve_paired_val_manifest(getattr(cfg, "paired_val_manifest", None))
             val_ds = None
-            if getattr(cfg, "paired_val_manifest", None):
-                manifest_path = Path(cfg.paired_val_manifest)
-                if manifest_path.is_file():
-                    val_ds = PairedValDataset(
-                        manifest_path=manifest_path,
-                        resolution=cfg.resolution,
-                        source_channels=cfg.source_channels,
-                        target_channels=cfg.target_channels,
-                    )
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=cfg.resolution,
+                    source_channels=cfg.source_channels,
+                    target_channels=cfg.target_channels,
+                )
+                logger.info(
+                    "Using paired val set for validation: %s (%d pairs)",
+                    resolved_paired,
+                    len(val_ds),
+                )
+            elif getattr(cfg, "paired_val_manifest", None):
+                logger.warning(
+                    "Paired val manifest not found at %s (tried cwd and project root) – falling back to test split",
+                    cfg.paired_val_manifest,
+                )
             if val_ds is None:
                 try:
                     val_ds = MavicTDDBMDataset(
@@ -651,6 +671,7 @@ class DDIBTrainer:
                         model_channels=cfg.source_channels,
                         with_target=False,
                     )
+                    logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
                     pass
             if val_ds is not None:

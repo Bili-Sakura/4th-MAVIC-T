@@ -28,6 +28,7 @@ from datetime import timedelta
 from src.schedulers import UniDBScheduler
 from src.pipelines.unidb import UniDBPipeline
 from .config import TaskConfig
+from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from .dataset_wrapper import MavicTUniDBDataset, PairedValDataset
 from .model import create_model
 
@@ -35,6 +36,7 @@ from src.utils.metrics import MetricCalculator
 from src.utils.training_utils import (
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
+    checkpoint_dir_sort_key,
     create_optimizer,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
@@ -77,6 +79,12 @@ class UniDBTrainer:
         src_ch = cfg.source_channels
         tgt_ch = cfg.target_channels
 
+        resolved_paired = resolve_paired_val_manifest(getattr(cfg, "paired_val_manifest", None))
+        self._resolved_paired_val_manifest = resolved_paired
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            cfg, "paired_val_manifest", None
+        )
+
         train_ds = MavicTUniDBDataset(
             task=cfg.task_name,
             split="train",
@@ -87,7 +95,7 @@ class UniDBTrainer:
             use_horizontal_flip=cfg.use_horizontal_flip,
             use_vertical_flip=cfg.use_vertical_flip,
             exclude_file=cfg.exclude_file,
-            paired_val_manifest=getattr(cfg, "paired_val_manifest", None),
+            paired_val_manifest=paired_val_manifest_str,
         )
         val_ds = None
         if (
@@ -95,15 +103,23 @@ class UniDBTrainer:
             or (cfg.validation_steps and cfg.validation_steps > 0)
         ):
             val_res = getattr(cfg, "output_resolution", None) or cfg.resolution
-            if getattr(cfg, "paired_val_manifest", None):
-                manifest_path = Path(cfg.paired_val_manifest)
-                if manifest_path.is_file():
-                    val_ds = PairedValDataset(
-                        manifest_path=manifest_path,
-                        resolution=val_res,
-                        source_channels=src_ch,
-                        target_channels=tgt_ch,
-                    )
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=val_res,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
+                )
+                logger.info(
+                    "Using paired val set for validation: %s (%d pairs)",
+                    resolved_paired,
+                    len(val_ds),
+                )
+            elif getattr(cfg, "paired_val_manifest", None):
+                logger.warning(
+                    "Paired val manifest not found at %s (tried cwd and project root) – falling back to test split",
+                    cfg.paired_val_manifest,
+                )
             if val_ds is None:
                 try:
                     val_ds = MavicTUniDBDataset(
@@ -114,6 +130,7 @@ class UniDBTrainer:
                         target_channels=tgt_ch,
                         with_target=False,
                     )
+                    logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
                     logger.warning("Test split unavailable for %s", cfg.task_name)
         return train_ds, val_ds
@@ -248,18 +265,21 @@ class UniDBTrainer:
             log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
         metrics_result = {}
-        if getattr(cfg, "paired_val_manifest", None) and accelerator.is_main_process:
+        manifest_path = getattr(self, "_resolved_paired_val_manifest", None) or (
+            Path(cfg.paired_val_manifest) if getattr(cfg, "paired_val_manifest", None) else None
+        )
+        if manifest_path is not None and Path(manifest_path).is_file() and accelerator.is_main_process:
             metrics_result = self._evaluate_paired_val_metrics(
-                model, scheduler, pipeline, accelerator
+                model, scheduler, pipeline, accelerator, manifest_path=manifest_path
             )
 
         if was_training:
             unwrapped.train()
         return {"saved_samples": saved, "sample_dir": str(sample_dir), **metrics_result}
 
-    def _evaluate_paired_val_metrics(self, model, scheduler, pipeline, accelerator):
+    def _evaluate_paired_val_metrics(self, model, scheduler, pipeline, accelerator, manifest_path=None):
         cfg = self.cfg
-        manifest_path = Path(cfg.paired_val_manifest)
+        manifest_path = Path(manifest_path) if manifest_path is not None else Path(cfg.paired_val_manifest)
         if not manifest_path.is_file():
             return {}
 
@@ -397,7 +417,11 @@ class UniDBTrainer:
         if cfg.resume_from_checkpoint:
             path = cfg.resume_from_checkpoint
             if path == "latest":
-                dirs = sorted([d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")], key=lambda x: int(x.split("-")[1]))
+                all_ckpt_dirs = [
+                    d for d in os.listdir(cfg.output_dir)
+                    if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 0
+                ]
+                dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
                 path = dirs[-1] if dirs else None
             if path:
                 accelerator.load_state(os.path.join(cfg.output_dir, path))
@@ -470,7 +494,7 @@ class UniDBTrainer:
                         logger.info("Saved checkpoint to %s", save_path)
 
                         if cfg.checkpoints_total_limit:
-                            ckpts = sorted([d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")], key=lambda x: int(x.split("-")[1]))
+                            ckpts = sorted([d for d in os.listdir(cfg.output_dir) if d.startswith("checkpoint")], key=checkpoint_dir_sort_key)
                             for old in ckpts[:-cfg.checkpoints_total_limit]:
                                 shutil.rmtree(os.path.join(cfg.output_dir, old))
 

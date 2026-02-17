@@ -103,6 +103,21 @@ def _load_paired_val_exclude_set(manifest_path: Optional[str]) -> Set[str]:
     return out
 
 
+def resolve_paired_val_manifest(raw: str | None) -> Path | None:
+    """Resolve paired_val_manifest to an existing file (cwd or project root).
+    Used by trainers so validation uses the paired val set regardless of CWD."""
+    if not raw:
+        return None
+    p = Path(raw)
+    if p.is_file():
+        return p
+    if not p.is_absolute():
+        candidate = _PROJECT_ROOT / p
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 class MavicTDDBMDataset(Dataset):
     """A PyTorch :class:`Dataset` that loads MAVIC-T image pairs for DDBM.
 
