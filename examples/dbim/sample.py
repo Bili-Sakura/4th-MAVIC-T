@@ -37,6 +37,11 @@ from .config import (  # noqa: E402
 )
 from .dataset_wrapper import MavicTDBIMDataset  # noqa: E402
 from src.utils.paths import path_from_root  # noqa: E402
+from src.utils.readme_utils import (  # noqa: E402
+    load_checkpoint_config,
+    build_detailed_description,
+    write_readme,
+)
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -145,8 +150,8 @@ def parse_args():
     parser.add_argument(
         "--readme_description",
         type=str,
-        default="DBIM diffusion bridge implicit model. PyTorch implementation.",
-        help="Description line for readme.txt",
+        default="",
+        help="Optional custom text appended to the detailed readme description.",
     )
     args = parser.parse_args()
 
@@ -214,23 +219,6 @@ def _load_pipeline(pretrained_path: str, primary_device: str, device_ids: list[i
         pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
         logger.info("Using DataParallel on GPUs %s", device_ids)
     return pipeline
-
-
-def _write_readme(
-    output_dir: Path,
-    runtime_per_image: float,
-    use_gpu: bool,
-    extra_data: bool,
-    description: str,
-) -> None:
-    readme_path = output_dir / "readme.txt"
-    content = f"""runtime per image [s] : {runtime_per_image:.2f}
-CPU[1] / GPU[0] : {0 if use_gpu else 1}
-Extra Data [1] / No Extra Data [0] : {1 if extra_data else 0}
-Other description : {description}
-"""
-    readme_path.write_text(content, encoding="utf-8")
-    logger.info("Wrote %s", readme_path)
 
 
 def main():
@@ -329,12 +317,33 @@ def main():
     runtime_per_image = total_elapsed / len(dataset) if len(dataset) > 0 else 0.0
     use_gpu = args.primary_device.startswith("cuda")
 
-    _write_readme(
+    checkpoint_config = load_checkpoint_config(args.pretrained_model_name_or_path)
+    extra_sampling = [
+        f"Sampler: {args.sampler}",
+        f"Num inference steps: {args.num_inference_steps}",
+        f"Guidance scale: {args.guidance}",
+        f"Churn step ratio: {args.churn_step_ratio}",
+        f"Eta (stochasticity): {args.eta}",
+    ]
+    if args.sampler == "dbim_high_order":
+        extra_sampling.extend([f"Order: {args.order}", f"Lower order final: {args.lower_order_final}"])
+    extra_sampling.append(f"Clip denoised: {args.clip_denoised}")
+    detailed_description = build_detailed_description(
+        model_name="DBIM",
+        model_description="DBIM (Diffusion Bridge Implicit Model) - diffusion bridge implicit model for image-to-image translation. PyTorch implementation. UNet backbone: ADM-style (DiT-like) with concat conditioning.",
+        checkpoint_path=args.pretrained_model_name_or_path,
+        args=args,
+        cfg=cfg,
+        checkpoint_config=checkpoint_config,
+        runtime_per_image=runtime_per_image,
+        extra_sampling_lines=extra_sampling,
+    )
+    write_readme(
         output_dir,
         runtime_per_image=runtime_per_image,
         use_gpu=use_gpu,
         extra_data=args.extra_data,
-        description=args.readme_description,
+        description=detailed_description,
     )
 
     if args.save_npz and all_samples:

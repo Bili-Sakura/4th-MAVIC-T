@@ -108,3 +108,26 @@ CUDA_VISIBLE_DEVICES=2,3 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2ir.sh
 CUDA_VISIBLE_DEVICES=4,5 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2rgb.sh
 CUDA_VISIBLE_DEVICES=6,7 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2eo.sh
 ```
+
+## CUT-Scaled (2026/02/18)
+
+**Pipeline:** `CUTPipeline` (CUT in pixel space). Uses **large** tier for 256px task and **huge** tier for 1024px tasks per [model_scaling_variants.yaml](../configs/model_scaling_variants.yaml). Logging to **SwanLab** (same as DBIM-Pixel-Scaled).
+
+| Task      | Pixel shape    | CUT tier | ~Params (1ch) |
+|-----------|----------------|----------|---------------|
+| SAR → EO  | `(256, 256)`   | large    | ~56.5 M       |
+| RGB → IR  | `(1024, 1024)` | huge     | ~293 M        |
+| SAR → IR  | `(1024, 1024)` | huge     | ~293 M        |
+| SAR → RGB | `(1024, 1024)` | huge     | ~293 M        |
+
+```bash
+# SwanLab logs to ./ckpt/swanlog (workspace: EarthBridge)
+
+# 256px task (large)
+bash scripts/CUT_Scaled-0218/train_sar2eo.sh
+
+# 1024px tasks (huge) — may need multi-GPU or smaller batch
+bash scripts/CUT_Scaled-0218/train_rgb2ir.sh
+bash scripts/CUT_Scaled-0218/train_sar2ir.sh
+bash scripts/CUT_Scaled-0218/train_sar2rgb.sh
+```

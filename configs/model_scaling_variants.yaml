@@ -373,28 +373,28 @@ cut:
       target_channels: 1
       model_channels: 1
       resolution: 256
-      recommended_size: "medium"
+      # recommended_size: "medium"
 
     rgb2ir:
       source_channels: 3
       target_channels: 1
       model_channels: 3
       resolution: 1024
-      recommended_size: "medium or large"
+      # recommended_size: "medium or large"
 
     sar2ir:
       source_channels: 1
       target_channels: 1
       model_channels: 1
       resolution: 1024
-      recommended_size: "medium or large"
+      # recommended_size: "medium or large"
 
     sar2rgb:
       source_channels: 1
       target_channels: 3
       model_channels: 3
       resolution: 1024
-      recommended_size: "medium or large"
+      # recommended_size: "medium or large"
 
 
 # ============================================================

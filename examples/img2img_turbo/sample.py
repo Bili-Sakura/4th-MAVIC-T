@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +46,11 @@ from .config import (  # noqa: E402
 )
 from .dataset_wrapper import MavicTTurboDataset  # noqa: E402
 from src.models.pix2pix_turbo import Pix2PixTurbo  # noqa: E402
+from src.utils.readme_utils import (  # noqa: E402
+    load_checkpoint_config,
+    build_detailed_description,
+    write_readme,
+)
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +105,17 @@ def parse_args():
     )
     parser.add_argument("--no_skip_existing", dest="skip_existing", action="store_false")
     parser.add_argument("--save_npz", action="store_true")
+    parser.add_argument(
+        "--extra_data",
+        action="store_true",
+        help="Set to 1 in readme when extra data is used.",
+    )
+    parser.add_argument(
+        "--readme_description",
+        type=str,
+        default="",
+        help="Optional custom text appended to the detailed readme description.",
+    )
     parser.add_argument(
         "--deterministic",
         action="store_true",
@@ -173,6 +190,7 @@ def main():
     logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs{det_info} …")
     all_samples = []
     sample_idx = 0
+    total_start = time.perf_counter()
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
@@ -200,13 +218,45 @@ def main():
             sample_idx += len(images_uint8)
             all_samples.append(images_uint8)
 
+    total_elapsed = time.perf_counter() - total_start
+    runtime_per_image = total_elapsed / len(dataset) if len(dataset) > 0 else 0.0
+    use_gpu = args.primary_device.startswith("cuda")
+
+    # Turbo uses .pkl checkpoint; config may live alongside or in parent dir
+    ckpt_path = str(Path(args.model_path).parent)
+    checkpoint_config = load_checkpoint_config(ckpt_path)
+    extra_sampling = [
+        "Pix2Pix-Turbo: single-step distillation, deterministic",
+        f"Use FP16: {getattr(args, 'use_fp16', False)}",
+    ]
+    detailed_description = build_detailed_description(
+        model_name="Pix2Pix-Turbo",
+        model_description="Pix2Pix-Turbo - single-step distilled image-to-image diffusion. PyTorch implementation.",
+        checkpoint_path=args.model_path,
+        args=args,
+        cfg=cfg,
+        checkpoint_config=checkpoint_config,
+        runtime_per_image=runtime_per_image,
+        extra_sampling_lines=extra_sampling,
+    )
+    write_readme(
+        output_dir,
+        runtime_per_image=runtime_per_image,
+        use_gpu=use_gpu,
+        extra_data=args.extra_data,
+        description=detailed_description,
+    )
+
     all_samples = np.concatenate(all_samples, axis=0)
 
     if args.save_npz:
         np.savez(output_dir / f"samples_{len(all_samples)}.npz", arr_0=all_samples)
         logger.info(f"Saved NPZ with {len(all_samples)} samples.")
 
-    logger.info(f"Sampling complete – {sample_idx} images saved to {output_dir}")
+    logger.info(
+        f"Sampling complete – {sample_idx} images saved to {output_dir} "
+        f"(runtime: {total_elapsed:.1f}s total, {runtime_per_image:.2f}s/image)"
+    )
 
 
 if __name__ == "__main__":

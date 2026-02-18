@@ -32,6 +32,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,11 @@ from .config import (  # noqa: E402
 from .dataset_wrapper import MavicTCUTDataset  # noqa: E402
 from src.models.cut_model import CUTGenerator, create_generator  # noqa: E402
 from src.pipelines.cut import CUTPipeline  # noqa: E402
+from src.utils.readme_utils import (  # noqa: E402
+    load_checkpoint_config,
+    build_detailed_description,
+    write_readme,
+)
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -109,6 +115,17 @@ def parse_args():
         help="Skip samples whose output file already exists (default: True, for resumability).",
     )
     parser.add_argument("--no_skip_existing", dest="skip_existing", action="store_false")
+    parser.add_argument(
+        "--extra_data",
+        action="store_true",
+        help="Set to 1 in readme when extra data is used.",
+    )
+    parser.add_argument(
+        "--readme_description",
+        type=str,
+        default="",
+        help="Optional custom text appended to the detailed readme description.",
+    )
     parser.add_argument(
         "--device",
         type=str,
@@ -221,6 +238,7 @@ def main():
     logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs{det_info} …")
     all_samples = []
     sample_idx = 0
+    total_start = time.perf_counter()
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
@@ -242,13 +260,42 @@ def main():
             sample_idx += len(images_uint8)
             all_samples.append(images_uint8)
 
+    total_elapsed = time.perf_counter() - total_start
+    runtime_per_image = total_elapsed / len(dataset) if len(dataset) > 0 else 0.0
+    use_gpu = args.primary_device.startswith("cuda")
+
+    checkpoint_config = load_checkpoint_config(args.pretrained_model_name_or_path)
+    extra_sampling = [
+        "CUT: single-step deterministic generator forward (no diffusion steps)",
+    ]
+    detailed_description = build_detailed_description(
+        model_name="CUT",
+        model_description="CUT (Contrastive Unpaired Translation) - contrastive unpaired image-to-image translation. GAN-based, deterministic inference. PyTorch implementation.",
+        checkpoint_path=args.pretrained_model_name_or_path,
+        args=args,
+        cfg=cfg,
+        checkpoint_config=checkpoint_config,
+        runtime_per_image=runtime_per_image,
+        extra_sampling_lines=extra_sampling,
+    )
+    write_readme(
+        output_dir,
+        runtime_per_image=runtime_per_image,
+        use_gpu=use_gpu,
+        extra_data=args.extra_data,
+        description=detailed_description,
+    )
+
     all_samples = np.concatenate(all_samples, axis=0)
 
     if args.save_npz:
         np.savez(output_dir / f"samples_{len(all_samples)}.npz", arr_0=all_samples)
         logger.info(f"Saved NPZ with {len(all_samples)} samples.")
 
-    logger.info(f"Sampling complete – {sample_idx} images saved to {output_dir}")
+    logger.info(
+        f"Sampling complete – {sample_idx} images saved to {output_dir} "
+        f"(runtime: {total_elapsed:.1f}s total, {runtime_per_image:.2f}s/image)"
+    )
 
 
 if __name__ == "__main__":
