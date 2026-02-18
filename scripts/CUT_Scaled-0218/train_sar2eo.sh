@@ -26,6 +26,7 @@ N_LAYERS_D=3
 NET_G="resnet_9blocks"
 
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
+PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2eo.txt"
 USE_AUGMENTED=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=false
@@ -70,6 +71,7 @@ ARGS=(
   --n_layers_D "${N_LAYERS_D}"
   --netG "${NET_G}"
   --exclude_file "${EXCLUDE_FILE}"
+  --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
   --use_augmented "${USE_AUGMENTED}"
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
   --use_vertical_flip "${USE_VERTICAL_FLIP}"

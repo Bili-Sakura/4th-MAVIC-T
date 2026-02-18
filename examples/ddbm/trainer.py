@@ -531,10 +531,10 @@ class DDBMTrainer:
             if metrics_result:
                 logger.info(
                     "Paired val metrics: LPIPS=%.4f L1=%.4f score=%.4f (FID=%s)",
-                    metrics_result.get("lpips", 0),
-                    metrics_result.get("l1", 0),
-                    metrics_result.get("score", 0),
-                    metrics_result.get("fid", "N/A"),
+                    metrics_result.get("val_lpips", 0),
+                    metrics_result.get("val_l1", 0),
+                    metrics_result.get("val_score", 0),
+                    metrics_result.get("val_fid", "N/A"),
                 )
 
         if was_training:

@@ -37,7 +37,7 @@ from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_m
 from .dataset_wrapper import MavicTI2SBDataset
 from src.models.unet_i2sb import create_model
 
-from src.utils.metrics import MavicCriterion  # noqa: E402
+from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
@@ -294,7 +294,7 @@ class I2SBTrainer:
 
     @torch.no_grad()
     def log_validation(self, model, scheduler, val_dataloader, accelerator, global_step, latent_target_encoder=None):
-        """Generate and save test samples (first four inputs)."""
+        """Generate and save test samples. Optionally evaluate on paired val set with LPIPS/L1/FID."""
         from src.pipelines.i2sb import I2SBPipeline, I2SBLatentPipeline
 
         logger.info("Running validation at step %d …", global_step)
@@ -314,10 +314,13 @@ class I2SBTrainer:
         saved = 0
         first_grid = None
 
+        has_paired_target = isinstance(val_dataloader.dataset, PairedValDataset)
+        cols = 3 if has_paired_target else 2
+
         for batch_idx, batch in enumerate(val_dataloader):
             if cfg.max_validation_batches is not None and batch_idx >= cfg.max_validation_batches:
                 break
-            _zeros, source = batch
+            target, source = batch  # PairedValDataset: (target, source); test split: target is zeros
             source_01 = source.to(accelerator.device)
             source_inp = source_01 * 2 - 1
 
@@ -336,30 +339,44 @@ class I2SBTrainer:
 
             src_vis = source_01
             gen_vis = generated
+            tgt_vis = target.to(accelerator.device) if has_paired_target else None
             if gen_vis.shape[1] != src_vis.shape[1]:
                 if gen_vis.shape[1] == 3 and src_vis.shape[1] == 1:
                     src_vis = src_vis.repeat(1, 3, 1, 1)
                 elif gen_vis.shape[1] == 1 and src_vis.shape[1] == 3:
                     gen_vis = gen_vis.repeat(1, 3, 1, 1)
+            if tgt_vis is not None and tgt_vis.shape[1] != gen_vis.shape[1]:
+                if gen_vis.shape[1] == 3 and tgt_vis.shape[1] == 1:
+                    tgt_vis = tgt_vis.repeat(1, 3, 1, 1)
+                elif gen_vis.shape[1] == 1 and tgt_vis.shape[1] == 3:
+                    gen_vis = gen_vis.repeat(1, 3, 1, 1)
 
             src_uint8 = (src_vis.clamp(0, 1) * 255).round().to(torch.uint8)
             gen_uint8 = (gen_vis.clamp(0, 1) * 255).round().to(torch.uint8)
+            tgt_uint8 = (tgt_vis.clamp(0, 1) * 255).round().to(torch.uint8) if tgt_vis is not None else None
 
             src_uint8 = src_uint8.permute(0, 2, 3, 1).cpu().numpy()
             gen_uint8 = gen_uint8.permute(0, 2, 3, 1).cpu().numpy()
+            tgt_uint8 = tgt_uint8.permute(0, 2, 3, 1).cpu().numpy() if tgt_uint8 is not None else None
 
             batch_images = []
             batch_size = len(src_uint8)
-            for src_arr, gen_arr in zip(src_uint8, gen_uint8):
+            for i in range(batch_size):
+                src_arr = src_uint8[i]
+                gen_arr = gen_uint8[i]
                 if src_arr.shape[2] == 1:
                     src_arr = src_arr.squeeze(2)
                 if gen_arr.shape[2] == 1:
                     gen_arr = gen_arr.squeeze(2)
-                batch_images.extend(
-                    [Image.fromarray(src_arr).convert("RGB"), Image.fromarray(gen_arr).convert("RGB")]
-                )
+                batch_images.append(Image.fromarray(src_arr).convert("RGB"))
+                batch_images.append(Image.fromarray(gen_arr).convert("RGB"))
+                if tgt_uint8 is not None:
+                    tgt_arr = tgt_uint8[i]
+                    if tgt_arr.shape[2] == 1:
+                        tgt_arr = tgt_arr.squeeze(2)
+                    batch_images.append(Image.fromarray(tgt_arr).convert("RGB"))
 
-            grid = make_image_grid(batch_images, rows=batch_size, cols=2)
+            grid = make_image_grid(batch_images, rows=batch_size, cols=cols)
             grid.save(sample_dir / f"batch_{batch_idx:03d}.png")
             if first_grid is None:
                 first_grid = grid.copy()
@@ -371,9 +388,94 @@ class I2SBTrainer:
             from src.utils.training_utils import log_validation_images_to_trackers
             log_validation_images_to_trackers(accelerator, first_grid, global_step)
 
+        # Evaluate on paired validation set using MAVIC-T metrics (LPIPS, L1, FID)
+        metrics_result = {}
+        manifest_path = getattr(self, "_resolved_paired_val_manifest", None) or (
+            Path(cfg.paired_val_manifest) if getattr(cfg, "paired_val_manifest", None) else None
+        )
+        if manifest_path is not None and Path(manifest_path).is_file() and accelerator.is_main_process:
+            metrics_result = self._evaluate_paired_val_metrics(
+                model, scheduler, pipeline, accelerator, latent_target_encoder, manifest_path=manifest_path
+            )
+            if metrics_result:
+                logger.info(
+                    "Paired val metrics: LPIPS=%.4f L1=%.4f score=%.4f (FID=%s)",
+                    metrics_result.get("val_lpips", 0),
+                    metrics_result.get("val_l1", 0),
+                    metrics_result.get("val_score", 0),
+                    metrics_result.get("val_fid", "N/A"),
+                )
+
         if was_training:
             unwrapped.train()
-        return {"saved_samples": saved, "sample_dir": str(sample_dir)}
+        out = {"saved_samples": saved, "sample_dir": str(sample_dir)}
+        out.update(metrics_result)
+        return out
+
+    def _evaluate_paired_val_metrics(
+        self, model, scheduler, pipeline, accelerator, latent_target_encoder, manifest_path=None
+    ):
+        """Run inference on paired val set and compute MAVIC-T metrics (LPIPS, L1, FID)."""
+        cfg = self.cfg
+        manifest_path = Path(manifest_path) if manifest_path is not None else Path(cfg.paired_val_manifest)
+        if not manifest_path.is_file():
+            logger.warning("Paired val manifest not found: %s - skipping metric evaluation", manifest_path)
+            return {}
+
+        if cfg.use_latent_target:
+            src_ch, tgt_ch = cfg.source_channels, cfg.target_channels
+        else:
+            src_ch = tgt_ch = cfg.model_channels
+
+        res = getattr(cfg, "output_resolution", None) or cfg.resolution
+        paired_ds = PairedValDataset(
+            manifest_path=manifest_path,
+            resolution=res,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
+        )
+        paired_loader = DataLoader(
+            paired_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=False)
+
+        for _target, source in paired_loader:
+            source_01 = source.to(accelerator.device)
+            source_inp = source_01 * 2 - 1
+
+            with accelerator.autocast():
+                pipeline_kwargs = {
+                    "source_image": source_inp,
+                    "nfe": cfg.nfe,
+                    "ot_ode": cfg.ot_ode,
+                    "clip_denoise": cfg.clip_denoise,
+                    "output_type": "pt",
+                }
+                if latent_target_encoder is not None:
+                    pipeline_kwargs["target_channels"] = cfg.target_channels
+                result = pipeline(**pipeline_kwargs)
+            generated = (result.images + 1) * 0.5
+
+            target = _target.to(accelerator.device)
+            pred_01 = generated.clamp(0, 1)
+            tgt_01 = target.clamp(0, 1)
+            if pred_01.shape[1] != tgt_01.shape[1]:
+                if pred_01.shape[1] == 3 and tgt_01.shape[1] == 1:
+                    tgt_01 = tgt_01.repeat(1, 3, 1, 1)
+                elif pred_01.shape[1] == 1 and tgt_01.shape[1] == 3:
+                    pred_01 = pred_01.repeat(1, 3, 1, 1)
+            metric_calc.update(pred_01, tgt_01)
+
+        m = metric_calc.compute()
+        return {
+            "val_lpips": m.lpips,
+            "val_l1": m.l1,
+            "val_score": m.score if m.score is not None else m.lpips + m.l1,
+        }
 
     # ----- main training loop ------------------------------------------------
 
@@ -659,10 +761,13 @@ class I2SBTrainer:
                         and global_step % cfg.validation_steps == 0
                         and accelerator.is_main_process
                     ):
-                        self.log_validation(
+                        val_result = self.log_validation(
                             model, scheduler, val_dataloader, accelerator, global_step,
                             latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                         )
+                        if val_result:
+                            accelerator.log(val_result, step=global_step)
+                        accelerator.wait_for_everyone()
 
                     if (
                         checkpointing_steps is not None
@@ -719,10 +824,13 @@ class I2SBTrainer:
                 and (epoch + 1) % cfg.validation_epochs == 0
                 and accelerator.is_main_process
             ):
-                self.log_validation(
+                val_result = self.log_validation(
                     model, scheduler, val_dataloader, accelerator, global_step,
                     latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
                 )
+                if val_result:
+                    accelerator.log(val_result, step=global_step)
+                accelerator.wait_for_everyone()
 
             # Save at epoch boundary
             if (
