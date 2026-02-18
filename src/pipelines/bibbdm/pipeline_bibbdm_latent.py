@@ -6,7 +6,7 @@ produces pixel-space images.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -18,6 +18,10 @@ from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_bibbdm import BiBBDMScheduler
 from src.models.unet_bibbdm import BiBBDMUNet
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_WINDOW_SIZE,
+    get_views,
+)
 
 
 @dataclass
@@ -114,6 +118,55 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         scaled = latents / self.vae.config.scaling_factor
         return self.vae.decode(scaled).sample
 
+    def _unet_tiled(
+        self,
+        img: torch.Tensor,
+        t: torch.Tensor,
+        context: torch.Tensor,
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+    ) -> torch.Tensor:
+        """MultiDiffusion: run UNet on overlapping crops and merge by averaging."""
+        value = torch.zeros_like(img)
+        count = torch.zeros_like(img)
+        batch_size = img.shape[0]
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_img = torch.cat(
+                [img[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            crops_ctx = torch.cat(
+                [context[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            t_crops = t.repeat_interleave(vb_size, dim=0)
+            out_crops = self.unet(crops_img, t_crops, context=crops_ctx)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += out_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        return torch.where(count > 0, value / count, value)
+
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     # ------------------------------------------------------------------
     # Sampling methods
     # ------------------------------------------------------------------
@@ -125,6 +178,8 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         clip_denoised: bool,
         output_type: str,
         generator: Optional[torch.Generator],
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> torch.Tensor:
         """Source → Target (reverse Brownian Bridge) in latent space.
 
@@ -151,7 +206,10 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
 
         for i in tqdm(range(len(steps)), desc="B2A sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=device, dtype=torch.long)
-            model_output = self.unet(img, t, context=source)
+            if views is not None:
+                model_output = self._unet_tiled(img, t, source, views, view_batch_size=view_batch_size)
+            else:
+                model_output = self.unet(img, t, context=source)
             result = self.scheduler.step_b2a(
                 model_output,
                 step_index=i,
@@ -171,6 +229,8 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         clip_denoised: bool,
         output_type: str,
         generator: Optional[torch.Generator],
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> torch.Tensor:
         """Target → Source (forward Brownian Bridge) in latent space.
 
@@ -197,7 +257,10 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
 
         for i in tqdm(reversed(range(len(steps))), desc="A2B sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=device, dtype=torch.long)
-            model_output = self.unet(img, t, context=target)
+            if views is not None:
+                model_output = self._unet_tiled(img, t, target, views, view_batch_size=view_batch_size)
+            else:
+                model_output = self.unet(img, t, context=target)
             result = self.scheduler.step_a2b(
                 model_output,
                 step_index=i,
@@ -263,8 +326,12 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         output_type: str = "pt",
         generator: Optional[torch.Generator] = None,
         target_channels: Optional[int] = None,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ) -> Union[BiBBDMLatentPipelineOutput, tuple]:
         """Translate a source image via BiBBDM in VAE latent space.
+        MultiDiffusion tiling when latent size > trained size (e.g. 1024px).
 
         The pipeline encodes the source image to latent space, runs the
         BiBBDM Brownian Bridge diffusion process, and decodes the result
@@ -295,6 +362,7 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         """
         device = source_image.device
         orig_channels = source_image.shape[1]
+        source_image = self._resize_to_output_size(source_image, output_size)
 
         # Set timesteps if specified
         if num_inference_steps is not None:
@@ -306,12 +374,18 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
 
         # Encode source image to latent space
         z_source = self._encode(source_image)
+        _, _, lh, lw = z_source.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = get_views(lh, lw, window_size=latent_window_size)
 
         # Run BiBBDM sampling in latent space
+        samp_kw = dict(views=views, view_batch_size=view_batch_size)
         if direction == "b2a":
-            z_result = self._sample_b2a(z_source, steps, clip_denoised, output_type, generator)
+            z_result = self._sample_b2a(z_source, steps, clip_denoised, output_type, generator, **samp_kw)
         elif direction == "a2b":
-            z_result = self._sample_a2b(z_source, steps, clip_denoised, output_type, generator)
+            z_result = self._sample_a2b(z_source, steps, clip_denoised, output_type, generator, **samp_kw)
         else:
             raise ValueError(f"Unknown direction: {direction!r}; expected 'b2a' or 'a2b'.")
 

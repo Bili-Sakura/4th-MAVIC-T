@@ -7,8 +7,17 @@
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Union
 
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_STRIDE,
+    DEFAULT_LATENT_WINDOW_SIZE,
+    DEFAULT_PIXEL_STRIDE,
+    DEFAULT_PIXEL_WINDOW_SIZE,
+    get_views as _get_views_impl,
+)
+
 import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image
 from tqdm.auto import tqdm
 
@@ -123,6 +132,64 @@ class DBIMSamplingMixin:
             denoised = denoised.clamp(-1, 1)
         return denoised
 
+    @staticmethod
+    def get_views(
+        latent_height: int,
+        latent_width: int,
+        window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
+        stride: int = DEFAULT_LATENT_STRIDE,
+    ) -> List[Tuple[int, int, int, int]]:
+        """MultiDiffusion view layout; delegates to shared util."""
+        return _get_views_impl(latent_height, latent_width, window_size, stride)
+
+    def denoise_tiled(
+        self,
+        x_t: torch.Tensor,
+        t: torch.Tensor,
+        x_T: torch.Tensor,
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+        clip_denoised: bool = True,
+    ) -> torch.Tensor:
+        """
+        Predict denoised bridge state using MultiDiffusion: run UNet on overlapping
+        crops (views) and merge by averaging. Use when latent size > trained size
+        (e.g. 1024px → 128 latent vs 512px → 64).
+        """
+        value = torch.zeros_like(x_t)
+        count = torch.zeros_like(x_t)
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        batch_size = x_t.shape[0]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_x = torch.cat(
+                [
+                    x_t[:, :, h_start:h_end, w_start:w_end]
+                    for h_start, h_end, w_start, w_end in batch_view
+                ],
+                dim=0,
+            )
+            crops_x_T = torch.cat(
+                [
+                    x_T[:, :, h_start:h_end, w_start:w_end]
+                    for h_start, h_end, w_start, w_end in batch_view
+                ],
+                dim=0,
+            )
+            # t shape (batch_size,); repeat per view so each crop gets correct timestep
+            t_crops = t.repeat_interleave(vb_size, dim=0).to(crops_x.dtype)
+            denoised_crops = self.denoise(crops_x, t_crops, crops_x_T, clip_denoised=clip_denoised)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += denoised_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        denoised = torch.where(count > 0, value / count, value)
+        return denoised
+
     def _get_d(
         self,
         x: torch.Tensor,
@@ -131,6 +198,8 @@ class DBIMSamplingMixin:
         stochastic: bool,
         guidance: float,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute DBIM/DDBM drift term and diffusion coefficient."""
         ones = x.new_ones([x.shape[0]])
@@ -149,7 +218,12 @@ class DBIMSamplingMixin:
         b_t = self._append_dims(b_t, x.ndim).to(dtype=x.dtype, device=x.device)
         c_t = self._append_dims(c_t, x.ndim).to(dtype=x.dtype, device=x.device)
 
-        denoised = self.denoise(x, t_batch, x_T, clip_denoised=clip_denoised)
+        if views is not None:
+            denoised = self.denoise_tiled(
+                x, t_batch, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised
+            )
+        else:
+            denoised = self.denoise(x, t_batch, x_T, clip_denoised=clip_denoised)
 
         grad_logq = -self._safe_div(x - (a_t * x_T + b_t * denoised), c_t**2)
         grad_logpxTlxt = -self._safe_div(
@@ -172,6 +246,8 @@ class DBIMSamplingMixin:
         generator: Optional[Union[torch.Generator, List[torch.Generator]]],
         guidance: float,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Simulate one DDBM/DBIM sub-step."""
         dt = t_next - t_cur
@@ -182,6 +258,8 @@ class DBIMSamplingMixin:
             stochastic=stochastic,
             guidance=guidance,
             clip_denoised=clip_denoised,
+            views=views,
+            view_batch_size=view_batch_size,
         )
 
         if stochastic:
@@ -200,6 +278,8 @@ class DBIMSamplingMixin:
                 stochastic=stochastic,
                 guidance=guidance,
                 clip_denoised=clip_denoised,
+                views=views,
+                view_batch_size=view_batch_size,
             )
             d_prime = (d + d_2) / 2
             if stochastic:
@@ -222,12 +302,18 @@ class DBIMSamplingMixin:
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
         callback_steps: int,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, int]:
         self.scheduler.set_timesteps(num_inference_steps, device=x_T.device, sampler="heun")
         ts = self.scheduler.sigmas
 
         x = x_T
         nfe = 0
+        sim_kw = dict(
+            views=views,
+            view_batch_size=view_batch_size,
+        )
 
         for i in tqdm(range(len(ts) - 1), desc="DBIM Heun Sampling"):
             if churn_step_ratio > 0:
@@ -242,6 +328,7 @@ class DBIMSamplingMixin:
                     generator=generator,
                     guidance=guidance,
                     clip_denoised=clip_denoised,
+                    **sim_kw,
                 )
                 nfe += 1
             else:
@@ -258,6 +345,7 @@ class DBIMSamplingMixin:
                     generator=generator,
                     guidance=guidance,
                     clip_denoised=clip_denoised,
+                    **sim_kw,
                 )
                 nfe += 1
             else:
@@ -271,6 +359,7 @@ class DBIMSamplingMixin:
                     generator=generator,
                     guidance=guidance,
                     clip_denoised=clip_denoised,
+                    **sim_kw,
                 )
                 nfe += 2
 
@@ -288,6 +377,8 @@ class DBIMSamplingMixin:
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
         callback_steps: int,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, int]:
         self.scheduler.set_timesteps(num_inference_steps, device=x_T.device, sampler="dbim")
         ts = self.scheduler.sigmas
@@ -295,10 +386,12 @@ class DBIMSamplingMixin:
         x = x_T
         ones = x.new_ones([x.shape[0]])
         nfe = 0
+        t_max = torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones
 
-        x0_hat = self.denoise(
-            x, torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones, x_T, clip_denoised=clip_denoised
-        )
+        if views is not None:
+            x0_hat = self.denoise_tiled(x, t_max, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+        else:
+            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised)
         nfe += 1
 
         noise = randn_tensor(x.shape, generator=generator, device=x.device, dtype=x.dtype)
@@ -308,7 +401,10 @@ class DBIMSamplingMixin:
             s = ts[i]
             t = ts[i + 1]
 
-            x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
+            if views is not None:
+                x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+            else:
+                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
             nfe += 1
 
             a_s, b_s, c_s = [
@@ -359,6 +455,8 @@ class DBIMSamplingMixin:
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
         callback_steps: int,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, int]:
         if order not in (2, 3):
             raise ValueError("DBIM high-order sampler currently supports order in {2, 3}.")
@@ -373,13 +471,12 @@ class DBIMSamplingMixin:
         x = x_T
         ones = x.new_ones([x.shape[0]])
         nfe = 0
+        t_max = torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones
 
-        x0_hat = self.denoise(
-            x,
-            torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones,
-            x_T,
-            clip_denoised=clip_denoised,
-        )
+        if views is not None:
+            x0_hat = self.denoise_tiled(x, t_max, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+        else:
+            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised)
         nfe += 1
         noise = randn_tensor(x.shape, generator=generator, device=x.device, dtype=x.dtype)
         x = self.scheduler.bridge_sample(x0_hat, x_T, ts[0] * ones, noise)
@@ -409,7 +506,10 @@ class DBIMSamplingMixin:
                 coeff_x0_hat = b_t - tmp_var * b_s
                 coeff_xT = a_t - tmp_var * a_s
 
-                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
+                if views is not None:
+                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                else:
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
                 nfe += 1
                 x = coeff_xs * x + coeff_x0_hat * x0_hat + coeff_xT * x_T
 
@@ -431,7 +531,10 @@ class DBIMSamplingMixin:
                 lambda_s = self._safe_log_ratio(b_s, c_s)
                 lambda_t = self._safe_log_ratio(b_t, c_t)
 
-                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
+                if views is not None:
+                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                else:
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
                 nfe += 1
 
                 h = lambda_t - lambda_s
@@ -468,7 +571,10 @@ class DBIMSamplingMixin:
                 lambda_s = self._safe_log_ratio(b_s, c_s)
                 lambda_t = self._safe_log_ratio(b_t, c_t)
 
-                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
+                if views is not None:
+                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                else:
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
                 nfe += 1
 
                 h = lambda_t - lambda_s
@@ -524,7 +630,13 @@ class DBIMSamplingMixin:
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
         callback_steps: int,
         clip_denoised: bool,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> Tuple[torch.Tensor, int]:
+        samp_kw = dict(
+            views=views,
+            view_batch_size=view_batch_size,
+        )
         if sampler == "heun":
             return self._sample_heun(
                 x_T=x_T,
@@ -535,6 +647,7 @@ class DBIMSamplingMixin:
                 callback=callback,
                 callback_steps=callback_steps,
                 clip_denoised=clip_denoised,
+                **samp_kw,
             )
         if sampler == "dbim":
             return self._sample_dbim(
@@ -545,6 +658,7 @@ class DBIMSamplingMixin:
                 callback=callback,
                 callback_steps=callback_steps,
                 clip_denoised=clip_denoised,
+                **samp_kw,
             )
         if sampler == "dbim_high_order":
             return self._sample_dbim_high_order(
@@ -556,6 +670,7 @@ class DBIMSamplingMixin:
                 callback=callback,
                 callback_steps=callback_steps,
                 clip_denoised=clip_denoised,
+                **samp_kw,
             )
         raise ValueError(
             f"Unknown sampler '{sampler}'. Expected one of: heun, dbim, dbim_high_order."
@@ -640,8 +755,18 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
         callback: Optional[Callable[[int, int, torch.Tensor], None]] = None,
         callback_steps: int = 1,
         clip_denoised: bool = True,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        multidiffusion_window_size: Optional[int] = None,
+        multidiffusion_stride: Optional[int] = None,
     ):
-        """Run DBIM sampling from the provided source image(s)."""
+        """Run DBIM sampling from the provided source image(s).
+
+        MultiDiffusion-style: set output_size=(1024, 1024) to resize source to 1024
+        before sampling; tiled denoising runs on 512px windows. Use view_batch_size
+        to batch views for speed (e.g. view_batch_size=4).
+        multidiffusion_window_size / multidiffusion_stride override defaults (512 / 64) when set.
+        """
         if output_type not in ("pil", "np", "pt"):
             raise ValueError(
                 f"Unsupported output_type '{output_type}'. Use one of: pil, np, pt."
@@ -656,6 +781,22 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
         )
 
         x_T = self.prepare_inputs(source_image, self.device, self.dtype)
+        if output_size is not None:
+            h_out, w_out = output_size
+            x_T = F.interpolate(
+                x_T, size=(h_out, w_out), mode="bilinear", align_corners=False
+            )
+        _, _, h, w = x_T.shape
+        pixel_window = multidiffusion_window_size if multidiffusion_window_size is not None else DEFAULT_PIXEL_WINDOW_SIZE
+        pixel_stride = multidiffusion_stride if multidiffusion_stride is not None else DEFAULT_PIXEL_STRIDE
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = self.get_views(
+                h, w,
+                window_size=pixel_window,
+                stride=pixel_stride,
+            )
         images, nfe = self._run_sampler(
             x_T=x_T,
             num_inference_steps=num_inference_steps,
@@ -669,6 +810,8 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
             callback=callback,
             callback_steps=callback_steps,
             clip_denoised=clip_denoised,
+            views=views,
+            view_batch_size=view_batch_size,
         )
         images = images.clamp(-1, 1)
 

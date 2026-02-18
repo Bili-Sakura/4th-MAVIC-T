@@ -11,7 +11,7 @@ then decoded back to pixel space.
 """
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -23,6 +23,10 @@ from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_i2sb import I2SBScheduler
 from src.models.unet_i2sb import I2SBUNet
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_WINDOW_SIZE,
+    get_views,
+)
 
 
 @dataclass
@@ -134,6 +138,59 @@ class I2SBLatentPipeline(DiffusionPipeline):
         scaled = latents / self.vae.config.scaling_factor
         return self.vae.decode(scaled).sample
 
+    def _unet_tiled(
+        self,
+        zt: torch.Tensor,
+        t_batch: torch.Tensor,
+        cond: Optional[torch.Tensor],
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+    ) -> torch.Tensor:
+        """MultiDiffusion: run UNet on overlapping crops and merge by averaging."""
+        value = torch.zeros_like(zt)
+        count = torch.zeros_like(zt)
+        batch_size = zt.shape[0]
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_zt = torch.cat(
+                [zt[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            crops_cond = (
+                torch.cat(
+                    [cond[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                    dim=0,
+                )
+                if cond is not None
+                else None
+            )
+            t_crops = t_batch.repeat_interleave(vb_size, dim=0)
+            pred_crops = self.unet(crops_zt, t_crops, cond=crops_cond)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += pred_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        return torch.where(count > 0, value / count, value)
+
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     # ------------------------------------------------------------------
     # Input preparation
     # ------------------------------------------------------------------
@@ -243,8 +300,12 @@ class I2SBLatentPipeline(DiffusionPipeline):
         callback: Optional[Callable[[int, int, torch.Tensor], None]] = None,
         callback_steps: int = 1,
         target_channels: Optional[int] = None,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ):
         """Translate a source image via I2SB in VAE latent space.
+        MultiDiffusion tiling is used when latent size > trained size (e.g. 1024px).
 
         Args:
             source_image: The source/condition image(s) for the bridge.
@@ -270,11 +331,17 @@ class I2SBLatentPipeline(DiffusionPipeline):
 
         # Prepare pixel inputs
         x_pixel = self.prepare_inputs(source_image, device, dtype)
+        x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
 
         # Encode to latent space
         z1 = self._encode(x_pixel)
         batch_size = z1.shape[0]
+        _, _, lh, lw = z1.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = get_views(lh, lw, window_size=latent_window_size)
 
         # Set timesteps
         self.scheduler.set_timesteps(nfe, device=device)
@@ -304,7 +371,10 @@ class I2SBLatentPipeline(DiffusionPipeline):
             t_emb = noise_levels[step_int] * interval
             t_batch = torch.full((batch_size,), t_emb, device=device, dtype=dtype)
 
-            pred = self.unet(zt, t_batch, cond=cond)
+            if views is not None:
+                pred = self._unet_tiled(zt, t_batch, cond, views, view_batch_size=view_batch_size)
+            else:
+                pred = self.unet(zt, t_batch, cond=cond)
             nfe_count += 1
 
             # No clip_denoise for latent space

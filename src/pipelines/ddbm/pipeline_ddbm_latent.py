@@ -6,7 +6,7 @@ produces pixel-space images.
 """
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -20,6 +20,10 @@ from diffusers.utils.torch_utils import randn_tensor
 
 from src.schedulers.scheduling_ddbm import DDBMScheduler
 from src.models.unet_ddbm import DDBMUNet
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_WINDOW_SIZE,
+    get_views,
+)
 
 
 @dataclass
@@ -183,6 +187,48 @@ class DDBMLatentPipeline(DiffusionPipeline):
 
         return denoised
 
+    def denoise_tiled(
+        self,
+        x_t: torch.Tensor,
+        sigmas: torch.Tensor,
+        x_T: torch.Tensor,
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+        clip_denoised: bool = True,
+    ) -> torch.Tensor:
+        """MultiDiffusion: denoise on overlapping crops and merge by averaging."""
+        value = torch.zeros_like(x_t)
+        count = torch.zeros_like(x_t)
+        batch_size = x_t.shape[0]
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_x = torch.cat(
+                [
+                    x_t[:, :, h_start:h_end, w_start:w_end]
+                    for h_start, h_end, w_start, w_end in batch_view
+                ],
+                dim=0,
+            )
+            crops_x_T = torch.cat(
+                [
+                    x_T[:, :, h_start:h_end, w_start:w_end]
+                    for h_start, h_end, w_start, w_end in batch_view
+                ],
+                dim=0,
+            )
+            sigmas_crops = sigmas.repeat_interleave(vb_size, dim=0)
+            denoised_crops = self.denoise(crops_x, sigmas_crops, crops_x_T, clip_denoised=clip_denoised)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += denoised_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        return torch.where(count > 0, value / count, value)
+
     def _get_d_stochastic(self, x, sigma, denoised, x_T, guidance):
         """Get stochastic derivative for churn step."""
         if self.pred_mode == 've':
@@ -291,6 +337,21 @@ class DDBMLatentPipeline(DiffusionPipeline):
         
         return image.to(device=device, dtype=dtype)
 
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        """Resize image for MultiDiffusion upsampling (e.g. 512→1024)."""
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     def _convert_to_pil(self, images: torch.Tensor) -> List[Image.Image]:
         """Convert tensor to PIL images."""
         images = (images + 1) / 2  # [-1, 1] -> [0, 1]
@@ -353,9 +414,14 @@ class DDBMLatentPipeline(DiffusionPipeline):
         callback: Optional[Callable[[int, int, torch.Tensor], None]] = None,
         callback_steps: int = 1,
         target_channels: Optional[int] = None,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ):
         """
         Translate a source image via DDBM in VAE latent space.
+        When latent grid exceeds trained size (e.g. 64 for 512px), MultiDiffusion
+        tiling is used automatically. Use output_size=(1024, 1024) to upsample.
 
         Args:
             source_image: The source/condition image(s) for the bridge.
@@ -380,11 +446,17 @@ class DDBMLatentPipeline(DiffusionPipeline):
 
         # Prepare pixel inputs
         x_pixel = self.prepare_inputs(source_image, device, dtype)
+        x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
 
         # Encode to latent space
         z_T = self._encode(x_pixel)
         batch_size = z_T.shape[0]
+        _, _, lh, lw = z_T.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = get_views(lh, lw, window_size=latent_window_size)
 
         # Set timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -407,7 +479,10 @@ class DDBMLatentPipeline(DiffusionPipeline):
                 sigma_hat = (sigma_next - sigma) * churn_step_ratio + sigma
 
                 # Denoise at current sigma
-                denoised = self.denoise(z, sigma * s_in, z_T, clip_denoised=False)
+                if views is not None:
+                    denoised = self.denoise_tiled(z, sigma * s_in, z_T, views, view_batch_size=view_batch_size, clip_denoised=False)
+                else:
+                    denoised = self.denoise(z, sigma * s_in, z_T, clip_denoised=False)
                 nfe += 1
 
                 # Get stochastic derivative
@@ -419,7 +494,10 @@ class DDBMLatentPipeline(DiffusionPipeline):
                 sigma_hat = sigma
 
             # Denoise at sigma_hat
-            denoised = self.denoise(z, sigma_hat * s_in, z_T, clip_denoised=False)
+            if views is not None:
+                denoised = self.denoise_tiled(z, sigma_hat * s_in, z_T, views, view_batch_size=view_batch_size, clip_denoised=False)
+            else:
+                denoised = self.denoise(z, sigma_hat * s_in, z_T, clip_denoised=False)
             nfe += 1
 
             # Get derivative
@@ -432,7 +510,10 @@ class DDBMLatentPipeline(DiffusionPipeline):
             else:
                 # Heun's method
                 z_2 = z + d * dt
-                denoised_2 = self.denoise(z_2, sigma_next * s_in, z_T, clip_denoised=False)
+                if views is not None:
+                    denoised_2 = self.denoise_tiled(z_2, sigma_next * s_in, z_T, views, view_batch_size=view_batch_size, clip_denoised=False)
+                else:
+                    denoised_2 = self.denoise(z_2, sigma_next * s_in, z_T, clip_denoised=False)
                 nfe += 1
                 d_2 = self._get_d(z_2, sigma_next, denoised_2, z_T, guidance)
                 d_prime = (d + d_2) / 2

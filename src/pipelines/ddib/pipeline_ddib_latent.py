@@ -6,7 +6,7 @@ and produces pixel-space images.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -17,6 +17,10 @@ from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_ddib import DDIBScheduler
 from src.models.unet_ddib import DDIBUNet
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_WINDOW_SIZE,
+    get_views,
+)
 
 
 @dataclass
@@ -112,6 +116,51 @@ class DDIBLatentPipeline(DiffusionPipeline):
         scaled = latents / self.vae.config.scaling_factor
         return self.vae.decode(scaled).sample
 
+    def _model_tiled(
+        self,
+        model: torch.nn.Module,
+        x: torch.Tensor,
+        scaled_t: torch.Tensor,
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+    ) -> torch.Tensor:
+        """MultiDiffusion: run model on overlapping crops and merge by averaging."""
+        value = torch.zeros_like(x)
+        count = torch.zeros_like(x)
+        batch_size = x.shape[0]
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_x = torch.cat(
+                [x[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            scaled_t_crops = scaled_t.repeat_interleave(vb_size, dim=0)
+            out_crops = model(crops_x, scaled_t_crops)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += out_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        return torch.where(count > 0, value / count, value)
+
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     # ------------------------------------------------------------------
     # DDIM reverse loop (encode: x_0 → x_T using source model)
     # ------------------------------------------------------------------
@@ -122,6 +171,8 @@ class DDIBLatentPipeline(DiffusionPipeline):
         x_0: torch.Tensor,
         timesteps: torch.Tensor,
         clip_denoised: bool = True,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> torch.Tensor:
         """Run DDIM reverse sampling to encode ``x_0`` into the latent ``x_T``.
         
@@ -141,7 +192,10 @@ class DDIBLatentPipeline(DiffusionPipeline):
 
             t_batch = t_cur.expand(x.shape[0])
             scaled_t = self.scheduler._scale_timesteps(t_batch)
-            model_output = model(x, scaled_t)
+            if views is not None:
+                model_output = self._model_tiled(model, x, scaled_t, views, view_batch_size=view_batch_size)
+            else:
+                model_output = model(x, scaled_t)
 
             out = self.scheduler.ddim_reverse_step(
                 model_output=model_output,
@@ -164,6 +218,8 @@ class DDIBLatentPipeline(DiffusionPipeline):
         timesteps: torch.Tensor,
         clip_denoised: bool = True,
         eta: float = 0.0,
+        views: Optional[List[Tuple[int, int, int, int]]] = None,
+        view_batch_size: int = 1,
     ) -> torch.Tensor:
         """Run DDIM forward sampling to decode a latent ``x_T`` into ``x_0``.
         
@@ -185,7 +241,10 @@ class DDIBLatentPipeline(DiffusionPipeline):
 
             t_batch = t_cur.expand(x.shape[0])
             scaled_t = self.scheduler._scale_timesteps(t_batch)
-            model_output = model(x, scaled_t)
+            if views is not None:
+                model_output = self._model_tiled(model, x, scaled_t, views, view_batch_size=view_batch_size)
+            else:
+                model_output = model(x, scaled_t)
 
             out = self.scheduler.ddim_step(
                 model_output=model_output,
@@ -292,8 +351,12 @@ class DDIBLatentPipeline(DiffusionPipeline):
         return_dict: bool = True,
         return_latent: bool = False,
         target_channels: Optional[int] = None,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ):
         """Translate a source image via DDIB in VAE latent space.
+        MultiDiffusion tiling when latent size > trained size (e.g. 1024px).
 
         The pipeline performs the following steps:
         1. Encodes the source image to VAE latent space
@@ -320,23 +383,30 @@ class DDIBLatentPipeline(DiffusionPipeline):
 
         # Prepare pixel inputs
         x_pixel = self.prepare_inputs(source_image, device, dtype)
+        x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
 
         # Encode to latent space
         z_source = self._encode(x_pixel)
+        _, _, lh, lw = z_source.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = get_views(lh, lw, window_size=latent_window_size)
 
         # Build timestep sequences
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
 
+        samp_kw = dict(views=views, view_batch_size=view_batch_size)
         # DDIM reverse: source latent → shared noise
         z_latent = self._ddim_reverse_sample_loop(
-            self.source_unet, z_source, timesteps, clip_denoised=clip_denoised,
+            self.source_unet, z_source, timesteps, clip_denoised=clip_denoised, **samp_kw
         )
 
         # DDIM forward: shared noise → target latent
         z_target = self._ddim_sample_loop(
-            self.target_unet, z_latent, timesteps, clip_denoised=clip_denoised, eta=eta,
+            self.target_unet, z_latent, timesteps, clip_denoised=clip_denoised, eta=eta, **samp_kw
         )
 
         # Decode from latent to pixel space

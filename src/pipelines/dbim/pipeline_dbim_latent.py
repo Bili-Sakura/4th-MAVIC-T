@@ -5,7 +5,7 @@ same pixel-space input/output interface as other MAVIC-T pipelines.
 """
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -17,6 +17,7 @@ from diffusers.utils import BaseOutput
 
 from src.models.unet_dbim import DBIMUNet
 from src.schedulers.scheduling_dbim import DBIMScheduler
+from src.utils.multidiffusion import DEFAULT_LATENT_WINDOW_SIZE
 from .pipeline_dbim import DBIMSamplingMixin
 
 
@@ -78,6 +79,21 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
 
         return image.to(device=device, dtype=dtype)
 
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        """Resize image to (height, width) for MultiDiffusion upsampling (e.g. 512→1024)."""
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     @staticmethod
     def _adapt_channels(images: torch.Tensor) -> torch.Tensor:
         if images.shape[1] == 1:
@@ -119,8 +135,16 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
         callback_steps: int = 1,
         target_channels: Optional[int] = None,
         clip_denoised: bool = False,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ):
-        """Run DBIM sampling in latent space and decode back to pixel space."""
+        """Run DBIM sampling in latent space and decode back to pixel space.
+
+        When the latent grid is larger than the model's training size (e.g. 64 for 512px),
+        MultiDiffusion tiling is used automatically so the UNet only sees 64x64 crops.
+        Use output_size=(1024, 1024) to upsample a 512px input to 1024px.
+        """
         if output_type not in ("pil", "np", "pt"):
             raise ValueError(
                 f"Unsupported output_type '{output_type}'. Use one of: pil, np, pt."
@@ -135,9 +159,16 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
         )
 
         x_pixel = self.prepare_inputs(source_image, self.device, self.dtype)
+        x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
 
         z_T = self._encode(x_pixel)
+        _, _, lh, lw = z_T.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = self.get_views(lh, lw, window_size=latent_window_size)
+
         z, nfe = self._run_sampler(
             x_T=z_T,
             num_inference_steps=num_inference_steps,
@@ -151,6 +182,8 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
             callback=callback,
             callback_steps=callback_steps,
             clip_denoised=clip_denoised,
+            views=views,
+            view_batch_size=view_batch_size,
         )
 
         images = self._decode(z)

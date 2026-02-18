@@ -13,16 +13,21 @@ Usage::
         --task sar2eo \
         --batch_size 8 \
         --num_inference_steps 40
+
+    # MultiDiffusion-style (resize source to 1024, tiled 512px windows):
+    python -m examples.dbim.evaluate_metrics ... --resolution 1024 --output_size 1024 1024 --view_batch_size 4
 """
 
 from __future__ import annotations
 
 import argparse
+import gc
 import logging
 import sys
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -52,6 +57,38 @@ def parse_args():
     parser.add_argument("--resolution", type=int, default=None)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--no_fid", action="store_true", help="Disable FID (faster).")
+    parser.add_argument(
+        "--output_size",
+        type=int,
+        nargs=2,
+        default=None,
+        metavar=("H", "W"),
+        help="MultiDiffusion: resize source to (H,W) then tiled 512px windows (e.g. 1024 1024).",
+    )
+    parser.add_argument(
+        "--view_batch_size",
+        type=int,
+        default=1,
+        help="MultiDiffusion: batch views for speed (e.g. 4).",
+    )
+    parser.add_argument(
+        "--multidiffusion_input_size",
+        type=int,
+        default=512,
+        help="When output_size is set: resize val source to this size before pipeline (val is 1024px). Default 512.",
+    )
+    parser.add_argument(
+        "--multidiffusion_window_size",
+        type=int,
+        default=None,
+        help="MultiDiffusion: tile window size in pixels (default 512). Overrides src.utils.multidiffusion default.",
+    )
+    parser.add_argument(
+        "--multidiffusion_stride",
+        type=int,
+        default=None,
+        help="MultiDiffusion: stride between tiles in pixels (default 64). Overrides src.utils.multidiffusion default.",
+    )
     args = parser.parse_args()
     args.device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     return args
@@ -92,11 +129,23 @@ def main():
         pipeline.unet = DBIMUNet.from_pretrained(str(checkpoint_dir), subfolder="ema_unet")
     pipeline = pipeline.to(args.device)
     pipeline.unet.eval()
+    unet_device = next(pipeline.unet.parameters()).device
+    logger.info("Using device: %s (CUDA available: %s)", unet_device, torch.cuda.is_available())
 
-    num_steps = getattr(cfg, "num_inference_steps", None) or args.num_inference_steps
+    # CLI takes precedence over checkpoint config
+    num_steps = args.num_inference_steps
+
+    output_size = tuple(args.output_size) if args.output_size else None
+    # When using MultiDiffusion, val set is 1024px; resize source to 512px so pipeline sees 512→1024
+    md_input_size = args.multidiffusion_input_size
 
     def inference_fn(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         source_inp = source * 2 - 1
+        if output_size is not None:
+            # Resize 1024px val source to 512px; pipeline will upsample to output_size with tiling
+            source_inp = F.interpolate(
+                source_inp, size=(md_input_size, md_input_size), mode="bilinear", align_corners=False
+            )
         result = pipeline(
             source_image=source_inp,
             num_inference_steps=num_steps,
@@ -106,19 +155,29 @@ def main():
             lower_order_final=getattr(cfg, "lower_order_final", True),
             clip_denoised=getattr(cfg, "clip_denoised", False),
             output_type="pt",
+            output_size=output_size,
+            view_batch_size=args.view_batch_size,
+            multidiffusion_window_size=args.multidiffusion_window_size,
+            multidiffusion_stride=args.multidiffusion_stride,
         )
         return (result.images + 1) * 0.5
 
-    run_metric_evaluation(
-        manifest_path=manifest_path,
-        resolution=resolution,
-        source_channels=cfg.source_channels,
-        target_channels=cfg.target_channels,
-        device=args.device,
-        batch_size=args.batch_size,
-        no_fid=args.no_fid,
-        inference_fn=inference_fn,
-    )
+    try:
+        run_metric_evaluation(
+            manifest_path=manifest_path,
+            resolution=resolution,
+            source_channels=cfg.source_channels,
+            target_channels=cfg.target_channels,
+            device=args.device,
+            batch_size=args.batch_size,
+            no_fid=args.no_fid,
+            inference_fn=inference_fn,
+        )
+    finally:
+        # Release GPU memory so next task (or other processes) can use it
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
 
 
 if __name__ == "__main__":

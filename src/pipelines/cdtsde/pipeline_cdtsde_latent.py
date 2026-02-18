@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -17,6 +17,10 @@ from diffusers.utils.torch_utils import randn_tensor
 
 from src.models.unet_cdtsde import CDTSDEUNet
 from src.schedulers.scheduling_cdtsde import CDTSDEScheduler
+from src.utils.multidiffusion import (
+    DEFAULT_LATENT_WINDOW_SIZE,
+    get_views,
+)
 
 
 @dataclass
@@ -125,6 +129,55 @@ class CDTSDELatentPipeline(DiffusionPipeline):
         scaled = latents / self.vae.config.scaling_factor
         return self.vae.decode(scaled).sample
 
+    def _unet_tiled(
+        self,
+        z: torch.Tensor,
+        t_batch: torch.Tensor,
+        z_T: torch.Tensor,
+        views: List[Tuple[int, int, int, int]],
+        view_batch_size: int = 1,
+    ) -> torch.Tensor:
+        """MultiDiffusion: run UNet on overlapping crops and merge pred_noise by averaging."""
+        value = torch.zeros_like(z)
+        count = torch.zeros_like(z)
+        batch_size = z.shape[0]
+        view_batches = [
+            views[i : i + view_batch_size]
+            for i in range(0, len(views), view_batch_size)
+        ]
+        for batch_view in view_batches:
+            vb_size = len(batch_view)
+            crops_z = torch.cat(
+                [z[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            crops_z_T = torch.cat(
+                [z_T[:, :, h_start:h_end, w_start:w_end] for h_start, h_end, w_start, w_end in batch_view],
+                dim=0,
+            )
+            t_crops = t_batch.repeat_interleave(vb_size, dim=0)
+            pred_noise_crops = self.unet(crops_z, t_crops, xT=crops_z_T)
+            for b in range(batch_size):
+                for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
+                    idx = b * vb_size + k
+                    value[b : b + 1, :, h_start:h_end, w_start:w_end] += pred_noise_crops[idx : idx + 1]
+                    count[b : b + 1, :, h_start:h_end, w_start:w_end] += 1
+        return torch.where(count > 0, value / count, value)
+
+    def _resize_to_output_size(
+        self,
+        image: torch.Tensor,
+        output_size: Optional[Tuple[int, int]],
+    ) -> torch.Tensor:
+        if output_size is None:
+            return image
+        h, w = output_size
+        if image.shape[-2] == h and image.shape[-1] == w:
+            return image
+        return torch.nn.functional.interpolate(
+            image, size=(h, w), mode="bilinear", align_corners=False
+        )
+
     @torch.no_grad()
     def __call__(
         self,
@@ -138,14 +191,23 @@ class CDTSDELatentPipeline(DiffusionPipeline):
         callback: Optional[Callable[[int, int, torch.Tensor], None]] = None,
         callback_steps: int = 1,
         target_channels: Optional[int] = None,
+        output_size: Optional[Tuple[int, int]] = None,
+        view_batch_size: int = 1,
+        latent_window_size: int = DEFAULT_LATENT_WINDOW_SIZE,
     ):
         device = self.device
         dtype = self.dtype
 
         x_pixel = self.prepare_inputs(source_image, device=device, dtype=dtype)
+        x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
         z_T = self._encode(x_pixel)
         batch_size = z_T.shape[0]
+        _, _, lh, lw = z_T.shape
+        views = None
+        # Only use MultiDiffusion tiling when output_size is explicitly set; otherwise run full-res
+        if output_size is not None:
+            views = get_views(lh, lw, window_size=latent_window_size)
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         if self.scheduler.timesteps is None:
@@ -170,7 +232,10 @@ class CDTSDELatentPipeline(DiffusionPipeline):
             t_model = self.scheduler.timesteps[j]
             t_batch = torch.full((batch_size,), t_model, device=device, dtype=torch.long)
 
-            pred_noise = self.unet(z, t_batch, xT=z_T)
+            if views is not None:
+                pred_noise = self._unet_tiled(z, t_batch, z_T, views, view_batch_size=view_batch_size)
+            else:
+                pred_noise = self.unet(z, t_batch, xT=z_T)
             nfe += 1
 
             idx_batch = torch.full((batch_size,), j, device=device, dtype=torch.long)
