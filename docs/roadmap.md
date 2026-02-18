@@ -87,20 +87,24 @@ python -m examples.cut.evaluate_metrics \
 
 - **Best task score:** epoch 6 (0.5656). Best FID: epoch 7 (223.21). Task score improves from epoch 1–3 and 4–8, with some fluctuation; epoch 6 is the best checkpoint by composite score.
 
-## DBIM-Pixel-Scaled (2026/02/19)
+## DBIM-Pixel-Scaled (2026/02/18)
 
-Based on [DBIM-Pixel-Medium (02/16)](#dbim-pixel-medium-20260216) with **scaled model size** per [Stage 3 — Pixel-Space Modelling](staled-roadmaps-experiments/roadmap.md#stage-3--pixel-space-modelling-more-compute): 1024×1024 tasks use **large** tier (~404 M); SAR→EO stays 256×256 with **medium** (~120 M). Pipeline remains `DBIMPipeline` (pixel space, no VAE).
+Based on [DBIM-Pixel-Medium (02/16)](#dbim-pixel-medium-20260216) with **scaled model size** per [Stage 3 — Pixel-Space Modelling](staled-roadmaps-experiments/roadmap.md#stage-3--pixel-space-modelling-more-compute): 1024×1024 tasks use **huge** tier; SAR→EO stays 256×256 with **medium** . Pipeline remains `DBIMPipeline` (pixel space, no VAE).
 
-| Task      | Pixel shape    | DBIM tier | ~Params |
-|-----------|----------------|-----------|---------|
-| RGB → IR  | `(1024, 1024)` | large     | ~404 M  |
-| SAR → IR  | `(1024, 1024)` | large     | ~404 M  |
-| SAR → RGB | `(1024, 1024)` | large     | ~404 M  |
-| SAR → EO  | `(256, 256)`   | medium    | ~120 M  |
+> [!IMPORTANT]
+> We change the [configuration](../configs/model_scaling_variants.yaml) in 2026/02/17.
+
+| Task      | Pixel shape    | DBIM tier | ~Params     |
+|-----------|----------------|-----------|-------------|
+| RGB → IR  | `(1024, 1024)` | huge      | 416M |
+| SAR → IR  | `(1024, 1024)` | huge      | 416M |
+| SAR → RGB | `(1024, 1024)` | huge      | 416M |
+| SAR → EO  | `(256, 256)`   | medium    | 74M |
 
 ```bash
-bash scripts/DBIM_Pixel_Scaled-0219/train_rgb2ir.sh
-bash scripts/DBIM_Pixel_Scaled-0219/train_sar2ir.sh
-bash scripts/DBIM_Pixel_Scaled-0219/train_sar2rgb.sh
-bash scripts/DBIM_Pixel_Scaled-0219/train_sar2eo.sh
+# run on your new exisitng one H800 for GPU:0-7 
+CUDA_VISIBLE_DEVICES=0,1 bash scripts/DBIM_Pixel_Scaled-0218/train_rgb2ir.sh
+CUDA_VISIBLE_DEVICES=2,3 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2ir.sh
+CUDA_VISIBLE_DEVICES=4,5 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2rgb.sh
+CUDA_VISIBLE_DEVICES=6,7 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2eo.sh
 ```

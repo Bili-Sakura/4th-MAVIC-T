@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# DBIM-Pixel-Scaled-0219 — SAR→EO — Pixel-space DBIM (no VAE)
-# Medium config, (256, 256) per roadmap (Stage 3: SAR→EO stays 256 with medium tier).
+# DBIM-Pixel-Scaled-0218 — SAR→EO — Pixel-space DBIM (no VAE)
+# Medium tier, (256, 256) ~74M per roadmap (Stage 3) and configs/model_scaling_variants.yaml.
 #
 # Usage:
-#   bash scripts/DBIM_Pixel_Scaled-0219/train_sar2eo.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/DBIM_Pixel_Scaled-0219/train_sar2eo.sh
-#   NGPU=4 bash scripts/DBIM_Pixel_Scaled-0219/train_sar2eo.sh
+#   bash scripts/DBIM_Pixel_Scaled-0218/train_sar2eo.sh
+#   CUDA_VISIBLE_DEVICES=3 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2eo.sh
+#   NGPU=4 bash scripts/DBIM_Pixel_Scaled-0218/train_sar2eo.sh
 
 set -euo pipefail
 
@@ -19,11 +19,11 @@ LOG_FILE="${LOG_DIR}/train_sar2eo_dbim_scaled.log"
 
 mkdir -p "${LOG_DIR}"
 
-# --- Medium config from configs/model_scaling_variants.yaml (~120 M) ---
+# --- Medium tier from configs/model_scaling_variants.yaml (~74M) ---
 NUM_CHANNELS=128
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
-CHANNEL_MULT="1,1,2,2,4,4"
+ATTENTION_RESOLUTIONS="64,32"
+CHANNEL_MULT="1,2,2,4"
 
 # --- Pixel-space DBIM (no VAE), 256 resolution ---
 USE_LATENT_TARGET=false
@@ -40,10 +40,10 @@ USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2eo.txt"
 
-# --- Training settings ---
+# --- Training settings (H800 140GB: aggressive batch for 256) ---
 OPTIMIZER_TYPE="prodigy"
 USE_MAVIC_LOSS=false
-TRAIN_BATCH_SIZE=48
+TRAIN_BATCH_SIZE=256   # if OOM change to 128/64
 NUM_EPOCHS=0
 MAX_TRAIN_STEPS=100000
 GRADIENT_ACCUMULATION_STEPS=1
@@ -60,7 +60,7 @@ MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-OUTPUT_DIR="./ckpt/DBIM_Pixel_Scaled-0219/sar2eo"
+OUTPUT_DIR="./ckpt/DBIM_Pixel_Scaled-0218/sar2eo"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
@@ -76,7 +76,7 @@ COMMON_ARGS=(
   --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
   --swanlab_description "${SWANLAB_DESCRIPTION}"
   --swanlab_tags "${SWANLAB_TAGS}"
-  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'"}'
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'","workspace":"EarthBridge"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
