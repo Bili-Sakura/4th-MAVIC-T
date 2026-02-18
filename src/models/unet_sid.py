@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from diffusers import ModelMixin, UNet2DConditionModel
+from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 from .unet_ddbm import (
@@ -18,7 +18,7 @@ from .unet_ddbm import (
 
 
 class SiDUNet(ModelMixin, ConfigMixin):
-    """Simple Diffusion UNet using ``UNet2DConditionModel`` without cross-attn."""
+    """Simple Diffusion UNet using ``UNet2DModel`` with concat conditioning."""
 
     @register_to_config
     def __init__(
@@ -73,7 +73,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
         )
         if attention_head_dim is not None:
             unet_kwargs["attention_head_dim"] = attention_head_dim
-        self.unet = UNet2DConditionModel(**unet_kwargs)
+        self.unet = UNet2DModel(**unet_kwargs)
 
     def forward(
         self,
@@ -83,11 +83,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
     ) -> torch.Tensor:
         if self.condition_mode == "concat" and xT is not None:
             x = torch.cat([x, xT], dim=1)
-        return self.unet(
-            sample=x,
-            timestep=timestep,
-            encoder_hidden_states=None,
-        ).sample
+        return self.unet(x, timestep).sample
 
 
 def create_sid_model(
