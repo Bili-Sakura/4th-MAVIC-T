@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-"""Ablation: inference steps 10-100 (interval 10) and 100-1000 (interval 100) on a single sample.
+"""Ablation: inference steps 1, 10, 100, 1000 on paired_val set for each task.
 
-Runs DBIM rgb2ir inference for sample id 2 with varying num_inference_steps,
-saves a grid of all results using diffusers make_image_grid to temp folder.
+For each sample: grid row = [input, ground_truth, pred_1, pred_10, pred_100, pred_1000].
+Runs on all four tasks (sar2ir, sar2eo, sar2rgb, rgb2ir) when invoked by run_ablation_steps.sh.
 
 Usage:
-    python scripts/DBIM_Pixel_Medium-0216/ablation_inference_steps.py
-    SAMPLE_ID=5 python scripts/DBIM_Pixel_Medium-0216/ablation_inference_steps.py
+    TASK=sar2ir CKPT_PATH=/path MANIFEST=/path/paired_val_sar2ir.txt python ablation_inference_steps.py
 """
 
 from __future__ import annotations
@@ -31,21 +30,27 @@ from src.models.unet_dbim import DBIMUNet
 from src.pipelines.dbim import DBIMPipeline
 from src.schedulers import DBIMScheduler
 
-from examples.dbim.config import rgb2ir_config
-from examples.dbim.dataset_wrapper import MavicTDBIMDataset
+from examples.dbim.config import sar2eo_config, rgb2ir_config, sar2ir_config, sar2rgb_config
+from examples.ddbm.dataset_wrapper import PairedValDataset
+from examples.eval_common import resolve_manifest
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CKPT_PATH = os.environ.get(
-    "CKPT_PATH",
-    "/data/projects/models/hf_models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/rgb2ir/checkpoint-100000",
-)
+TASK = os.environ.get("TASK", "sar2ir")
+CKPT_PATH = os.environ.get("CKPT_PATH", "")
+MANIFEST = os.environ.get("MANIFEST", "")
+DEVICE = os.environ.get("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 OUTPUT_DIR = Path("/data/projects/4th-MAVIC-T/temp")
-SAMPLE_ID = int(os.environ.get("SAMPLE_ID", "2"))
-# Two ranges: 10-100 step 10, then 100-1000 step 100 (100 deduplicated)
-STEP_RANGES = [(10, 100, 10), (100, 1000, 100)]
+STEP_VALUES = [1, 10, 100, 1000]
 SEED = 42
+
+_TASK_CONFIG_MAP = {
+    "sar2eo": sar2eo_config,
+    "rgb2ir": rgb2ir_config,
+    "sar2ir": sar2ir_config,
+    "sar2rgb": sar2rgb_config,
+}
 
 
 def _load_pipeline(pretrained_path: str, device: str) -> DBIMPipeline:
@@ -83,85 +88,88 @@ def _load_pipeline(pretrained_path: str, device: str) -> DBIMPipeline:
     return DBIMPipeline(unet=unet, scheduler=scheduler).to(device)
 
 
+def _tensor_to_pil(t: torch.Tensor) -> Image.Image:
+    """Convert (C,H,W) tensor in [0,1] or [-1,1] to PIL Image."""
+    if t.dim() == 2:
+        t = t.unsqueeze(0)
+    t = t.cpu()
+    if t.min() >= 0:
+        arr = (t * 255).clamp(0, 255).to(torch.uint8)
+    else:
+        arr = ((t + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+    arr = arr.permute(1, 2, 0).numpy()
+    if arr.shape[2] == 1:
+        arr = arr.squeeze(2)
+    return Image.fromarray(arr)
+
+
 def main():
+    if not CKPT_PATH or not MANIFEST:
+        raise ValueError("CKPT_PATH and MANIFEST must be set (via env or run_ablation_steps.sh)")
+
     torch.manual_seed(SEED)
     np.random.seed(SEED)
 
-    cfg = rgb2ir_config()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    pipeline = _load_pipeline(CKPT_PATH, device)
+    cfg_fn = _TASK_CONFIG_MAP.get(TASK)
+    if cfg_fn is None:
+        raise ValueError(f"Unknown task: {TASK}")
+    cfg = cfg_fn()
+    resolution = getattr(cfg, "validation_resolution", None) or cfg.resolution
 
-    dataset = MavicTDBIMDataset(
-        task="rgb2ir",
-        split="test",
-        resolution=cfg.resolution,
+    manifest_path = resolve_manifest(MANIFEST)
+    dataset = PairedValDataset(
+        manifest_path=manifest_path,
+        resolution=resolution,
         source_channels=cfg.source_channels,
         target_channels=cfg.target_channels,
-        with_target=False,
+        return_order="target_source",
     )
 
-    if SAMPLE_ID < 0 or SAMPLE_ID >= len(dataset):
-        raise ValueError(f"Sample id {SAMPLE_ID} out of range [0, {len(dataset) - 1}]")
+    device = DEVICE
+    pipeline = _load_pipeline(CKPT_PATH, device)
 
-    target, source = dataset[SAMPLE_ID]
-    source_batch = source.unsqueeze(0).to(device) * 2 - 1  # [0,1] -> [-1,1]
-    out_name = dataset.get_output_name(SAMPLE_ID)
-
-    step_values = sorted(
-        {s for start, end, step in STEP_RANGES for s in range(start, end + 1, step)}
-    )
     logger.info(
-        "Ablation: sample_id=%d (%s), steps=%s -> %d runs",
-        SAMPLE_ID,
-        out_name,
-        "10-100 step 10, 100-1000 step 100",
-        len(step_values),
+        "Ablation: task=%s, steps=%s, samples=%d",
+        TASK,
+        STEP_VALUES,
+        len(dataset),
     )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    pil_images = []
-    GRID_BATCH = 10
 
     with torch.no_grad():
-        for i, n_steps in enumerate(tqdm(step_values, desc="Inference steps", unit="run")):
-            result = pipeline(
-                source_image=source_batch,
-                num_inference_steps=n_steps,
-                sampler="dbim",
-                guidance=1.0,
-                churn_step_ratio=0.33,
-                eta=1.0,
-                order=2,
-                lower_order_final=True,
-                clip_denoised=False,
-                output_type="pt",
-            )
-            img = result.images[0]
-            img_uint8 = ((img + 1) * 127.5).clamp(0, 255).to(torch.uint8)
-            img_uint8 = img_uint8.permute(1, 2, 0).cpu().numpy()
-            if img_uint8.shape[2] == 1:
-                img_uint8 = img_uint8.squeeze(2)
-            pil_images.append(Image.fromarray(img_uint8))
+        for idx in tqdm(range(len(dataset)), desc=f"{TASK} samples", unit="sample"):
+            target, source = dataset[idx]
+            source_batch = source.unsqueeze(0).to(device) * 2 - 1  # [0,1] -> [-1,1]
 
-            # Save grid every 10 results
-            if (i + 1) % GRID_BATCH == 0:
-                batch_images = pil_images[-GRID_BATCH:]
-                step_lo = step_values[i - GRID_BATCH + 1]
-                step_hi = step_values[i]
-                batch_grid = make_image_grid(batch_images, rows=2, cols=5)
-                batch_path = OUTPUT_DIR / f"ablation_steps_sample{SAMPLE_ID}_{step_lo}-{step_hi}.png"
-                batch_grid.save(batch_path)
-                logger.info("Saved batch grid %d-%d to %s", step_lo, step_hi, batch_path)
+            row_images = [
+                _tensor_to_pil(source),   # input
+                _tensor_to_pil(target),   # ground truth
+            ]
 
-    n = len(pil_images)
-    rows = int(n**0.5) if n > 0 else 1
-    cols = (n + rows - 1) // rows if rows > 0 else n
+            for n_steps in STEP_VALUES:
+                result = pipeline(
+                    source_image=source_batch,
+                    num_inference_steps=n_steps,
+                    sampler="dbim",
+                    guidance=1.0,
+                    churn_step_ratio=0.33,
+                    eta=1.0,
+                    order=2,
+                    lower_order_final=True,
+                    clip_denoised=False,
+                    output_type="pt",
+                )
+                img = result.images[0]
+                row_images.append(_tensor_to_pil(img))
 
-    grid = make_image_grid(pil_images, rows=rows, cols=cols)
-    out_path = OUTPUT_DIR / f"ablation_steps_sample{SAMPLE_ID}_10-1000_full.png"
-    grid.save(out_path)
+            # One row: input | gt | pred_1 | pred_10 | pred_100 | pred_1000
+            grid = make_image_grid(row_images, rows=1, cols=len(row_images))
+            stem = Path(dataset._pairs[idx][0]).stem
+            out_path = OUTPUT_DIR / f"ablation_steps_{TASK}_{stem}.png"
+            grid.save(out_path)
 
-    logger.info("Saved full grid (%d images, %dx%d) to %s", n, rows, cols, out_path)
+    logger.info("Saved %d grids to %s", len(dataset), OUTPUT_DIR)
 
 
 if __name__ == "__main__":

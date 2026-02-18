@@ -6,7 +6,7 @@
 #
 # Usage:
 #   bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
-#   DEVICES="cuda:0 cuda:1" bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
+#   bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh --NUM_STEPS 500 --DEVICES "cuda:0 cuda:1"
 #   CKPT_PATH=/path/to/checkpoint bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
 
 set -euo pipefail
@@ -23,6 +23,48 @@ NUM_STEPS="${NUM_STEPS:-100}"
 SAMPLER="${SAMPLER:-dbim}"
 RESOLUTION="${RESOLUTION:-1024}"
 DEVICES="${DEVICES:-cuda:0}"
+
+# Parse command-line overrides (e.g. --NUM_STEPS 500)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --CKPT_PATH)
+      CKPT_PATH="$2"
+      shift 2
+      ;;
+    --MODEL_NAME)
+      MODEL_NAME="$2"
+      shift 2
+      ;;
+    --SUBMISSION_ROOT)
+      SUBMISSION_ROOT="$2"
+      shift 2
+      ;;
+    --BATCH_SIZE)
+      BATCH_SIZE="$2"
+      shift 2
+      ;;
+    --NUM_STEPS)
+      NUM_STEPS="$2"
+      shift 2
+      ;;
+    --SAMPLER)
+      SAMPLER="$2"
+      shift 2
+      ;;
+    --RESOLUTION)
+      RESOLUTION="$2"
+      shift 2
+      ;;
+    --DEVICES)
+      DEVICES="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ ! -d "${CKPT_PATH}" ]]; then
   echo "Checkpoint directory not found: ${CKPT_PATH}"
