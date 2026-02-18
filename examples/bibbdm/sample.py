@@ -69,6 +69,25 @@ _TASK_CONFIG_MAP = {
 }
 
 
+def _get_output_name(dataset_obj, idx: int) -> str:
+    """Resolve submission filename for index, preserving Subset mapping."""
+    if isinstance(dataset_obj, Subset):
+        base_dataset = dataset_obj.dataset
+        base_idx = dataset_obj.indices[idx]
+    else:
+        base_dataset = dataset_obj
+        base_idx = idx
+
+    if hasattr(base_dataset, "get_output_name"):
+        return base_dataset.get_output_name(base_idx)
+
+    records = getattr(base_dataset, "_records", None)
+    if records is not None:
+        stem = Path(records[base_idx]["input_path"]).stem
+        return f"{stem}.png"
+    return f"sample_{base_idx:05d}.png"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Sample from a trained BiBBDM model.")
     parser.add_argument("--task", type=str, required=True, choices=list(_TASK_CONFIG_MAP.keys()))
@@ -216,7 +235,7 @@ def main():
     if args.skip_existing:
         indices_to_process = [
             i for i in range(len(dataset))
-            if not (output_dir / f"sample_{i:05d}.png").exists()
+            if not (output_dir / _get_output_name(dataset, i)).exists()
         ]
         n_total = len(dataset)
         if not indices_to_process:
@@ -231,12 +250,6 @@ def main():
     logger.info(f"Generating samples for {args.task} ({args.split}), {len(dataset)} inputs{eta_info} …")
     all_samples = []
     sample_idx = 0
-    if isinstance(dataset, Subset):
-        def original_indices(i):
-            return dataset.indices[i]
-    else:
-        def original_indices(i):
-            return i
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Sampling"):
@@ -254,11 +267,11 @@ def main():
             images_uint8 = images_uint8.permute(0, 2, 3, 1).cpu().numpy()
 
             for i, img_arr in enumerate(images_uint8):
-                out_idx = original_indices(sample_idx + i)
+                out_name = _get_output_name(dataset, sample_idx + i)
                 if img_arr.shape[2] == 1:
                     img_arr = img_arr.squeeze(2)
                 img = Image.fromarray(img_arr)
-                img.save(output_dir / f"sample_{out_idx:05d}.png")
+                img.save(output_dir / out_name)
             sample_idx += len(images_uint8)
             all_samples.append(images_uint8)
 

@@ -233,12 +233,18 @@ class DDBMUNet(ModelMixin, ConfigMixin):
         path = Path(pretrained_model_name_or_path)
         subfolder = kwargs.get("subfolder", "unet")
         if subfolder == "ema_unet" and not (path / "ema_unet" / "config.json").exists():
-            unet = super().from_pretrained(path, subfolder="unet", **{k: v for k, v in kwargs.items() if k != "subfolder"})
+            # Some step checkpoints only keep config in `unet/` and weights in
+            # `ema_unet/`. Build from `unet/config.json` explicitly and then load
+            # EMA safetensors to avoid diffusers looking for missing default files.
+            config = cls.load_config(path / "unet")
+            unet = cls.from_config(config)
             ema_path = path / "ema_unet" / "diffusion_pytorch_model.safetensors"
             if ema_path.exists():
                 from safetensors.torch import load_file
                 state = load_file(str(ema_path))
                 unet.load_state_dict(state, strict=True)
+            else:
+                raise FileNotFoundError(f"EMA weights not found at: {ema_path}")
             return unet
         return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
 
