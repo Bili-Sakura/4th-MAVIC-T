@@ -5,7 +5,6 @@ from .unet_ddbm import (
     EDMUNet,
     EDM2UNet,
     VDMUNet,
-    SiDUNet,
     create_model as create_ddbm_model,
     get_unet_type_config,
     SUPPORTED_UNET_TYPES,
@@ -13,14 +12,13 @@ from .unet_ddbm import (
     UNET_TYPE_EDM,
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
-    UNET_TYPE_SID,
 )
+from .unet_sid import SiDUNet, create_sid_model
 from .unet_dbim import (
     DBIMUNet,
     DBIMEDMUNet,
     DBIMEDM2UNet,
     DBIMVDMUNet,
-    DBIMSiDUNet,
     create_dbim_model,
 )
 from .unet_bibbdm import (
@@ -28,7 +26,6 @@ from .unet_bibbdm import (
     EDMBiBBDMUNet,
     EDM2BiBBDMUNet,
     VDMBiBBDMUNet,
-    SiDBiBBDMUNet,
 )
 from .unet_bibbdm import create_model as create_bibbdm_model
 from .unet_bdbm import BDBMUNet
@@ -40,7 +37,6 @@ from .unet_i2sb import (
     EDMI2SBUNet,
     EDM2I2SBUNet,
     VDMI2SBUNet,
-    SiDI2SBUNet,
 )
 from .unet_i2sb import create_model as create_i2sb_model
 from .unet_cdtsde import CDTSDEUNet
@@ -66,22 +62,22 @@ from .cyclegan_turbo import (
 )
 
 __all__ = [
-    "DDBMUNet", "EDMUNet", "EDM2UNet", "VDMUNet", "SiDUNet",
+    "DDBMUNet", "EDMUNet", "EDM2UNet", "VDMUNet",
     "create_ddbm_model",
+    "SiDUNet", "create_sid_model",
     "get_unet_type_config",
     "SUPPORTED_UNET_TYPES",
     "UNET_TYPE_ADM",
     "UNET_TYPE_EDM",
     "UNET_TYPE_EDM2",
     "UNET_TYPE_VDM",
-    "UNET_TYPE_SID",
-    "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet", "DBIMSiDUNet",
+    "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet",
     "create_dbim_model",
-    "BiBBDMUNet", "EDMBiBBDMUNet", "EDM2BiBBDMUNet", "VDMBiBBDMUNet", "SiDBiBBDMUNet",
+    "BiBBDMUNet", "EDMBiBBDMUNet", "EDM2BiBBDMUNet", "VDMBiBBDMUNet",
     "create_bibbdm_model",
     "BDBMUNet", "create_bdbm_model",
     "DDIBUNet", "create_ddib_model",
-    "I2SBUNet", "EDMI2SBUNet", "EDM2I2SBUNet", "VDMI2SBUNet", "SiDI2SBUNet",
+    "I2SBUNet", "EDMI2SBUNet", "EDM2I2SBUNet", "VDMI2SBUNet",
     "create_i2sb_model",
     "CDTSDEUNet", "create_cdtsde_model",
     "UniDBConditionalUNet",

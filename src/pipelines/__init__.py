@@ -10,3 +10,4 @@ from .cdtsde import CDTSDEPipeline, CDTSDEPipelineOutput, CDTSDELatentPipeline, 
 from .cut import CUTPipeline, CUTPipelineOutput, CUTLatentPipeline, CUTLatentPipelineOutput
 from .turbo import Pix2PixTurboPipeline, CycleGANTurboPipeline, TurboPipelineOutput
 from .unidb import UniDBPipeline, UniDBPipelineOutput
+from .sid import SIDPipeline, SIDPipelineOutput

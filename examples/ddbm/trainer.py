@@ -42,7 +42,6 @@ from src.utils.training_utils import (  # noqa: E402
     checkpoint_dir_sort_key,
     create_optimizer,
     lambda_repa_cosine,
-    multiscale_weighted_mse,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
     save_training_config,
@@ -322,9 +321,7 @@ class DDBMTrainer:
                               latent_target_encoder=None, lambda_latent=1.0,
                               rep_alignment_module=None, lambda_rep_alignment=0.1,
                               pixel_target=None, pixel_source=None,
-                              latent_decode_fn=None, in_latent_space: bool = False,
-                              use_multiscale_loss: bool = False,
-                              multiscale_base_resolution: int = 32):
+                              latent_decode_fn=None, in_latent_space: bool = False):
         """Compute the DDBM denoising loss for one batch.
 
         When *mavic_criterion* is provided the loss is augmented with a
@@ -371,17 +368,8 @@ class DDBMTrainer:
         weights = get_loss_weights(sigmas, sigma_data, sigma_max, beta_d, beta_min_val, pred_mode)
         weights = _append_dims(weights, dims)
 
-        sample_weights = weights.reshape(-1)
-        if use_multiscale_loss:
-            loss = multiscale_weighted_mse(
-                denoised,
-                x0,
-                sample_weights=sample_weights,
-                base_resolution=multiscale_base_resolution,
-            )
-        else:
-            loss = F.mse_loss(denoised, x0, reduction="none")
-            loss = (loss * weights).mean()
+        loss = F.mse_loss(denoised, x0, reduction="none")
+        loss = (loss * weights).mean()
         extras = {
             "loss_denoise": loss.detach(),
             "loss_mavic": None,
@@ -864,8 +852,6 @@ class DDBMTrainer:
                         pixel_source=pixel_x_T if cfg.use_latent_target else None,
                         latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
                         in_latent_space=cfg.use_latent_target,
-                        use_multiscale_loss=cfg.use_multiscale_loss,
-                        multiscale_base_resolution=cfg.multiscale_base_resolution,
                     )
 
                     accelerator.backward(loss)

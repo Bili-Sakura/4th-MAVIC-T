@@ -13,7 +13,6 @@ Supported UNet types (via ``unet_type`` in :func:`create_model`):
 - ``edm``: EDM/DDPM++ style with Fourier time embedding.
 - ``edm2``: DISABLED. See unet_ddbm.get_unet_type_config("edm2") for the issue.
 - ``vdm``: VDM with logSNR time normalization.
-- ``sid``: Simple Diffusion using UNet2DModel.
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from diffusers import ModelMixin, UNet2DConditionModel, UNet2DModel
+from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 from .unet_ddbm import (
@@ -32,7 +31,6 @@ from .unet_ddbm import (
     UNET_TYPE_EDM,
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
-    UNET_TYPE_SID,
     _build_block_types,
     _parse_layers_per_block,
     _parse_create_model_args,
@@ -328,64 +326,6 @@ class VDMBiBBDMUNet(ModelMixin, ConfigMixin):
         return self.unet(x_t, t_normalized).sample
 
 
-class SiDBiBBDMUNet(ModelMixin, ConfigMixin):
-    """Simple Diffusion BiBBDM UNet using native UNet2DModel."""
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        out_channels: Optional[int] = None,
-        model_channels: int = 128,
-        num_res_blocks: Union[int, Tuple[int, ...]] = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-    ) -> None:
-        super().__init__()
-        self.in_channels = in_channels
-        self.condition_mode = condition_mode
-        if out_channels is None:
-            out_channels = in_channels
-        self.out_channels = out_channels
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        layers_per_block = _parse_layers_per_block(
-            num_res_blocks,
-            num_levels=len(channel_mult),
-            allow_variable=True,
-        )
-
-        self.unet = UNet2DConditionModel(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=out_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=layers_per_block,
-            dropout=dropout,
-            mid_block_type="UNetMidBlock2D",
-        )
-
-    def forward(self, x_t, timesteps, context=None):
-        if self.condition_mode == "concat" and context is not None:
-            x_t = torch.cat([x_t, context], dim=1)
-        return self.unet(
-            sample=x_t,
-            timestep=timesteps,
-            encoder_hidden_states=None,
-        ).sample
-
-
 def _out_channels_for_objective(objective: str, in_channels: int) -> int:
     """Return the UNet output channels for the given BiBBDM objective."""
     if objective in ("dlns", "dlab", "dlgab"):
@@ -397,7 +337,6 @@ _BIBBDM_CLASS_MAP = {
     UNET_TYPE_ADM: BiBBDMUNet,
     UNET_TYPE_EDM: EDMBiBBDMUNet,
     UNET_TYPE_VDM: VDMBiBBDMUNet,
-    UNET_TYPE_SID: SiDBiBBDMUNet,
 }
 
 
@@ -422,8 +361,8 @@ def create_model(
     Parameters
     ----------
     unet_type : str
-        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
-        ``sid``. Note: ``edm2`` is disabled due to pipeline incompatibility.
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``.
+        Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
     if unet_type == UNET_TYPE_EDM2:
         cfg = get_unet_type_config(UNET_TYPE_EDM2)
@@ -445,7 +384,7 @@ def create_model(
     parsed_num_res_blocks = _parse_layers_per_block(
         num_res_blocks,
         num_levels=len(cm_effective),
-        allow_variable=(unet_type == UNET_TYPE_SID),
+        allow_variable=False,
     )
 
     common_kwargs = dict(

@@ -31,8 +31,7 @@ class TaskConfig:
     exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"  # path to txt of bad image paths to skip
 
     # ---- model ----
-    # Backbone: adm (default) | edm | vdm | sid. Note: edm2 disabled (pipeline incompatible)
-    # Project guidance: prefer sid for direct 1024px modeling.
+    # Backbone: adm (default) | edm | vdm. Note: edm2 disabled (pipeline incompatible)
     unet_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2
@@ -49,10 +48,6 @@ class TaskConfig:
     sigma_data: float = 0.5
     beta_d: float = 2.0
     beta_min: float = 0.1
-    # SID / Simple Diffusion objective option (paper Sec. 3.2)
-    use_multiscale_loss: bool = False
-    multiscale_base_resolution: int = 32
-
     # ---- training ----
     output_dir: str = "./ckpt"
     train_batch_size: int = 8
@@ -159,7 +154,6 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
         resolution=1024,
-        unet_type="sid",  # prefer SiD for direct 1024px modeling
         num_channels=160,  # huge tier for 1024px
         attention_resolutions="128,64,32",
         channel_mult="1,1,2,2,4,8",
@@ -184,7 +178,6 @@ def sar2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=1024,
-        unet_type="sid",  # prefer SiD for direct 1024px modeling
         num_channels=160,  # huge tier for 1024px
         attention_resolutions="128,64,32",
         channel_mult="1,1,2,2,4,8",
@@ -209,7 +202,6 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
         resolution=1024,
-        unet_type="sid",  # prefer SiD for direct 1024px modeling
         num_channels=160,  # huge tier for 1024px
         attention_resolutions="128,64,32",
         channel_mult="1,1,2,2,4,8",

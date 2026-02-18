@@ -45,7 +45,7 @@ Without this, paths are inferred from the script location (works when run from t
 | **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
 | **`models/`** | Pre-trained model weights. |
 | **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_cdtsde`, `unet_ddib`, `unet_unidb`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
-| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, cdtsde, cut, img2img_turbo, domain_classifier). |
+| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, sid, cdtsde, cut, img2img_turbo, domain_classifier). |
 | **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
 | **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
 
@@ -110,6 +110,15 @@ Training scripts support [SwanLab](https://swanlab.cn) for experiment tracking. 
 ```
 
 To sync offline logs later: `swanlab sync ./ckpt/swanlog/run-xxx`
+
+### Standalone SID baseline
+
+SID is now available as a dedicated baseline entrypoint (instead of only a UNet type toggle under other methods):
+
+```bash
+# Example: standalone SID on rgb2ir
+python -m examples.sid.train --task rgb2ir
+```
 
 ## Citations
 
