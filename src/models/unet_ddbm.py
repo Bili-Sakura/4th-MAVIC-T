@@ -21,11 +21,11 @@ Supported UNet types (via ``unet_type`` in :func:`create_model`):
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
-from diffusers import ModelMixin, UNet2DModel
+from diffusers import ModelMixin, UNet2DConditionModel, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
@@ -74,8 +74,8 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             "implemented": True,
         },
         UNET_TYPE_SID: {
-            "source": "diffusers.UNet2DModel (following libs/simpleDiffusion)",
-            "description": "Simple Diffusion UNet using native diffusers UNet2DModel.",
+            "source": "diffusers.UNet2DConditionModel (no cross-attention, following libs/simpleDiffusion)",
+            "description": "Simple Diffusion UNet with variable ResBlocks per level and attention by resolution.",
             "implemented": True,
         },
     }
@@ -127,6 +127,47 @@ def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
         64:  (1, 2, 3, 4),
         32:  (1, 2, 3, 4),
     }.get(resolution, (1, 2, 3, 4))
+
+
+def _parse_layers_per_block(
+    num_res_blocks: Union[int, str, Sequence[int]],
+    num_levels: int,
+    *,
+    allow_variable: bool,
+) -> Union[int, Tuple[int, ...]]:
+    """Parse ``num_res_blocks`` into diffusers-compatible ``layers_per_block``.
+
+    ``UNet2DModel`` only supports a scalar int. ``UNet2DConditionModel`` also
+    supports a tuple for per-level variable residual block counts.
+    """
+    if isinstance(num_res_blocks, int):
+        if num_res_blocks <= 0:
+            raise ValueError("num_res_blocks must be a positive integer.")
+        return num_res_blocks
+
+    if isinstance(num_res_blocks, str):
+        values = tuple(int(v.strip()) for v in num_res_blocks.split(",") if v.strip())
+    elif isinstance(num_res_blocks, Sequence):
+        values = tuple(int(v) for v in num_res_blocks)
+    else:
+        raise TypeError(
+            "num_res_blocks must be an int, comma-separated string, or integer sequence."
+        )
+
+    if len(values) == 0:
+        raise ValueError("num_res_blocks sequence cannot be empty.")
+    if any(v <= 0 for v in values):
+        raise ValueError("All num_res_blocks values must be positive integers.")
+    if not allow_variable:
+        raise ValueError(
+            "Variable num_res_blocks is only supported for unet_type='sid'. "
+            "Use a single integer for other UNet types."
+        )
+    if len(values) != num_levels:
+        raise ValueError(
+            f"num_res_blocks has {len(values)} entries, but architecture has {num_levels} levels."
+        )
+    return values
 
 
 class DDBMUNet(ModelMixin, ConfigMixin):
@@ -515,7 +556,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
         image_size: int = 256,
         in_channels: int = 3,
         model_channels: int = 128,
-        num_res_blocks: int = 2,
+        num_res_blocks: Union[int, Tuple[int, ...]] = 2,
         attention_resolutions: Tuple[int, ...] = (1,),
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
@@ -533,6 +574,12 @@ class SiDUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
+        layers_per_block = _parse_layers_per_block(
+            num_res_blocks,
+            num_levels=len(channel_mult),
+            allow_variable=True,
+        )
+
         unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
@@ -540,13 +587,14 @@ class SiDUNet(ModelMixin, ConfigMixin):
             block_out_channels=block_out_channels,
             down_block_types=down_block_types,
             up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
+            layers_per_block=layers_per_block,
             dropout=dropout,
+            mid_block_type="UNetMidBlock2D",
         )
         if attention_head_dim is not None:
             unet_kwargs["attention_head_dim"] = attention_head_dim
 
-        self.unet = UNet2DModel(**unet_kwargs)
+        self.unet = UNet2DConditionModel(**unet_kwargs)
 
     def forward(
         self,
@@ -556,7 +604,11 @@ class SiDUNet(ModelMixin, ConfigMixin):
     ) -> torch.Tensor:
         if self.condition_mode == "concat" and xT is not None:
             x = torch.cat([x, xT], dim=1)
-        return self.unet(x, timestep).sample
+        return self.unet(
+            sample=x,
+            timestep=timestep,
+            encoder_hidden_states=None,
+        ).sample
 
 
 def _parse_create_model_args(
@@ -604,7 +656,7 @@ def create_model(
     image_size: int = 256,
     in_channels: int = 3,
     num_channels: int = 128,
-    num_res_blocks: int = 2,
+    num_res_blocks: Union[int, str, Tuple[int, ...]] = 2,
     attention_resolutions: str = "32,16,8",
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
@@ -638,11 +690,18 @@ def create_model(
         image_size, attention_resolutions, channel_mult
     )
 
+    cm_effective = cm_tuple if cm_tuple is not None else _channel_mult_for_resolution(image_size)
+    parsed_num_res_blocks = _parse_layers_per_block(
+        num_res_blocks,
+        num_levels=len(cm_effective),
+        allow_variable=(unet_type == UNET_TYPE_SID),
+    )
+
     common_kwargs = dict(
         image_size=image_size,
         in_channels=in_channels,
         model_channels=num_channels,
-        num_res_blocks=num_res_blocks,
+        num_res_blocks=parsed_num_res_blocks,
         attention_resolutions=attn_indices,
         dropout=dropout,
         condition_mode=condition_mode,

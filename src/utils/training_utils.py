@@ -23,9 +23,65 @@ from typing import Any, Dict, Iterable, Optional
 import numpy as np
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _multiscale_resolutions(height: int, width: int, base_resolution: int) -> list[int]:
+    """Return powers-of-two resolutions for multiscale loss."""
+    max_res = min(height, width)
+    if base_resolution <= 0:
+        raise ValueError("base_resolution must be > 0")
+
+    resolutions: list[int] = []
+    if base_resolution <= max_res:
+        r = int(base_resolution)
+        while r <= max_res:
+            resolutions.append(r)
+            r *= 2
+
+    if max_res not in resolutions:
+        resolutions.append(max_res)
+    return sorted(set(resolutions))
+
+
+def multiscale_weighted_mse(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    sample_weights: Optional[torch.Tensor] = None,
+    base_resolution: int = 32,
+) -> torch.Tensor:
+    """Compute the paper-style multiscale MSE with 1/s scale weighting."""
+    if pred.shape != target.shape:
+        raise ValueError(
+            f"pred and target must have same shape, got {pred.shape} vs {target.shape}"
+        )
+    if pred.ndim != 4:
+        raise ValueError(f"Expected 4D BCHW tensors, got ndim={pred.ndim}")
+
+    b, _, h, w = pred.shape
+    resolutions = _multiscale_resolutions(h, w, int(base_resolution))
+
+    if sample_weights is None:
+        sample_weights = torch.ones(b, device=pred.device, dtype=pred.dtype)
+    else:
+        sample_weights = sample_weights.to(device=pred.device, dtype=pred.dtype).reshape(b)
+
+    weighted_losses = []
+    scale_weights = []
+    for s in resolutions:
+        pred_down = F.adaptive_avg_pool2d(pred, (s, s))
+        target_down = F.adaptive_avg_pool2d(target, (s, s))
+        per_sample_mse = (pred_down - target_down).pow(2).mean(dim=(1, 2, 3))
+        loss_s = (sample_weights * per_sample_mse).mean()
+        scale_w = 1.0 / float(s)
+        weighted_losses.append(scale_w * loss_s)
+        scale_weights.append(scale_w)
+
+    return sum(weighted_losses) / max(sum(scale_weights), 1e-12)
 
 
 def _to_yaml_serializable(

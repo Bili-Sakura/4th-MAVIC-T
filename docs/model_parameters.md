@@ -8,7 +8,10 @@ configurations for each task.
 counting parameters via ``sum(p.numel() for p in model.parameters())``.
 See also ``configs/model_scaling_variants.yaml`` for size-scaling tiers (small / medium / large / huge).
 
+**1024px recommendation:** For direct 1024x1024 pixel-space diffusion modeling, prefer ``unet_type: sid`` (Simple Diffusion UNet variant).
+
 **Tasks:**
+
 - `sar2eo`: SAR to EO (optical) translation
 - `rgb2ir`: RGB to Infrared translation
 - `sar2ir`: SAR to Infrared translation
@@ -18,6 +21,7 @@ See also ``configs/model_scaling_variants.yaml`` for size-scaling tiers (small /
 
 **Description:** Denoising Diffusion Bridge Models for image-to-image translation.
 Uses a UNet architecture with conditioning via concatenation.
+For direct 1024x1024 runs, use ``unet_type: sid``.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
@@ -86,6 +90,7 @@ condition_mode: concat
 
 **Description:** Bidirectional Brownian Bridge Diffusion Models with reversible translation.
 Supports bidirectional sampling (source→target and target→source).
+For direct 1024x1024 runs, use ``unet_type: sid``.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
@@ -154,6 +159,7 @@ condition_mode: concat
 
 **Description:** Image-to-Image Schrödinger Bridge for paired image translation.
 Uses Schrödinger Bridge formulation with ODE/SDE samplers.
+For direct 1024x1024 runs, use ``unet_type: sid``.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|

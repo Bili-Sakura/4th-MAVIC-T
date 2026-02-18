@@ -25,7 +25,7 @@ from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from diffusers import ModelMixin, UNet2DModel
+from diffusers import ModelMixin, UNet2DConditionModel, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 from .unet_ddbm import (
@@ -36,6 +36,7 @@ from .unet_ddbm import (
     UNET_TYPE_VDM,
     UNET_TYPE_SID,
     _build_block_types,
+    _parse_layers_per_block,
     _parse_create_model_args,
     get_unet_type_config,
 )
@@ -321,7 +322,7 @@ class SiDI2SBUNet(ModelMixin, ConfigMixin):
         image_size: int = 256,
         in_channels: int = 3,
         model_channels: int = 128,
-        num_res_blocks: int = 2,
+        num_res_blocks: Union[int, Tuple[int, ...]] = 2,
         attention_resolutions: Tuple[int, ...] = (1,),
         dropout: float = 0.0,
         condition_mode: Optional[str] = "concat",
@@ -338,21 +339,32 @@ class SiDI2SBUNet(ModelMixin, ConfigMixin):
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
-        self.unet = UNet2DModel(
+        layers_per_block = _parse_layers_per_block(
+            num_res_blocks,
+            num_levels=len(channel_mult),
+            allow_variable=True,
+        )
+
+        self.unet = UNet2DConditionModel(
             sample_size=image_size,
             in_channels=unet_in_channels,
             out_channels=in_channels,
             block_out_channels=block_out_channels,
             down_block_types=down_block_types,
             up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
+            layers_per_block=layers_per_block,
             dropout=dropout,
+            mid_block_type="UNetMidBlock2D",
         )
 
     def forward(self, x, timestep, cond=None):
         if self.condition_mode == "concat" and cond is not None:
             x = torch.cat([x, cond], dim=1)
-        return self.unet(x, timestep).sample
+        return self.unet(
+            sample=x,
+            timestep=timestep,
+            encoder_hidden_states=None,
+        ).sample
 
 
 _I2SB_CLASS_MAP = {
@@ -367,7 +379,7 @@ def create_model(
     image_size: int = 256,
     in_channels: int = 3,
     num_channels: int = 128,
-    num_res_blocks: int = 2,
+    num_res_blocks: Union[int, str, Tuple[int, ...]] = 2,
     attention_resolutions: str = "32,16,8",
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
@@ -400,11 +412,18 @@ def create_model(
         image_size, attention_resolutions, channel_mult
     )
 
+    cm_effective = cm_tuple if cm_tuple is not None else _channel_mult_for_resolution(image_size)
+    parsed_num_res_blocks = _parse_layers_per_block(
+        num_res_blocks,
+        num_levels=len(cm_effective),
+        allow_variable=(unet_type == UNET_TYPE_SID),
+    )
+
     common_kwargs = dict(
         image_size=image_size,
         in_channels=in_channels,
         model_channels=num_channels,
-        num_res_blocks=num_res_blocks,
+        num_res_blocks=parsed_num_res_blocks,
         attention_resolutions=attn_indices,
         dropout=dropout,
         condition_mode=condition_mode,

@@ -31,6 +31,7 @@ class TaskConfig:
     exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"  # path to txt of bad image paths to skip
 
     # ---- model ----
+    # Project guidance: prefer sid for direct 1024px modeling.
     unet_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2
@@ -46,6 +47,9 @@ class TaskConfig:
     T: float = 1.0          # end time
     ot_ode: bool = False     # use OT-ODE path (deterministic sampling)
     clip_denoise: bool = False
+    # SID / Simple Diffusion objective option (paper Sec. 3.2)
+    use_multiscale_loss: bool = False
+    multiscale_base_resolution: int = 32
 
     # ---- training ----
     output_dir: str = "./ckpt"
@@ -153,6 +157,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -175,6 +180,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -197,6 +203,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,

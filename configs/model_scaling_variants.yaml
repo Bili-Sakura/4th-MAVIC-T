@@ -47,8 +47,10 @@
 # UNet backbone is identical.
 #
 # **unet_type** (adm, edm, edm2, vdm, sid) is configurable per-baseline
-# (e.g. in ddbm/config.py).  It does not affect the parameter counts below;
-# all variants share the same spatial layout (channel_mult, blocks, etc.).
+# (e.g. in ddbm/config.py). For adm/edm/vdm, parameter counts are the same
+# given identical channel_mult / attention / num_res_blocks. For sid, counts
+# differ because the implementation now uses UNet2DConditionModel (without
+# cross-attention) and supports variable per-level num_res_blocks.
 #
 # Exact parameter counts (1ch conditional).  Three tiers:
 #   medium (256px) ~74M   large (512px) ~291M   huge (1024px) ~416M
@@ -62,10 +64,38 @@
 # | edm    | Fourier            | Same as adm; different time encoding
 # | edm2   | Fourier            | EDM2 preconditioning (c_skip, c_out, c_in, c_noise)
 # | vdm    | Positional         | logSNR (gamma) normalized to [0,1]
-# | sid    | Positional         | Same as adm; alias for Simple Diffusion
+# | sid    | Positional         | UNet2DConditionModel (no cross-attn), variable per-level ResBlocks
 #
 # EDM2 accepts sigma_data (default 0.5).  VDM accepts gamma_min, gamma_max.
 # ---------------------------------------------------------------------------
+# Recommendation: for direct 1024px pixel-space modeling, prefer unet_type="sid".
+#
+# SID exact parameter counts (measured after variable-ResBlocks fix, 2026-02-18):
+# default sid config here uses num_res_blocks=2 (scalar) unless noted.
+#
+# DDBM / I2SB (identical counts):
+#   small  (256px, 1ch):   18,506,497
+#   medium (256px, 1ch):   68,011,905
+#   large  (512px, 1ch):  267,129,729
+#   huge   (1024px, 1ch): 379,170,081
+#   small  (256px, 3ch):   18,509,955
+#   medium (256px, 3ch):   68,018,819
+#   large  (512px, 3ch):  267,136,643
+#   huge   (1024px, 3ch): 379,178,723
+#
+# BiBBDM (objective=dlns):
+#   small  (256px, 1ch):   18,507,074
+#   medium (256px, 1ch):   68,013,058
+#   large  (512px, 1ch):  267,130,882
+#   huge   (1024px, 1ch): 379,171,522
+#   small  (256px, 3ch):   18,511,686
+#   medium (256px, 3ch):   68,022,278
+#   large  (512px, 3ch):  267,140,102
+#   huge   (1024px, 3ch): 379,183,046
+#
+# SID variable ResBlocks example (DDBM, medium tier, num_res_blocks=1,2,2,4):
+#   1ch: 97,022,721
+#   3ch: 97,029,635
 
 diffusion_unet:
   # -------------------------------------------------------
@@ -170,7 +200,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px).
+        1024 \times1024.  Use huge (tuned for 1024px). Prefer unet_type="sid"
+        for direct 1024px pixel-space modeling.
 
     sar2ir:
       source_channels: 1
@@ -179,7 +210,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px).
+        1024 \times1024.  Use huge (tuned for 1024px). Prefer unet_type="sid"
+        for direct 1024px pixel-space modeling.
 
     sar2rgb:
       source_channels: 1
@@ -188,7 +220,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px).
+        1024 \times1024.  Use huge (tuned for 1024px). Prefer unet_type="sid"
+        for direct 1024px pixel-space modeling.
 
 
 # ============================================================

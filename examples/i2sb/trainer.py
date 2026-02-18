@@ -44,6 +44,7 @@ from src.utils.training_utils import (  # noqa: E402
     checkpoint_dir_sort_key,
     create_optimizer,
     lambda_repa_cosine,
+    multiscale_weighted_mse,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
     save_training_config,
@@ -190,7 +191,9 @@ class I2SBTrainer:
                               latent_target_encoder=None, lambda_latent=1.0,
                               rep_alignment_module=None, lambda_rep_alignment=0.1,
                               pixel_target=None, pixel_source=None,
-                              latent_decode_fn=None, in_latent_space: bool = False):
+                              latent_decode_fn=None, in_latent_space: bool = False,
+                              use_multiscale_loss: bool = False,
+                              multiscale_base_resolution: int = 32):
         """Compute the I2SB denoising loss for one batch.
 
         When *mavic_criterion* is provided the loss is augmented with a
@@ -228,8 +231,16 @@ class I2SBTrainer:
         cond = x_T if condition_mode == "concat" else None
         pred = model(xt, t, cond=cond)
 
-        # MSE loss between predicted and true noise label
-        loss = F.mse_loss(pred, label)
+        # Denoising objective. Optional multiscale objective is useful for SID.
+        if use_multiscale_loss:
+            loss = multiscale_weighted_mse(
+                pred,
+                label,
+                sample_weights=None,
+                base_resolution=multiscale_base_resolution,
+            )
+        else:
+            loss = F.mse_loss(pred, label)
         extras = {
             "loss_mavic": None,
             "loss_latent": None,
@@ -727,6 +738,8 @@ class I2SBTrainer:
                         pixel_source=pixel_x_T if cfg.use_latent_target else None,
                         latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
                         in_latent_space=cfg.use_latent_target,
+                        use_multiscale_loss=cfg.use_multiscale_loss,
+                        multiscale_base_resolution=cfg.multiscale_base_resolution,
                     )
 
                     accelerator.backward(loss)

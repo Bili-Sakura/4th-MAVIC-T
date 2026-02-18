@@ -35,6 +35,7 @@ class TaskConfig:
 
     # ---- model (UNet) ----
     # Backbone: adm (default) | edm | vdm | sid. Note: edm2 disabled (pipeline incompatible)
+    # Project guidance: prefer sid for direct 1024px modeling.
     unet_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2
@@ -170,6 +171,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=3,
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -191,6 +193,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -212,6 +215,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         target_channels=3,
         model_channels=3,
         resolution=1024,
+        unet_type="sid",  # prefer SiD for direct 1024px modeling
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
