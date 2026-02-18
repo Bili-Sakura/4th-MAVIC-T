@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from src.schedulers import SiDScheduler
+from src.utils.metrics import MetricCalculator
 from src.utils.training_utils import multiscale_weighted_mse
 from src.models.unet_sid import create_sid_model
 
+from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from examples.ddbm.trainer import DDBMTrainer
+from .dataset_wrapper import MavicTSIDDataset, PairedValDataset
 
 
 def _append_dims(x: torch.Tensor, target_dims: int) -> torch.Tensor:
@@ -47,12 +53,19 @@ class SIDTrainer(DDBMTrainer):
 
     def build_model(self, image_size: int | None = None):
         cfg = self.cfg
-        in_ch = cfg.latent_channels if cfg.use_latent_target else cfg.model_channels
+        if cfg.use_latent_target:
+            sample_ch = cfg.latent_channels
+            condition_ch = cfg.latent_channels
+        else:
+            sample_ch = cfg.target_channels
+            condition_ch = cfg.source_channels
         if image_size is None:
             image_size = cfg.resolution
         return create_sid_model(
             image_size=image_size,
-            in_channels=in_ch,
+            in_channels=sample_ch,
+            out_channels=sample_ch,
+            condition_channels=condition_ch,
             num_channels=cfg.num_channels,
             num_res_blocks=cfg.num_res_blocks,
             attention_resolutions=cfg.attention_resolutions,
@@ -61,6 +74,122 @@ class SIDTrainer(DDBMTrainer):
             channel_mult=cfg.channel_mult,
             attention_head_dim=getattr(cfg, "attention_head_dim", 64),
         )
+
+    def build_datasets(self):
+        """Return ``(train_dataset, val_dataset)`` with native task channels."""
+        if self.cfg.use_latent_target:
+            src_ch = self.cfg.source_channels
+            tgt_ch = self.cfg.target_channels
+        else:
+            # SID now supports asymmetric source/target channels directly.
+            src_ch = self.cfg.source_channels
+            tgt_ch = self.cfg.target_channels
+
+        resolved_paired = resolve_paired_val_manifest(
+            getattr(self.cfg, "paired_val_manifest", None)
+        )
+        self._resolved_paired_val_manifest = resolved_paired
+        paired_val_manifest_str = str(resolved_paired) if resolved_paired else getattr(
+            self.cfg, "paired_val_manifest", None
+        )
+
+        train_ds = MavicTSIDDataset(
+            task=self.cfg.task_name,
+            split="train",
+            resolution=self.cfg.resolution,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
+            use_augmented=self.cfg.use_augmented,
+            use_horizontal_flip=self.cfg.use_horizontal_flip,
+            use_vertical_flip=self.cfg.use_vertical_flip,
+            exclude_file=self.cfg.exclude_file,
+            paired_val_manifest=paired_val_manifest_str,
+        )
+
+        val_ds = None
+        if (
+            (self.cfg.validation_epochs is not None and self.cfg.validation_epochs > 0)
+            or (self.cfg.validation_steps is not None and self.cfg.validation_steps > 0)
+        ):
+            val_resolution = getattr(self.cfg, "output_resolution", None) or self.cfg.resolution
+            if resolved_paired is not None:
+                val_ds = PairedValDataset(
+                    manifest_path=resolved_paired,
+                    resolution=val_resolution,
+                    source_channels=src_ch,
+                    target_channels=tgt_ch,
+                )
+            if val_ds is None:
+                try:
+                    val_ds = MavicTSIDDataset(
+                        task=self.cfg.task_name,
+                        split="test",
+                        resolution=val_resolution,
+                        source_channels=src_ch,
+                        target_channels=tgt_ch,
+                        with_target=False,
+                    )
+                except (ValueError, FileNotFoundError, RuntimeError):
+                    val_ds = None
+        return train_ds, val_ds
+
+    def _evaluate_paired_val_metrics(
+        self, model, scheduler, pipeline, accelerator, latent_target_encoder, manifest_path=None
+    ):
+        """Run paired-val metrics using native source/target channels for SID."""
+        cfg = self.cfg
+        manifest_path = Path(manifest_path) if manifest_path is not None else Path(cfg.paired_val_manifest)
+        if not manifest_path.is_file():
+            return {}
+
+        if cfg.use_latent_target:
+            src_ch, tgt_ch = cfg.source_channels, cfg.target_channels
+        else:
+            src_ch, tgt_ch = cfg.source_channels, cfg.target_channels
+
+        res = getattr(cfg, "output_resolution", None) or cfg.resolution
+        paired_ds = PairedValDataset(
+            manifest_path=manifest_path,
+            resolution=res,
+            source_channels=src_ch,
+            target_channels=tgt_ch,
+        )
+        paired_loader = DataLoader(
+            paired_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        metric_calc = MetricCalculator(device=str(accelerator.device), compute_fid=False)
+
+        for _target, source in paired_loader:
+            source_01 = source.to(accelerator.device)
+            source_inp = source_01 * 2 - 1
+
+            with accelerator.autocast():
+                pipeline_kwargs = self.get_inference_kwargs(source_inp)
+                if latent_target_encoder is not None:
+                    pipeline_kwargs["target_channels"] = cfg.target_channels
+                result = pipeline(**pipeline_kwargs)
+            generated = (result.images + 1) * 0.5
+
+            target = _target.to(accelerator.device)
+            pred_01 = generated.clamp(0, 1)
+            tgt_01 = target.clamp(0, 1)
+            if pred_01.shape[1] != tgt_01.shape[1]:
+                if pred_01.shape[1] == 3 and tgt_01.shape[1] == 1:
+                    tgt_01 = tgt_01.repeat(1, 3, 1, 1)
+                elif pred_01.shape[1] == 1 and tgt_01.shape[1] == 3:
+                    pred_01 = pred_01.repeat(1, 3, 1, 1)
+            metric_calc.update(pred_01, tgt_01)
+
+        m = metric_calc.compute()
+        return {
+            "val_lpips": m.lpips,
+            "val_l1": m.l1,
+            "val_score": m.score if m.score is not None else m.lpips + m.l1,
+        }
 
     def build_scheduler(self):
         cfg = self.cfg

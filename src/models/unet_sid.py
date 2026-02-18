@@ -25,6 +25,8 @@ class SiDUNet(ModelMixin, ConfigMixin):
         self,
         image_size: int = 256,
         in_channels: int = 3,
+        out_channels: Optional[int] = None,
+        condition_channels: Optional[int] = None,
         model_channels: int = 128,
         num_res_blocks: Union[int, Tuple[int, ...]] = 2,
         attention_resolutions: Tuple[int, ...] = (1,),
@@ -34,13 +36,21 @@ class SiDUNet(ModelMixin, ConfigMixin):
         attention_head_dim: Optional[int] = 64,
     ) -> None:
         super().__init__()
+        if out_channels is None:
+            out_channels = in_channels
+        if condition_channels is None:
+            condition_channels = in_channels
         self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.condition_channels = condition_channels
         self.condition_mode = condition_mode
 
         if channel_mult is None:
             channel_mult = _channel_mult_for_resolution(image_size)
 
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
+        unet_in_channels = (
+            in_channels + condition_channels if condition_mode == "concat" else in_channels
+        )
         block_out_channels = tuple(model_channels * m for m in channel_mult)
         down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
 
@@ -53,7 +63,7 @@ class SiDUNet(ModelMixin, ConfigMixin):
         unet_kwargs: dict = dict(
             sample_size=image_size,
             in_channels=unet_in_channels,
-            out_channels=in_channels,
+            out_channels=out_channels,
             block_out_channels=block_out_channels,
             down_block_types=down_block_types,
             up_block_types=up_block_types,
@@ -83,6 +93,8 @@ class SiDUNet(ModelMixin, ConfigMixin):
 def create_sid_model(
     image_size: int = 256,
     in_channels: int = 3,
+    out_channels: Optional[int] = None,
+    condition_channels: Optional[int] = None,
     num_channels: int = 128,
     num_res_blocks: Union[int, str, Tuple[int, ...]] = 2,
     attention_resolutions: str = "64,32",
@@ -104,6 +116,8 @@ def create_sid_model(
     return SiDUNet(
         image_size=image_size,
         in_channels=in_channels,
+        out_channels=out_channels,
+        condition_channels=condition_channels,
         model_channels=num_channels,
         num_res_blocks=parsed_num_res_blocks,
         attention_resolutions=attn_indices,

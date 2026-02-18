@@ -85,9 +85,10 @@ class SIDPipeline(DiffusionPipeline):
         dtype = self.dtype
         source = self.prepare_inputs(source_image, device, dtype)
         batch_size = source.shape[0]
+        target_channels = int(getattr(self.unet.config, "out_channels", source.shape[1]))
 
         xt = randn_tensor(
-            source.shape,
+            (batch_size, target_channels, source.shape[-2], source.shape[-1]),
             generator=generator,
             device=device,
             dtype=dtype,

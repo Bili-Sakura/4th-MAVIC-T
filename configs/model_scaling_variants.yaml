@@ -68,6 +68,20 @@
 # Recommendation: for direct 1024px pixel-space SID modeling, use the
 # standalone ``examples/sid`` baseline instead of setting ``unet_type`` in
 # bridge baselines.
+#
+# SID exact parameter counts (standalone examples/sid, src/models/unet_sid.py):
+#   The values below are for symmetric channel settings (1->1 and 3->3).
+#   SID also supports asymmetric translation (e.g., 1->3, 3->1); parameter
+#   counts differ slightly because both condition (source) and target/output
+#   channels affect the first/last convolutions.
+#   small  (256px, 1ch->1ch):   18,506,497
+#   medium (256px, 1ch->1ch):   68,011,905
+#   large  (512px, 1ch->1ch):  267,129,729
+#   huge   (1024px, 1ch->1ch): 379,170,081
+#   small  (256px, 3ch->3ch):   18,509,955
+#   medium (256px, 3ch->3ch):   68,018,819
+#   large  (512px, 3ch->3ch):  267,136,643
+#   huge   (1024px, 3ch->3ch): 379,178,723
 
 diffusion_unet:
   # -------------------------------------------------------
