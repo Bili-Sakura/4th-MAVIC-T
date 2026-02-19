@@ -81,6 +81,8 @@ class TaskConfig:
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
     paired_val_manifest: Optional[str] = None  # path to paired_val_<task>.txt for metric evaluation
+    sar2rgb_sup_manifest: Optional[str] = None  # path to paired_sar2rgb_sup.txt (extra supervised SAR→RGB train data)
+    use_sar2rgb_sup: bool = False  # when True and task is sar2rgb, add sar2rgb_sup pairs (OpenEarthMap-SAR, SpaceNet6, FUSAR-Map)
 
     # ---- hub ----
     push_to_hub: bool = True
@@ -193,11 +195,17 @@ def sar2ir_config(**overrides) -> TaskConfig:
     return cfg
 
 
+def _default_sar2rgb_sup_manifest() -> str:
+    return "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_sar2rgb_sup.txt"
+
+
 def sar2rgb_config(**overrides) -> TaskConfig:
     """SAR-to-RGB: 1-band → 3-band (native 1024×1024)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
+        sar2rgb_sup_manifest=_default_sar2rgb_sup_manifest(),
+        use_sar2rgb_sup=True,  # include OpenEarthMap-SAR, SpaceNet6, FUSAR-Map; set False to disable
         source_channels=1,
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded

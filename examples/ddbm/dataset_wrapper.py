@@ -83,12 +83,14 @@ def _load_paired_val_exclude_set(manifest_path: Optional[str]) -> Set[str]:
 
     The paired val set is a subset of the train pool; exclude these paths when
     loading the train set so train and golden val do not overlap.
+    Paths may be absolute or relative to the dataset root (manifest's parent.parent).
     """
     if not manifest_path:
         return set()
     path = Path(manifest_path)
     if not path.is_file():
         return set()
+    dataset_root = path.resolve().parent.parent
     out: Set[str] = set()
     with path.open() as fh:
         for line in fh:
@@ -99,7 +101,9 @@ def _load_paired_val_exclude_set(manifest_path: Optional[str]) -> Set[str]:
             for p in parts:
                 p = p.strip()
                 if p:
-                    out.add(str(Path(p).resolve()))
+                    pp = Path(p)
+                    resolved = str((dataset_root / p).resolve() if not pp.is_absolute() else pp.resolve())
+                    out.add(resolved)
     return out
 
 
@@ -119,6 +123,35 @@ def resolve_paired_val_manifest(raw: str | None) -> Path | None:
     if p.is_file():
         return p
     return None
+
+
+def resolve_sar2rgb_sup_manifest(raw: str | None) -> Path | None:
+    """Resolve sar2rgb_sup_manifest to an existing file (project root preferred, then cwd)."""
+    return resolve_paired_val_manifest(raw)
+
+
+def _load_sar2rgb_sup_records(manifest_path: Path) -> list[dict]:
+    """Load (input_path, target_path) pairs from paired_sar2rgb_sup.txt manifest.
+
+    Manifest format: one line per pair, input_path\\ttarget_path (tab-separated).
+    Paths may be absolute or relative to the dataset root (manifest's parent.parent).
+    Returns list of dicts with input_path and target_path keys, compatible with MavicTDDBMDataset.
+    """
+    records = []
+    with manifest_path.open() as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t", 1)
+            if len(parts) != 2:
+                continue
+            inp, tgt = parts[0].strip(), parts[1].strip()
+            if inp and tgt:
+                inp_resolved = _resolve_manifest_path(inp, manifest_path)
+                tgt_resolved = _resolve_manifest_path(tgt, manifest_path)
+                records.append({"input_path": inp_resolved, "target_path": tgt_resolved})
+    return records
 
 
 class MavicTDDBMDataset(Dataset):
@@ -157,6 +190,10 @@ class MavicTDDBMDataset(Dataset):
     paired_val_manifest : str or None
         Path to paired_val_<task>.txt. When loading train, paths in this manifest
         are excluded so the train set does not overlap with the golden val set.
+    sar2rgb_sup_manifest : str or None
+        Path to paired_sar2rgb_sup.txt. When task is sar2rgb and split is train,
+        these additional supervised SAR→RGB pairs (OpenEarthMap-SAR, SpaceNet6,
+        FUSAR-Map) are appended to the training set.
     """
 
     def __init__(
@@ -175,6 +212,7 @@ class MavicTDDBMDataset(Dataset):
         eval_root: Optional[str] = None,
         exclude_file: Optional[str] = None,
         paired_val_manifest: Optional[str] = None,
+        sar2rgb_sup_manifest: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.task = task
@@ -208,6 +246,21 @@ class MavicTDDBMDataset(Dataset):
                 self._records.extend(list(ds_aug))
             except (ValueError, FileNotFoundError):
                 pass  # augmented variant may not exist for all tasks
+
+        # Optionally add sar2rgb_sup supervised pairs (OpenEarthMap-SAR, SpaceNet6, FUSAR-Map)
+        if task == "sar2rgb" and split == "train" and sar2rgb_sup_manifest:
+            resolved_sup = resolve_sar2rgb_sup_manifest(sar2rgb_sup_manifest)
+            if resolved_sup is not None:
+                sup_records = _load_sar2rgb_sup_records(resolved_sup)
+                self._records.extend(sup_records)
+                logging.getLogger(__name__).info(
+                    f"Added {len(sup_records)} sar2rgb_sup pairs from {resolved_sup}"
+                )
+            elif sar2rgb_sup_manifest:
+                logging.getLogger(__name__).warning(
+                    "sar2rgb_sup_manifest not found at %s (tried project root and cwd) – skipping",
+                    sar2rgb_sup_manifest,
+                )
 
         # Filter out excluded samples (bad_samples.txt and paired val paths)
         exclude = _load_exclude_set(exclude_file)
@@ -262,10 +315,20 @@ class MavicTDDBMDataset(Dataset):
         return target, source
 
 
+def _resolve_manifest_path(raw_path: str, manifest_path: Path) -> str:
+    """Resolve a path from a manifest. If relative, resolve against dataset root (manifest's parent.parent)."""
+    p = Path(raw_path)
+    if p.is_absolute():
+        return raw_path
+    dataset_root = manifest_path.resolve().parent.parent
+    return str((dataset_root / raw_path).resolve())
+
+
 class PairedValDataset(Dataset):
     """Dataset that loads (source, target) pairs from a paired validation manifest.
 
     Manifest format: one line per pair, ``input_path\\ttarget_path`` (tab-separated).
+    Paths may be absolute or relative to the dataset root (manifest's parent.parent).
     By default returns ``(target, source)`` tensors in [0, 1] to match MavicTDDBMDataset.
     Use ``return_order="source_target"`` for trainers that expect (source, target) (e.g. CUT).
     """
@@ -297,6 +360,8 @@ class PairedValDataset(Dataset):
                     continue
                 inp, tgt = parts[0].strip(), parts[1].strip()
                 if inp and tgt:
+                    inp = _resolve_manifest_path(inp, path)
+                    tgt = _resolve_manifest_path(tgt, path)
                     self._pairs.append((inp, tgt))
 
     def __len__(self) -> int:

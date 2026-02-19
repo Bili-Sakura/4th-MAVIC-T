@@ -14,6 +14,10 @@ def _default_paired_val_manifest(task_name: str) -> str:
     return f"datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_{task_name}.txt"
 
 
+def _default_sar2rgb_sup_manifest() -> str:
+    return "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_sar2rgb_sup.txt"
+
+
 @dataclass
 class TaskConfig:
     """Configuration for UniDB image-to-image translation."""
@@ -71,6 +75,8 @@ class TaskConfig:
     validation_epochs: Optional[int] = None
     validation_steps: Optional[int] = None
     paired_val_manifest: Optional[str] = None
+    sar2rgb_sup_manifest: Optional[str] = None  # path to paired_sar2rgb_sup.txt (extra supervised SAR→RGB train data)
+    use_sar2rgb_sup: bool = False  # when True and task is sar2rgb, add sar2rgb_sup pairs
 
     # ---- hub ----
     push_to_hub: bool = False
@@ -151,6 +157,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
+        sar2rgb_sup_manifest=_default_sar2rgb_sup_manifest(),
+        use_sar2rgb_sup=True,
         source_channels=1,
         target_channels=3,
         model_channels=3,

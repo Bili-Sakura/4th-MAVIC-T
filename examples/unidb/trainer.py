@@ -96,6 +96,7 @@ class UniDBTrainer:
             use_vertical_flip=cfg.use_vertical_flip,
             exclude_file=cfg.exclude_file,
             paired_val_manifest=paired_val_manifest_str,
+            sar2rgb_sup_manifest=cfg.sar2rgb_sup_manifest if getattr(cfg, "use_sar2rgb_sup", False) else None,
         )
         val_ds = None
         if (

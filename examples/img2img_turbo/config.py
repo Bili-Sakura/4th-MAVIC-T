@@ -79,6 +79,8 @@ class TaskConfig:
     validation_epochs: Optional[int] = None  # run validation every N epochs
     validation_steps: Optional[int] = None   # run validation every N steps
     paired_val_manifest: Optional[str] = None  # path to paired_val_<task>.txt for golden val (log validation)
+    sar2rgb_sup_manifest: Optional[str] = None  # path to paired_sar2rgb_sup.txt (extra supervised SAR→RGB train data)
+    use_sar2rgb_sup: bool = False  # when True and task is sar2rgb, add sar2rgb_sup pairs
 
     # ---- hub ----
     push_to_hub: bool = True
@@ -116,6 +118,10 @@ class TaskConfig:
 
 def _default_paired_val_manifest(task_name: str) -> str:
     return f"datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_{task_name}.txt"
+
+
+def _default_sar2rgb_sup_manifest() -> str:
+    return "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_sar2rgb_sup.txt"
 
 
 def sar2eo_config(**overrides) -> TaskConfig:
@@ -191,6 +197,8 @@ def sar2rgb_config(**overrides) -> TaskConfig:
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
+        sar2rgb_sup_manifest=_default_sar2rgb_sup_manifest(),
+        use_sar2rgb_sup=True,
         prompt="convert SAR image to RGB image",
         source_channels=1,
         target_channels=3,

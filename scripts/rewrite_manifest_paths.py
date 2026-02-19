@@ -2,7 +2,8 @@
 """Rewrite absolute paths in manifest files to use a user-specified dataset root.
 
 Manifest files under datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/
-(paired_val_*.txt, bad_samples.txt) often contain machine-specific absolute paths
+(paired_val_*.txt, paired_sar2rgb_sup.txt, bad_samples.txt) may contain absolute paths
+or relative paths. Relative paths are resolved against the dataset root.
 (e.g. /mnt/data/expansion/...). This script rewrites them so paths resolve to your
 dataset location.
 
@@ -41,12 +42,13 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DATASET_ROOT = _PROJECT_ROOT / "datasets" / "BiliSakura" / "MACIV-T-2025-Structure-Refined"
 
-# Manifest files that may contain absolute paths
+# Manifest files that may contain absolute or relative paths
 DEFAULT_MANIFEST_FILES = (
     "paired_val_sar2eo.txt",
     "paired_val_sar2rgb.txt",
     "paired_val_sar2ir.txt",
     "paired_val_rgb2ir.txt",
+    "paired_sar2rgb_sup.txt",
     "bad_samples.txt",
 )
 
@@ -79,10 +81,15 @@ def _extract_relative(path_str: str) -> str | None:
 
 
 def _rewrite_path(path_str: str, dataset_root: Path) -> str:
-    """Rewrite a path to use dataset_root; return original if no match."""
+    """Rewrite a path to use dataset_root. Handles absolute paths (extract rel) and
+    relative paths (prepend dataset_root)."""
     rel = _extract_relative(path_str)
     if rel is not None:
         return str((dataset_root / rel).resolve())
+    # Already relative (e.g. sar2rgb_sup/train/input/xxx.png) - prepend dataset_root
+    p = Path(path_str)
+    if not p.is_absolute() and path_str.strip():
+        return str((dataset_root / path_str.strip()).resolve())
     return path_str
 
 
@@ -176,7 +183,13 @@ def main():
         sys.exit(1)
 
     files = args.files or list(DEFAULT_MANIFEST_FILES)
-    tab_separated = {"paired_val_sar2eo.txt", "paired_val_sar2rgb.txt", "paired_val_sar2ir.txt", "paired_val_rgb2ir.txt"}
+    tab_separated = {
+        "paired_val_sar2eo.txt",
+        "paired_val_sar2rgb.txt",
+        "paired_val_sar2ir.txt",
+        "paired_val_rgb2ir.txt",
+        "paired_sar2rgb_sup.txt",
+    }
 
     print(f"Dataset root: {dataset_root}")
     print(f"Manifests dir: {manifests_dir}")

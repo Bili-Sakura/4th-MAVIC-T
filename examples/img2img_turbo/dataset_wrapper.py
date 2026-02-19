@@ -32,7 +32,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
-from examples.ddbm.dataset_wrapper import _load_paired_val_exclude_set  # noqa: E402
+from examples.ddbm.dataset_wrapper import (  # noqa: E402
+    _load_paired_val_exclude_set,
+    _load_sar2rgb_sup_records,
+    resolve_sar2rgb_sup_manifest,
+)
 
 
 def _load_image_as_tensor(path: str, channels: int, resolution: int) -> torch.Tensor:
@@ -109,6 +113,9 @@ class MavicTTurboDataset(Dataset):
     paired_val_manifest : str or None
         Path to paired_val_<task>.txt. When loading train, paths in this manifest
         are excluded so the train set does not overlap with the golden val set.
+    sar2rgb_sup_manifest : str or None
+        Path to paired_sar2rgb_sup.txt. When task is sar2rgb and split is train,
+        these additional supervised SAR→RGB pairs are appended to the training set.
     """
 
     def __init__(
@@ -125,6 +132,7 @@ class MavicTTurboDataset(Dataset):
         eval_root: Optional[str] = None,
         exclude_file: Optional[str] = None,
         paired_val_manifest: Optional[str] = None,
+        sar2rgb_sup_manifest: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.task = task
@@ -155,6 +163,20 @@ class MavicTTurboDataset(Dataset):
                 self._records.extend(list(ds_aug))
             except (ValueError, FileNotFoundError):
                 pass
+
+        if task == "sar2rgb" and split == "train" and sar2rgb_sup_manifest:
+            resolved_sup = resolve_sar2rgb_sup_manifest(sar2rgb_sup_manifest)
+            if resolved_sup is not None:
+                sup_records = _load_sar2rgb_sup_records(resolved_sup)
+                self._records.extend(sup_records)
+                logging.getLogger(__name__).info(
+                    f"Added {len(sup_records)} sar2rgb_sup pairs from {resolved_sup}"
+                )
+            elif sar2rgb_sup_manifest:
+                logging.getLogger(__name__).warning(
+                    "sar2rgb_sup_manifest not found at %s – skipping",
+                    sar2rgb_sup_manifest,
+                )
 
         # Filter out excluded samples (bad_samples + paired val paths when train)
         exclude = _load_exclude_set(exclude_file)
