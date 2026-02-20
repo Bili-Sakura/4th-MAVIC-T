@@ -46,14 +46,18 @@ PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifest
 
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
+LEARNING_RATE=2.0           # Prodigy nominal lr; 2.0 more aggressive when loss plateaus
+PRODIGY_D0=1e-6             # Smaller d0 → larger effective steps (default 1e-5 can be too conservative)
+LR_SCHEDULER="cosine"       # Cosine decay helps in late training vs constant
+LR_WARMUP_STEPS=0
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=8
 NUM_EPOCHS=0
-MAX_TRAIN_STEPS=100000
+MAX_TRAIN_STEPS=300000
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=0
-CHECKPOINTING_STEPS=10000
+CHECKPOINTING_STEPS=20000
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=10000
 VALIDATION_EPOCHS=
@@ -73,10 +77,11 @@ SWANLAB_DESCRIPTION="DBIM Pixel Medium SAR→IR"
 SWANLAB_TAGS="dbim,pixel,sar2ir"
 
 # --- Resume from checkpoint ---
-RESUME_FROM_CHECKPOINT="latest"
+# Use pre-trained checkpoint from models/ (HF download); set to "latest" to resume from output_dir
+RESUME_FROM_CHECKPOINT="models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-100000"
 
 COMMON_ARGS=(
-  --log_with swanlab
+  --log_with tensorboard
   --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
   --swanlab_description "${SWANLAB_DESCRIPTION}"
   --swanlab_tags "${SWANLAB_TAGS}"
@@ -95,6 +100,10 @@ COMMON_ARGS=(
   --exclude_file "${EXCLUDE_FILE}"
   --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
   --optimizer_type "${OPTIMIZER_TYPE}"
+  --learning_rate "${LEARNING_RATE}"
+  --prodigy_d0 "${PRODIGY_D0}"
+  --lr_scheduler "${LR_SCHEDULER}"
+  --lr_warmup_steps "${LR_WARMUP_STEPS}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"
   --num_epochs "${NUM_EPOCHS}"

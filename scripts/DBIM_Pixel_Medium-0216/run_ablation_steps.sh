@@ -46,7 +46,7 @@ fi
 
 run_ablation() {
   local task="$1"
-  local ckpt="${CKPT_ROOT}/${task}/checkpoint-100000"
+  local ckpt="${CKPT_ROOT}/${task}/checkpoint-200000"
   local manifest="${MANIFEST_DIR}/paired_val_${task}.txt"
   if [[ ! -d "${ckpt}" ]]; then
     echo "  [skip] checkpoint not found: ${ckpt}"

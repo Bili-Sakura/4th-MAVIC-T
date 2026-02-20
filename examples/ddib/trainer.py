@@ -442,7 +442,10 @@ class DDIBTrainer:
                 dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
                 path = dirs[-1] if dirs else None
             if path is not None:
-                full_path = os.path.join(domain_output_dir, path)
+                if os.path.isabs(path) or os.path.sep in path:
+                    full_path = os.path.abspath(path)
+                else:
+                    full_path = os.path.join(domain_output_dir, path)
                 if os.path.isdir(full_path):
                     accelerator.load_state(full_path)
                     global_step = int(Path(path).name.split("-")[1])

@@ -2,7 +2,7 @@
 # DBIM-Pixel-Medium-0216 — SAR->IR test-set inference for submission
 #
 # Default checkpoint:
-#   /data/projects/models/hf_models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-100000
+#   /data/projects/models/hf_models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-200000
 #
 # Usage:
 #   bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
-CKPT_PATH="${CKPT_PATH:-/data/projects/models/hf_models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-100000}"
+CKPT_PATH="${CKPT_PATH:-/data/projects/models/hf_models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-200000}"
 MODEL_NAME="${MODEL_NAME:-dbim_pixel_medium_0216_sar2ir}"
 SUBMISSION_ROOT="${SUBMISSION_ROOT:-${PROJECT_ROOT}/datasets/BiliSakura/MACIV-T-2025-Submissions/ckpt-0216}"
 BATCH_SIZE="${BATCH_SIZE:-2}"

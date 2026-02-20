@@ -571,7 +571,11 @@ class Pix2PixTurboTrainer:
                 dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
                 path = dirs[-1] if dirs else None
             if path is not None:
-                accelerator.load_state(os.path.join(cfg.output_dir, path))
+                if os.path.isabs(path) or os.path.sep in path:
+                    load_path = os.path.abspath(path)
+                else:
+                    load_path = os.path.join(cfg.output_dir, path)
+                accelerator.load_state(load_path)
                 global_step = int(Path(path).name.split("-")[1])
                 first_epoch = global_step // num_update_steps_per_epoch
                 logger.info(f"Resumed from {path}")
