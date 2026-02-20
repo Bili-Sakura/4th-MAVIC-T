@@ -139,6 +139,12 @@ def parse_args():
         help="Number of denoising steps (1000 for best quality).",
     )
     parser.add_argument("--guidance", type=float, default=1.0)
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=1.0,
+        help="Classifier-Free Guidance scale (1.0 disables CFG).",
+    )
     parser.add_argument("--churn_step_ratio", type=float, default=0.33)
     parser.add_argument(
         "--deterministic",
@@ -342,6 +348,7 @@ def main():
                 source_image=source,
                 num_inference_steps=args.num_inference_steps,
                 guidance=args.guidance,
+                cfg_scale=args.cfg_scale,
                 churn_step_ratio=args.churn_step_ratio,
                 output_type="pt",
             )
@@ -367,6 +374,7 @@ def main():
     extra_sampling = [
         f"Num inference steps: {args.num_inference_steps}",
         f"Guidance scale: {args.guidance}",
+        f"CFG scale: {args.cfg_scale}",
         f"Churn step ratio: {args.churn_step_ratio}",
     ]
     detailed_description = build_detailed_description(

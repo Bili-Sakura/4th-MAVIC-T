@@ -1,0 +1,21 @@
+\section{Diffusion Bridge Foundation}
+\label{sec:background}
+
+Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogenous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
+
+\subsection{Stochastic Bridges via \texorpdfstring{$h$}{h}-transform}
+Given a base diffusion process $dx_t = f(x_t, t)dt + g(t)dw_t$, the conditioned SDE that almost surely reaches a prescribed target $x_0 = y$ at $t=0$ starting from a source $x_T = x$ at $t=T$ is given by:
+\begin{align}
+    dx_t &= f(x_t, t)dt + g(t)dw_t \nonumber \\
+    &\quad + g(t)^2 \nabla_{x_t} \log p(x_0 = y \mid x_t)dt,
+    \label{eq:bridge_sde}
+\end{align}
+where $p(x_0 = y \mid x_t)$ is the transition density of the original process. When the endpoints are fixed, the resulting conditioned process is called a \emph{diffusion bridge}~\cite{sarkka2019applied,heng2021simulating,delyon2006simulation,schauer2017guided,peluchettinon,liu2022let}, which forms the foundational mechanism for transporting one state to another. In the context of cross-modal translation, $x$ represents the source modality (e.g., SAR) and $y$ the target modality (e.g., optical). This formulation ensures that the generative trajectory is directly constrained by both endpoints, providing a more principled framework for paired translation than standard conditional diffusion.
+
+\subsection{Denoising Diffusion Bridge Models}
+Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024} provide a tractable realization of Eq.~\ref{eq:bridge_sde}. Under a variance-preserving (VP) schedule, the forward bridge process constructs intermediate states $z_t$ as:
+\begin{equation}
+    z_t = a_t x + b_t y + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
+    \label{eq:bridge_forward}
+\end{equation}
+where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excels in high-fidelity generation, its inference typically relies on simulating Eq.~\ref{eq:bridge_sde} via computationally expensive numerical solvers (e.g., Heun or stochastic samplers), often requiring hundreds of function evaluations (NFE) for optimal results. In this work, we adopt the more efficient \emph{implicit} formulation to accelerate this process.

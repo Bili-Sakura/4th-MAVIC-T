@@ -45,11 +45,14 @@ class SIDTrainer(DDBMTrainer):
 
     def get_inference_kwargs(self, source_inp: torch.Tensor) -> dict:
         cfg = self.cfg
-        return {
+        kwargs = {
             "source_image": source_inp,
             "num_inference_steps": cfg.num_inference_steps,
             "output_type": "pt",
         }
+        if not cfg.use_latent_target:
+            kwargs["cfg_scale"] = getattr(cfg, "cfg_scale", 1.0)
+        return kwargs
 
     def build_model(self, image_size: int | None = None):
         cfg = self.cfg

@@ -20,6 +20,20 @@
 \definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
 \usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
 
+% Teaser figure configuration
+\makeatletter
+\apptocmd{\@maketitle}{%
+  \vspace{-1em}
+\begin{center}
+    \centering
+    \fbox{\rule{0pt}{2in} \rule{0.9\textwidth}{0pt}}
+    \captionof{figure}{Teaser: The proposed EarthBridge framework for multi-modal aerial-view image translation across Electro-Optical (EO), Infrared (IR), and Synthetic Aperture Radar (SAR) modalities. Our method accurately bridges the domain gap, preserving structural integrity while synthesizing high-fidelity target textures.}
+    \label{fig:teaser}
+\end{center}
+  \vspace{1.5em}
+}{}{}
+\makeatother
+
 %%%%%%%%% PAPER ID  - PLEASE UPDATE
 \def\paperID{*****} % *** Enter the Paper ID here
 \def\confName{CVPR}
@@ -46,29 +60,23 @@ University of Science and Technology of China\\
 
 \begin{document}
 
-
-
 \maketitle
 
-
-
 \input{sec/0_abstract}    
-
-\begin{figure}[h]
-  \centering
-  \fbox{\rule{0pt}{2in} \rule{0.4\textwidth}{0pt}}
-  \caption{Teaser: Our proposed solution for multimodal aerial-view image translation across EO, IR, and SAR modalities.}
-  \label{fig:teaser}
-\end{figure}
 
 \input{sec/1_intro}    
 \input{sec/2_related_work}
 \input{sec/3_0_preliminary}
+\input{sec/3_1_ddbm}
 \input{sec/3_method}
 \input{sec/4_experiments}
 \input{sec/5_conclusion}
+\clearpage
 {
-    \small
+    % \small
+    % \setlength{\bibsep}{0pt}
+    % \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
     \bibliographystyle{ieeenat_fullname}
     \bibliography{main}
 }

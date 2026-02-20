@@ -74,6 +74,7 @@ class SIDPipeline(DiffusionPipeline):
         self,
         source_image: Union[torch.Tensor, Image.Image, List[Image.Image]],
         num_inference_steps: int = 40,
+        cfg_scale: float = 1.0,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         output_type: str = "pil",
         return_dict: bool = True,
@@ -86,6 +87,9 @@ class SIDPipeline(DiffusionPipeline):
         source = self.prepare_inputs(source_image, device, dtype)
         batch_size = source.shape[0]
         target_channels = int(getattr(self.unet.config, "out_channels", source.shape[1]))
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(source) if use_cfg else None
+        nfe_per_denoise = 2 if use_cfg else 1
 
         xt = randn_tensor(
             (batch_size, target_channels, source.shape[-2], source.shape[-1]),
@@ -110,8 +114,16 @@ class SIDPipeline(DiffusionPipeline):
                 dtype=dtype,
             )
 
-            model_output = self.unet(xt, t_batch, xT=source)
-            nfe_count += 1
+            if use_cfg:
+                model_input = torch.cat([xt, xt], dim=0)
+                timestep_input = torch.cat([t_batch, t_batch], dim=0)
+                cond_input = torch.cat([source, null_condition], dim=0)
+                model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
+                model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+                model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+            else:
+                model_output = self.unet(xt, t_batch, xT=source)
+            nfe_count += nfe_per_denoise
 
             step_output = self.scheduler.step(
                 model_output=model_output,

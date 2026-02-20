@@ -119,6 +119,8 @@ class DBIMSamplingMixin:
         t: torch.Tensor,
         x_T: torch.Tensor,
         clip_denoised: bool = True,
+        cfg_scale: float = 1.0,
+        null_condition: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Predict denoised bridge state from noisy sample at time `t`."""
         c_skip, c_out, c_in, c_noise = self._bridge_scalings(t)
@@ -126,7 +128,24 @@ class DBIMSamplingMixin:
         c_out = self._append_dims(c_out, x_t.ndim).to(dtype=x_t.dtype, device=x_t.device)
         c_in = self._append_dims(c_in, x_t.ndim).to(dtype=x_t.dtype, device=x_t.device)
 
-        model_output = self.unet(c_in * x_t, c_noise.to(dtype=x_t.dtype, device=x_t.device), xT=x_T)
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        if use_cfg:
+            if null_condition is None:
+                null_condition = torch.zeros_like(x_T)
+            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0)
+            timestep_input = torch.cat(
+                [
+                    c_noise.to(dtype=x_t.dtype, device=x_t.device),
+                    c_noise.to(dtype=x_t.dtype, device=x_t.device),
+                ],
+                dim=0,
+            )
+            cond_input = torch.cat([x_T, null_condition], dim=0)
+            model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
+            model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+            model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+        else:
+            model_output = self.unet(c_in * x_t, c_noise.to(dtype=x_t.dtype, device=x_t.device), xT=x_T)
         denoised = c_out * model_output + c_skip * x_t
         if clip_denoised:
             denoised = denoised.clamp(-1, 1)
@@ -150,6 +169,7 @@ class DBIMSamplingMixin:
         views: List[Tuple[int, int, int, int]],
         view_batch_size: int = 1,
         clip_denoised: bool = True,
+        cfg_scale: float = 1.0,
     ) -> torch.Tensor:
         """
         Predict denoised bridge state using MultiDiffusion: run UNet on overlapping
@@ -181,7 +201,13 @@ class DBIMSamplingMixin:
             )
             # t shape (batch_size,); repeat per view so each crop gets correct timestep
             t_crops = t.repeat_interleave(vb_size, dim=0).to(crops_x.dtype)
-            denoised_crops = self.denoise(crops_x, t_crops, crops_x_T, clip_denoised=clip_denoised)
+            denoised_crops = self.denoise(
+                crops_x,
+                t_crops,
+                crops_x_T,
+                clip_denoised=clip_denoised,
+                cfg_scale=cfg_scale,
+            )
             for b in range(batch_size):
                 for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
                     idx = b * vb_size + k
@@ -197,6 +223,7 @@ class DBIMSamplingMixin:
         t: torch.Tensor,
         stochastic: bool,
         guidance: float,
+        cfg_scale: float,
         clip_denoised: bool,
         views: Optional[List[Tuple[int, int, int, int]]] = None,
         view_batch_size: int = 1,
@@ -220,10 +247,22 @@ class DBIMSamplingMixin:
 
         if views is not None:
             denoised = self.denoise_tiled(
-                x, t_batch, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised
+                x,
+                t_batch,
+                x_T,
+                views,
+                view_batch_size=view_batch_size,
+                clip_denoised=clip_denoised,
+                cfg_scale=cfg_scale,
             )
         else:
-            denoised = self.denoise(x, t_batch, x_T, clip_denoised=clip_denoised)
+            denoised = self.denoise(
+                x,
+                t_batch,
+                x_T,
+                clip_denoised=clip_denoised,
+                cfg_scale=cfg_scale,
+            )
 
         grad_logq = -self._safe_div(x - (a_t * x_T + b_t * denoised), c_t**2)
         grad_logpxTlxt = -self._safe_div(
@@ -245,6 +284,7 @@ class DBIMSamplingMixin:
         second_order: bool,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]],
         guidance: float,
+        cfg_scale: float,
         clip_denoised: bool,
         views: Optional[List[Tuple[int, int, int, int]]] = None,
         view_batch_size: int = 1,
@@ -257,6 +297,7 @@ class DBIMSamplingMixin:
             t=t_cur,
             stochastic=stochastic,
             guidance=guidance,
+            cfg_scale=cfg_scale,
             clip_denoised=clip_denoised,
             views=views,
             view_batch_size=view_batch_size,
@@ -277,6 +318,7 @@ class DBIMSamplingMixin:
                 t=t_next,
                 stochastic=stochastic,
                 guidance=guidance,
+                cfg_scale=cfg_scale,
                 clip_denoised=clip_denoised,
                 views=views,
                 view_batch_size=view_batch_size,
@@ -297,6 +339,7 @@ class DBIMSamplingMixin:
         x_T: torch.Tensor,
         num_inference_steps: int,
         guidance: float,
+        cfg_scale: float,
         churn_step_ratio: float,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]],
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
@@ -310,6 +353,7 @@ class DBIMSamplingMixin:
 
         x = x_T
         nfe = 0
+        nfe_per_denoise = 2 if abs(float(cfg_scale) - 1.0) > 1e-6 else 1
         sim_kw = dict(
             views=views,
             view_batch_size=view_batch_size,
@@ -327,10 +371,11 @@ class DBIMSamplingMixin:
                     second_order=False,
                     generator=generator,
                     guidance=guidance,
+                    cfg_scale=cfg_scale,
                     clip_denoised=clip_denoised,
                     **sim_kw,
                 )
-                nfe += 1
+                nfe += nfe_per_denoise
             else:
                 t_hat = ts[i]
 
@@ -344,10 +389,11 @@ class DBIMSamplingMixin:
                     second_order=False,
                     generator=generator,
                     guidance=guidance,
+                    cfg_scale=cfg_scale,
                     clip_denoised=clip_denoised,
                     **sim_kw,
                 )
-                nfe += 1
+                nfe += nfe_per_denoise
             else:
                 x, _ = self._ddbm_simulate(
                     x=x,
@@ -358,10 +404,11 @@ class DBIMSamplingMixin:
                     second_order=True,
                     generator=generator,
                     guidance=guidance,
+                    cfg_scale=cfg_scale,
                     clip_denoised=clip_denoised,
                     **sim_kw,
                 )
-                nfe += 2
+                nfe += 2 * nfe_per_denoise
 
             if callback is not None and i % callback_steps == 0:
                 callback(i, num_inference_steps, x)
@@ -372,6 +419,7 @@ class DBIMSamplingMixin:
         self,
         x_T: torch.Tensor,
         num_inference_steps: int,
+        cfg_scale: float,
         eta: float,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]],
         callback: Optional[Callable[[int, int, torch.Tensor], None]],
@@ -386,13 +434,22 @@ class DBIMSamplingMixin:
         x = x_T
         ones = x.new_ones([x.shape[0]])
         nfe = 0
+        nfe_per_denoise = 2 if abs(float(cfg_scale) - 1.0) > 1e-6 else 1
         t_max = torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones
 
         if views is not None:
-            x0_hat = self.denoise_tiled(x, t_max, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+            x0_hat = self.denoise_tiled(
+                x,
+                t_max,
+                x_T,
+                views,
+                view_batch_size=view_batch_size,
+                clip_denoised=clip_denoised,
+                cfg_scale=cfg_scale,
+            )
         else:
-            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised)
-        nfe += 1
+            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+        nfe += nfe_per_denoise
 
         noise = randn_tensor(x.shape, generator=generator, device=x.device, dtype=x.dtype)
         x = self.scheduler.bridge_sample(x0_hat, x_T, ts[0] * ones, noise)
@@ -402,10 +459,18 @@ class DBIMSamplingMixin:
             t = ts[i + 1]
 
             if views is not None:
-                x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                x0_hat = self.denoise_tiled(
+                    x,
+                    s * ones,
+                    x_T,
+                    views,
+                    view_batch_size=view_batch_size,
+                    clip_denoised=clip_denoised,
+                    cfg_scale=cfg_scale,
+                )
             else:
-                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
-            nfe += 1
+                x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+            nfe += nfe_per_denoise
 
             a_s, b_s, c_s = [
                 self._append_dims(item, x.ndim).to(dtype=x.dtype, device=x.device)
@@ -449,6 +514,7 @@ class DBIMSamplingMixin:
         self,
         x_T: torch.Tensor,
         num_inference_steps: int,
+        cfg_scale: float,
         order: int,
         lower_order_final: bool,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]],
@@ -471,13 +537,22 @@ class DBIMSamplingMixin:
         x = x_T
         ones = x.new_ones([x.shape[0]])
         nfe = 0
+        nfe_per_denoise = 2 if abs(float(cfg_scale) - 1.0) > 1e-6 else 1
         t_max = torch.as_tensor(self.scheduler.config.sigma_max, device=x.device, dtype=x.dtype) * ones
 
         if views is not None:
-            x0_hat = self.denoise_tiled(x, t_max, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+            x0_hat = self.denoise_tiled(
+                x,
+                t_max,
+                x_T,
+                views,
+                view_batch_size=view_batch_size,
+                clip_denoised=clip_denoised,
+                cfg_scale=cfg_scale,
+            )
         else:
-            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised)
-        nfe += 1
+            x0_hat = self.denoise(x, t_max, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+        nfe += nfe_per_denoise
         noise = randn_tensor(x.shape, generator=generator, device=x.device, dtype=x.dtype)
         x = self.scheduler.bridge_sample(x0_hat, x_T, ts[0] * ones, noise)
 
@@ -507,10 +582,18 @@ class DBIMSamplingMixin:
                 coeff_xT = a_t - tmp_var * a_s
 
                 if views is not None:
-                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                    x0_hat = self.denoise_tiled(
+                        x,
+                        s * ones,
+                        x_T,
+                        views,
+                        view_batch_size=view_batch_size,
+                        clip_denoised=clip_denoised,
+                        cfg_scale=cfg_scale,
+                    )
                 else:
-                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
-                nfe += 1
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+                nfe += nfe_per_denoise
                 x = coeff_xs * x + coeff_x0_hat * x0_hat + coeff_xT * x_T
 
             elif order == 2 or i == 1:
@@ -532,10 +615,18 @@ class DBIMSamplingMixin:
                 lambda_t = self._safe_log_ratio(b_t, c_t)
 
                 if views is not None:
-                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                    x0_hat = self.denoise_tiled(
+                        x,
+                        s * ones,
+                        x_T,
+                        views,
+                        view_batch_size=view_batch_size,
+                        clip_denoised=clip_denoised,
+                        cfg_scale=cfg_scale,
+                    )
                 else:
-                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
-                nfe += 1
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+                nfe += nfe_per_denoise
 
                 h = lambda_t - lambda_s
                 h2 = lambda_s - lambda_u
@@ -572,10 +663,18 @@ class DBIMSamplingMixin:
                 lambda_t = self._safe_log_ratio(b_t, c_t)
 
                 if views is not None:
-                    x0_hat = self.denoise_tiled(x, s * ones, x_T, views, view_batch_size=view_batch_size, clip_denoised=clip_denoised)
+                    x0_hat = self.denoise_tiled(
+                        x,
+                        s * ones,
+                        x_T,
+                        views,
+                        view_batch_size=view_batch_size,
+                        clip_denoised=clip_denoised,
+                        cfg_scale=cfg_scale,
+                    )
                 else:
-                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised)
-                nfe += 1
+                    x0_hat = self.denoise(x, s * ones, x_T, clip_denoised=clip_denoised, cfg_scale=cfg_scale)
+                nfe += nfe_per_denoise
 
                 h = lambda_t - lambda_s
                 h1 = lambda_s - lambda_u1
@@ -622,6 +721,7 @@ class DBIMSamplingMixin:
         num_inference_steps: int,
         sampler: str,
         guidance: float,
+        cfg_scale: float,
         churn_step_ratio: float,
         eta: float,
         order: int,
@@ -642,6 +742,7 @@ class DBIMSamplingMixin:
                 x_T=x_T,
                 num_inference_steps=num_inference_steps,
                 guidance=guidance,
+                cfg_scale=cfg_scale,
                 churn_step_ratio=churn_step_ratio,
                 generator=generator,
                 callback=callback,
@@ -653,6 +754,7 @@ class DBIMSamplingMixin:
             return self._sample_dbim(
                 x_T=x_T,
                 num_inference_steps=num_inference_steps,
+                cfg_scale=cfg_scale,
                 eta=eta,
                 generator=generator,
                 callback=callback,
@@ -664,6 +766,7 @@ class DBIMSamplingMixin:
             return self._sample_dbim_high_order(
                 x_T=x_T,
                 num_inference_steps=num_inference_steps,
+                cfg_scale=cfg_scale,
                 order=order,
                 lower_order_final=lower_order_final,
                 generator=generator,
@@ -745,6 +848,7 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
         num_inference_steps: int = 40,
         sampler: str = "dbim",
         guidance: float = 1.0,
+        cfg_scale: float = 1.0,
         churn_step_ratio: float = 0.33,
         eta: Optional[float] = None,
         order: Optional[int] = None,
@@ -802,6 +906,7 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
             num_inference_steps=num_inference_steps,
             sampler=sampler,
             guidance=guidance,
+            cfg_scale=cfg_scale,
             churn_step_ratio=churn_step_ratio,
             eta=eta_val,
             order=order_val,

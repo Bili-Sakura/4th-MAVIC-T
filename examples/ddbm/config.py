@@ -102,8 +102,15 @@ class TaskConfig:
     # ---- sampling (evaluation) ----
     num_inference_steps: int = 40
     guidance: float = 1.0
+    # Classifier-Free Guidance (CFG) scale. 1.0 disables CFG and preserves legacy behavior.
+    cfg_scale: float = 1.0
     churn_step_ratio: float = 0.33
     output_resolution: Optional[int] = None  # if set, load & infer at this resolution (e.g. 1024 when trained at 512)
+
+    # ---- CFG fine-tuning ----
+    # Per-sample probability to drop conditioning during training (replace with zeros).
+    # Typical range for quick CFG enablement: 0.10 ~ 0.20.
+    conditioning_dropout_prob: float = 0.0
 
     # ---- latent modeling ablation ----
     use_latent_target: bool = False

@@ -1,110 +1,72 @@
-% Proposed Method
-\section{Method}
+\section{EarthBridge: Diffusion Bridge Implicit Models for RS Translation}
 \label{sec:method}
 
-{\color{gray}
-We present our solution for the 4th MAVIC-T challenge based on Denoising Diffusion Bridge Models (DDBM). Our approach adapts the DDBM framework to cross-modal remote sensing translation by (1) conditioning on the source image via channel concatenation, (2) employing a Karras-weighted bridge denoising objective with the option of augmenting it with a MAVIC-T-aware auxiliary loss, (3) optionally operating in a VAE latent space for high-resolution tasks, and (4) integrating representation alignment from pre-trained remote sensing encoders. \cref{fig:method_overview} provides an overview of our pipeline.
-}
+We present our EarthBridge approach based on \textbf{Diffusion Bridge Implicit Models (DBIM)}~\cite{zhengDiffusionBridgeImplicit2025}, which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
 
-\begin{figure}[t]
+\begin{figure*}[t]
     \centering
-    \fbox{\rule{0pt}{1.8in} \rule{0.9\linewidth}{0pt}}
-    \caption{{\color{gray}Overview of our DDBM-based translation pipeline. The source image $x$ is concatenated with the noisy sample $z_t$ and fed to a UNet denoiser. During training, the bridge forward process constructs $z_t$ from the target $y$ and source $x$. Optional modules include a VAE encoder for latent-space modeling, a frozen MaRS encoder for representation alignment, and a MAVIC-T-aware loss branch. During inference, iterative Heun sampling transforms $x$ into the translated output $\hat{y}$.}}
+    \fbox{\rule{0pt}{2.5in} \rule{0.95\textwidth}{0pt}}
+    \caption{Overview of our EarthBridge translation pipeline based on DBIM. The source image $\bm{x}$ is concatenated with the noisy sample $\bm{z}_t$ and fed to a UNet denoiser. During training, the bridge forward process constructs $\bm{z}_t$ from the target $\bm{y}$ and source $\bm{x}$ via bridge scalings. During inference, deterministic DBIM sampling transforms $\bm{x}$ into the translated output $\hat{\bm{z}}_0$.}
     \label{fig:method_overview}
-\end{figure}
+\end{figure*}
 
+\subsection{Non-Markovian Diffusion Bridges}
+\label{sec:dbim_formalism}
 
-\subsection{Architecture}
-\label{sec:architecture}
-
-{\color{gray}
-\paragraph{UNet Denoiser}
-Our denoiser is built upon a UNet2DModel backbone with Adaptive Group Normalization (ADM-style) that accepts timestep embeddings. The network is instantiated with a base channel count of 128 and resolution-dependent channel multipliers---for example, $(1,1,2,2,4,4)$ for $256\times256$ inputs---yielding block output channels of $(128, 128, 256, 256, 512, 512)$. Each resolution level uses 2 residual blocks. Self-attention is applied at spatial resolutions of $32\times32$, $16\times16$, and $8\times8$ via \texttt{AttnDownBlock2D} and \texttt{AttnUpBlock2D} modules, while other levels use plain \texttt{DownBlock2D}/\texttt{UpBlock2D} without attention.
-}
-
-{\color{gray}
-\paragraph{Source Conditioning via Concatenation}
-To condition on the source image $x$, we adopt the channel-concatenation strategy: the pre-conditioned noisy sample $c_{\text{in}} \cdot z_t$ and the source image $x$ are concatenated along the channel dimension before being fed to the UNet. This doubles the input channels from $C$ to $2C$, where $C$ is the operating channel count of the model (e.g., $C=1$ for SAR$\rightarrow$EO, $C=3$ for RGB$\rightarrow$IR). The UNet output channels remain $C$, producing the raw denoised prediction.
-}
-
-{\color{gray}
-\paragraph{Bridge Scalings}
-Following DDBM, the raw model output is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is:
+In contrast to the continuous-time Markovian bridge processes in DDBM, we consider a family of non-Markovian diffusion bridges defined over a sequence of discretized timesteps $0 = t_0 < t_1 < \dots < t_N = T$, controlled by a variance parameter $\rho \in \mathbb{R}^{N-1}$. The joint probability distribution $q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x})$ is factorized through a chain of conditional distributions:
 \begin{equation}
-    D_\theta(z_t, t, x) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot z_t,\, t,\, x) + c_{\text{skip}}(t) \cdot z_t\,,
+    q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x}) = q_0(\bm{z}_{t_0}) \prod_{n=1}^{N-1} q^{(\rho)}(\bm{z}_{t_n} \mid \bm{z}_0, \bm{z}_{t_{n+1}}, \bm{x}),
+    \label{eq:joint_dist}
+\end{equation}
+where $q_0$ is the target modality distribution and each step $q^{(\rho)}$ is defined as:
+\begin{equation}
+    \mathcal{N}\big( a_{t_n} \bm{x} + b_{t_n} \bm{z}_0 + \sqrt{c_{t_n}^2 - \rho_n^2}\, \bm{\eta}_{n+1},\, \rho_n^2 \bm{I} \big),
+\end{equation}
+with $\bm{\eta}_{n+1} = (\bm{z}_{t_{n+1}} - a_{t_{n+1}} \bm{x} - b_{t_{n+1}} \bm{z}_0) / c_{t_{n+1}}$. Here, $a_t, b_t, c_t$ are known coefficients determined by the VP log-SNR schedule (\cref{sec:background}). Under this construction, the marginal distributions $q^{(\rho)}(\bm{z}_{t_n} \mid \bm{x})$ are preserved to be consistent with the continuous-time forward bridge (\cref{eq:bridge_forward}). The variance parameter $\rho$ controls the level of stochasticity in the sampling process, ranging from a purely Markovian stochastic process to a fully deterministic implicit model.
+
+\subsection{Reverse Generative Process and Sampling}
+\label{sec:dbim_sampling}
+
+The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ and iteratively samples $\bm{z}_{t_n}$ from $\bm{z}_{t_{n+1}}$ via a parameterized data predictor $D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$. The core updating rule is given by:
+\begin{equation}
+    \begin{split}
+        \bm{z}_{t_n} &= a_{t_n} \bm{x} + b_{t_n} \hat{\bm{z}}_0 \\
+        &\quad + \sqrt{c_{t_n}^2 - \rho_n^2} \hat{\bm{\epsilon}} + \rho_n \bm{\epsilon},
+    \end{split}
+    \label{eq:dbim_update}
+\end{equation}
+where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clean data prediction and $\hat{\bm{\epsilon}}$ is the predicted noise at time $t_{n+1}$. Setting $\rho_n = 0$ for all steps yields the deterministic \emph{Diffusion Bridge Implicit Model (DBIM)}, which can be viewed as an Euler discretization of a probability flow ODE specifically tailored for diffusion bridges.
+
+\paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
+
+\begin{figure*}[t]
+    \centering
+    \fbox{\rule{0pt}{1.8in} \rule{0.95\textwidth}{0pt}}
+    \caption{Bridge schedules and scaling coefficients $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ over the diffusion time $t$. These scalings are derived from the VP log-SNR schedule to stabilize the training process and improve sampling quality. \TODO{Add bridge schedules plot.}}
+    \label{fig:bridge_schedules}
+\end{figure*}
+
+\subsection{Architecture and Training Objectives}
+\label{sec:objectives}
+
+\paragraph{UNet Denoising Backbone}
+Our denoiser $D_\theta$ is implemented in PyTorch~\cite{paszkePyTorchImperativeStyle2019} and built upon a \texttt{UNet2DModel} backbone from the Hugging Face Diffusers library~\cite{vonplatenDiffusersStateoftheartDiffusion2022} with Adaptive Group Normalization (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that accepts timestep embeddings. The network is instantiated with a base channel count of 128 and resolution-dependent channel multipliers---for example, $(1,1,2,2,4,4)$ for $256\times256$ inputs---yielding block output channels of $(128, 128, 256, 256, 512, 512)$. Each resolution level uses 2 residual blocks. Self-attention is applied at spatial resolutions of $32\times32$, $16\times16$, and $8\times8$ via \texttt{AttnDownBlock2D} and \texttt{AttnUpBlock2D} modules, while other levels use plain \texttt{DownBlock2D}/\texttt{UpBlock2D} without attention.
+
+\paragraph{Source Image Conditioning via Channel Concatenation}
+To condition on the source image $\bm{x}$, we adopt the channel-concatenation strategy: the pre-conditioned noisy sample $c_{\text{in}} \cdot \bm{z}_t$ and the source image $\bm{x}$ are concatenated along the channel dimension before being fed to the UNet. This doubles the input channels from $C$ to $2C$, where $C$ is the operating channel count of the model (e.g., $C=1$ for SAR$\rightarrow$EO, $C=3$ for RGB$\rightarrow$IR). The UNet output channels remain $C$, producing the raw denoised prediction.
+
+\paragraph{Bridge Scalings and Schedules}
+The raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule (\cref{fig:bridge_schedules}). The denoised prediction is defined as:
+\begin{equation}
+    D_\theta(\bm{z}_t, t, \bm{x}) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot \bm{z}_t,\, t,\, \bm{x}) + c_{\text{skip}}(t) \cdot \bm{z}_t\,,
     \label{eq:denoiser}
 \end{equation}
-where $F_\theta$ is the raw UNet output and the scalings are computed from the VP parameters $\beta_d$ and $\beta_{\min}$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + \varepsilon)$ (with $\varepsilon = 10^{-44}$ for numerical stability) before being passed to the model's sinusoidal embedding layer.
-}
+where the scalings are computed from the VP parameters $\beta_d=2.0$ and $\beta_{\min}=0.1$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + \varepsilon)$ (with $\varepsilon = 10^{-44}$ for numerical stability) before being passed to the model's sinusoidal embedding layer.
 
-
-\subsection{Training Objective}
-\label{sec:training_objective}
-
-{\color{gray}
-\paragraph{Bridge Denoising Loss}
-The primary training objective is a weighted mean squared error between the denoised prediction $D_\theta(z_t, t, x)$ and the clean target $y$:
+\paragraph{Training Objective}
+The primary training objective is a weighted mean squared error between the denoised prediction $D_\theta(\bm{z}_t, t, \bm{x})$ and the clean target $\bm{y}$:
 \begin{equation}
-    \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(x,y),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(z_t, t, x) - y \|_2^2 \right],
+    \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(\bm{x},\bm{y}),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(\bm{z}_t, t, \bm{x}) - \bm{y} \|_2^2 \right],
     \label{eq:denoising_loss}
 \end{equation}
-where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting derived from the combined variance $A(t) = a_t^2 \sigma_{\text{data,end}}^2 + b_t^2 \sigma_{\text{data}}^2 + c^2 c_t$ (with $a_t, b_t, c_t$ being VP schedule coefficients), and $z_t$ is the noisy sample obtained from the forward bridge process (Eq.~\ref{eq:bridge_forward}). The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$: $\sigma = (\sigma_{\max}^{-1/\rho} + u \cdot (\sigma_{\min}^{-1/\rho} - \sigma_{\max}^{-1/\rho}))^{\rho}$, $u \sim \mathcal{U}(0,1)$, which concentrates samples at lower noise levels where fine detail is learned.
-}
-
-{\color{gray}
-\paragraph{MAVIC-T-Aware Auxiliary Loss}
-Since the challenge evaluation directly uses LPIPS and L1 as two of the three scoring components, we explore augmenting the denoising objective with a differentiable \emph{MAVIC-T-aware} loss that directly optimizes toward the evaluation metric. Specifically, we convert the denoised prediction to the $[0,1]$ range and compute:
-\begin{equation}
-    \mathcal{L}_{\text{mavic}} = \lambda_{\text{lpips}} \cdot \text{LPIPS}(\hat{y},\, y) + \lambda_{\text{l1}} \cdot \| \hat{y} - y \|_1\,,
-    \label{eq:mavic_loss}
-\end{equation}
-where LPIPS uses a frozen VGG-16 backbone. FID is a distribution-level metric and cannot serve as a per-sample loss, so it is excluded from the training criterion. The total loss becomes $\mathcal{L} = \mathcal{L}_{\text{denoise}} + \lambda_{\text{mavic}} \cdot \mathcal{L}_{\text{mavic}}$ with default $\lambda_{\text{mavic}} = 0.1$.
-}
-
-
-\subsection{Representation Alignment}
-\label{sec:rep_alignment}
-
-{\color{gray}
-Inspired by the REPA (REPresentation Alignment) technique, we explore aligning the denoised predictions with features from frozen, pre-trained remote sensing encoders. The intuition is that modality-specific foundation models capture rich semantic representations that can serve as an auxiliary supervision signal, encouraging the translation model to preserve semantic content.
-}
-
-{\color{gray}
-\paragraph{Encoder Selection}
-For SAR-input tasks (SAR$\rightarrow$EO, SAR$\rightarrow$IR, SAR$\rightarrow$RGB), we use a frozen MaRS-SAR encoder---a SwinV2-Base model (\texttt{swinv2\_base\_window8\_256}) pre-trained on SAR data with a feature dimension of 1024. For the RGB$\rightarrow$IR task, we use a frozen MaRS-RGB encoder with the same architecture but pre-trained on RGB imagery. Both encoders extract multi-scale feature maps, and we use global average pooling (GAP) on the deepest stage to obtain a $d$-dimensional feature vector.
-}
-
-{\color{gray}
-\paragraph{Projection and Loss}
-A trainable 3-layer MLP projector maps the model's output features to the encoder's embedding space:
-\begin{equation}
-    h = \text{Linear} \circ \text{SiLU} \circ \text{Linear} \circ \text{SiLU} \circ \text{Linear}(f_{\text{model}})\,,
-\end{equation}
-where the hidden dimension is $2d$ and the output dimension matches the encoder's feature dimension $d$. The alignment loss is the negative cosine similarity, averaged over the batch:
-\begin{equation}
-    \mathcal{L}_{\text{align}} = -\frac{1}{B} \sum_{i=1}^{B} \frac{\bar{h}_i \cdot \bar{e}_i}{\|\bar{h}_i\| \cdot \|\bar{e}_i\|}\,,
-    \label{eq:align_loss}
-\end{equation}
-where $\bar{h}_i = h_i / \|h_i\|$ and $\bar{e}_i = e_i / \|e_i\|$ are L2-normalized projected model features and frozen encoder features, respectively. The encoder features are detached (stop-gradient) so only the projector and UNet receive gradients. The total loss is augmented as $\mathcal{L} = \mathcal{L}_{\text{denoise}} + \lambda_{\text{align}} \cdot \mathcal{L}_{\text{align}}$ with default $\lambda_{\text{align}} = 1.0$.
-}
-
-
-\subsection{Latent-Space Modeling}
-\label{sec:latent_space}
-
-{\color{gray}
-For the high-resolution tasks ($1024 \times 1024$), directly operating in pixel space is computationally expensive. We explore an ablation where a pre-trained Variational Autoencoder (VAE) is used to encode target images into a compact latent space, and an additional \emph{latent-space L2 loss} encourages the translation model's output to be consistent with the reference VAE's encoding. Specifically, let $E_{\text{vae}}$ denote the frozen VAE encoder (an \texttt{AutoencoderKL} from a pre-trained checkpoint). The latent loss is:
-\begin{equation}
-    \mathcal{L}_{\text{latent}} = \left\| E_{\text{vae}}(\hat{y}) - E_{\text{vae}}(y) \right\|_2^2\,,
-    \label{eq:latent_loss}
-\end{equation}
-where $E_{\text{vae}}(\cdot)$ returns the scaled mean of the VAE's posterior distribution (i.e., $\mu \cdot s$ with scaling factor $s$). For single-channel images, channels are replicated to 3 before encoding. The latent loss provides a compressed, semantically rich supervision signal that complements the pixel-level denoising objective, and is weighted by $\lambda_{\text{latent}} = 1.0$.
-}
-
-
-\subsection{Inference}
-\label{sec:inference}
-
-{\color{gray}
-At inference time, we follow the DDBM sampling procedure using a second-order Heun integrator. Starting from the source image $x$, the scheduler discretizes the sigma schedule into $N$ steps using the inverse-$\rho$ Karras schedule from $\sigma_{\max}$ to $\sigma_{\min}$. At each step $i$, the denoiser produces a prediction $D_\theta(z_i, \sigma_i, x)$, which is used to compute the SDE drift. A Heun corrector step evaluates the model a second time at $\sigma_{i+1}$ to refine the update, yielding approximately $2N$ total function evaluations. Optional stochastic churn with ratio $\gamma = 0.33$ injects controlled noise between steps to improve sample diversity. We use $N = 40$ steps by default and set guidance $w = 1.0$ (no classifier-free guidance). When an EMA model is available (with decay $0.9999$), we use the EMA weights for inference.
-}
+where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting derived from the combined variance $A(t) = a_t^2 \sigma_{\text{data,end}}^2 + b_t^2 \sigma_{\text{data}}^2 + c^2 c_t$. The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$. Detailed hyperparameters are provided in \cref{sec:impl_details}.

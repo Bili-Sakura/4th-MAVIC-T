@@ -1,12 +1,27 @@
 \section{Preliminary}
 \label{sec:preliminary}
 
-% {\color{gray}
 \paragraph{Problem Formulation}
 Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ denote the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ denote the target domain, where $C_s$ and $C_t$ are the number of channels in the source and target modalities, respectively. Given a set of spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$ with $x_i \in \mathcal{X}$ and $y_i \in \mathcal{Y}$, the goal of cross-modal image-to-image translation is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$ that minimizes a composite distance between the generated image $\hat{y} = G(x)$ and the ground-truth target $y$. In the context of the MAVIC-T challenge, four translation tasks are defined: SAR$\rightarrow$EO ($1 \!\rightarrow\! 1$ channel, $256 \times 256$), SAR$\rightarrow$RGB ($1 \!\rightarrow\! 3$, $1024 \times 1024$), SAR$\rightarrow$IR ($1 \!\rightarrow\! 1$, $1024 \times 1024$), and RGB$\rightarrow$IR ($3 \!\rightarrow\! 1$, $1024 \times 1024$).
-% }
 
-% {\color{gray}
+\begin{table}[H]
+\centering
+\caption{Task specifications for the MAVIC-T challenge.}
+\label{tab:task_specs}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+Task & Modality Mapping & Resolution & Channels \\
+\midrule
+SAR$\rightarrow$EO & SAR $\rightarrow$ Electro-Optical & $256^2$ & $1 \rightarrow 1$ \\
+SAR$\rightarrow$RGB & SAR $\rightarrow$ RGB & $1024^2$ & $1 \rightarrow 3$ \\
+SAR$\rightarrow$IR & SAR $\rightarrow$ Infrared & $1024^2$ & $1 \rightarrow 1$ \\
+RGB$\rightarrow$IR & RGB $\rightarrow$ Infrared & $1024^2$ & $3 \rightarrow 1$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
 \paragraph{Evaluation Metric}
 The MAVIC-T challenge evaluates submissions using a composite score derived from three complementary metrics: LPIPS~\cite{zhangUnreasonableEffectivenessDeep2018} (Learned Perceptual Image Patch Similarity, based on VGG-16) for perceptual fidelity, FID~\cite{heuselGANsTrainedTwo2017} (Fr\'{e}chet Inception Distance, based on InceptionV3) for distributional similarity, and L1 norm for pixel-level structural accuracy. These are combined into a task score:
 \begin{equation}
@@ -16,28 +31,4 @@ The MAVIC-T challenge evaluates submissions using a composite score derived from
 where the $\arctan$ normalization maps FID into the $[0, 1]$ range to balance its contribution against the other two metrics. The overall score is the average of the four task scores, with a penalty of $+1$ added for each unattempted domain, encouraging participants to develop generalizable solutions across all modality pairs.
 % }
 
-% {\color{gray}
-\paragraph{Denoising Diffusion Bridge Models}
-Diffusion models are limited because they can only transport complex data distributions to a standard Gaussian distribution and cannot be naturally adapted to translating between two arbitrary distributions, \eg in the case of image-to-image translation. Luckily, classical results have shown that one can condition a diffusion process on a fixed known endpoint via the famous Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
-
-\emph{Stochastic bridges via $h$-transform.}
-Given a diffusion process
-\begin{equation}
-    dx_t = f(x_t, t)\,dt + g(t)\,dw_t,
-    \label{eq:base_sde}
-\end{equation}
-Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions} can be used to condition the process to almost surely reach a prescribed endpoint $x_T = y$ as $t \to T$. The conditioned (bridge) SDE is
-\begin{align}
-    dx_t &= f(x_t, t)\,dt + g(t)\,dw_t \nonumber \\
-    &\quad+ g(t)^2\,\nabla_{x_t} \log p(x_T = y \mid x_t)\,dt,
-    \label{eq:bridge_sde}
-\end{align}
-where $p(x_T = y \mid x_t)$ is the transition density of the original process from time $t$ to $T$ and the additional drift term drives $x_t$ toward $y$. Here $x_0 \sim q_{\text{data}}(x)$ and $g(t)$ is the diffusion coefficient. The bridge SDE (Eq.~\ref{eq:bridge_sde}) extends the base diffusion (Eq.~\ref{eq:base_sde}) by adding a conditioning drift $g(t)^2\,\nabla_{x_t} \log p(x_T = y \mid x_t)$ that steers the process toward the endpoint $y$. In this form, the second drift term encodes $h(x, t, y, T) = \nabla_{x_t} \log p(x_T = y \mid x_t)$, and the conditional transition density $p(x_T = y \mid x_t)$ satisfies the Kolmogorov backward equation. For specific choices such as zero drift $f(x_t, t) = 0$ and Gaussian transitions, $h$ admits a closed-form expression. If $x_0$ is fixed instead of stochastic, the resulting conditioned process is called a \emph{diffusion bridge}~\cite{sarkka2019applied,heng2021simulating,delyon2006simulation,schauer2017guided,peluchettinon,liu2022let}, which forms the foundational mechanism for transporting one state to another and is highly relevant to image-to-image translation tasks.
-
-\emph{Denoising Diffusion Bridge Models} (DDBM)~\cite{zhouDenoisingDiffusionBridge2024} instantiate this idea with a tractable denoising objective. Given a training pair $(x, y)$ where $x \in \mathcal{X}$ is the source and $y \in \mathcal{Y}$ is the target, the forward bridge process constructs a sequence of noisy intermediate states $z_t$ for $t \in [0, T]$ such that $z_0 = y$ and $z_T \approx x$. Under the variance-preserving (VP) formulation, the noisy sample at time $t$ is:
-\begin{equation}
-    z_t = a_t \cdot x + b_t \cdot y + \sigma_t \cdot \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
-    \label{eq:bridge_forward}
-\end{equation}
-where $a_t$, $b_t$, $\sigma_t$ are functions of the VP schedule parameters ($\beta_d$, $\beta_{\min}$) and the log signal-to-noise ratio at time $t$. Equation~\ref{eq:bridge_forward} provides a tractable discretization of the bridge SDE (Eq.~\ref{eq:bridge_sde}): for VP schedules with Gaussian transitions, the linear interpolation in Eq.~\ref{eq:bridge_forward} corresponds to a closed-form solution of the conditioned process derived from Eq.~\ref{eq:base_sde}. The reverse process, parameterized by a denoising neural network $D_\theta$, learns to invert this corruption, thereby learning the conditional transport from $\mathcal{X}$ to $\mathcal{Y}$. This bridge formulation is inherently more suited for paired image translation than unconditional diffusion, as the source image directly constrains the generative trajectory.
 % }
