@@ -189,13 +189,17 @@ class DDBMTrainer:
 
     def get_inference_kwargs(self, source_inp: torch.Tensor) -> dict:
         cfg = self.cfg
-        return {
+        kwargs = {
             "source_image": source_inp,
             "num_inference_steps": cfg.num_inference_steps,
             "guidance": cfg.guidance,
             "churn_step_ratio": cfg.churn_step_ratio,
             "output_type": "pt",
         }
+        # CFG sampling is currently enabled in the pixel-space DDBM pipeline.
+        if not cfg.use_latent_target:
+            kwargs["cfg_scale"] = getattr(cfg, "cfg_scale", 1.0)
+        return kwargs
 
     # ----- dataset -----------------------------------------------------------
 
@@ -315,6 +319,25 @@ class DDBMTrainer:
         x0 = batch[0].to(device) * 2 - 1
         x_T = batch[1].to(device) * 2 - 1
         return x0, x_T
+
+    @staticmethod
+    def apply_conditioning_dropout(
+        condition: torch.Tensor,
+        dropout_prob: float,
+    ) -> tuple[torch.Tensor, float]:
+        """Randomly replace conditioning with zeros for CFG training."""
+        if dropout_prob <= 0.0:
+            return condition, 0.0
+
+        batch_size = condition.shape[0]
+        drop_mask = torch.rand(batch_size, device=condition.device) < dropout_prob
+        if not torch.any(drop_mask):
+            return condition, 0.0
+
+        dropped = condition.clone()
+        dropped[drop_mask] = 0.0
+        drop_ratio = drop_mask.float().mean().item()
+        return dropped, drop_ratio
 
     @staticmethod
     def compute_training_loss(model, scheduler, x0, x_T, pred_mode="vp",
@@ -608,6 +631,12 @@ class DDBMTrainer:
     def train(self):
         """Run the full training loop."""
         cfg = self.cfg
+        cond_dropout_prob = float(getattr(cfg, "conditioning_dropout_prob", 0.0))
+        if cond_dropout_prob < 0.0 or cond_dropout_prob > 1.0:
+            raise ValueError(
+                f"conditioning_dropout_prob must be in [0, 1], got {cond_dropout_prob}"
+            )
+        use_cond_dropout = cond_dropout_prob > 0.0 and not cfg.use_latent_target
 
         # Auto-structure checkpoint directory with method/task subfolders.
         # Intentionally mutates cfg.output_dir so all downstream save paths
@@ -817,6 +846,15 @@ class DDBMTrainer:
         logger.info(f"  Num epochs       = {num_epochs_this_run}")
         logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
         logger.info(f"  Total opt steps  = {cfg.max_train_steps}")
+        if use_cond_dropout:
+            logger.info(
+                "  CFG cond dropout = %.3f (null condition = zeros)",
+                cond_dropout_prob,
+            )
+        elif cond_dropout_prob > 0.0 and cfg.use_latent_target:
+            logger.info(
+                "  CFG cond dropout skipped (enabled only for pixel-space training)."
+            )
 
         progress_bar = tqdm(range(global_step, cfg.max_train_steps), disable=not accelerator.is_local_main_process, desc=f"Training {cfg.task_name}")
 
@@ -831,6 +869,11 @@ class DDBMTrainer:
                         with torch.no_grad():
                             x0 = latent_target_encoder.encode(pixel_x0)
                             x_T = latent_target_encoder.encode(pixel_x_T)
+                    cond_drop_ratio = None
+                    if use_cond_dropout:
+                        x_T, cond_drop_ratio = self.apply_conditioning_dropout(
+                            x_T, cond_dropout_prob
+                        )
                     lambda_repa = (
                         lambda_repa_cosine(
                             global_step,
@@ -877,6 +920,8 @@ class DDBMTrainer:
                         logs["loss/mavic"] = loss_extras["loss_mavic"].item()
                     if loss_extras.get("loss_latent") is not None:
                         logs["loss/latent"] = loss_extras["loss_latent"].item()
+                    if cond_drop_ratio is not None:
+                        logs["cond/drop_ratio"] = cond_drop_ratio
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
