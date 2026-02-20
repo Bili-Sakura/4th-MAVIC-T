@@ -8,7 +8,7 @@ configurations for each task.
 counting parameters via ``sum(p.numel() for p in model.parameters())``.
 See also ``configs/model_scaling_variants.yaml`` for size-scaling tiers (small / medium / large / huge).
 
-**1024px recommendation:** For direct 1024x1024 pixel-space diffusion modeling, prefer the standalone SID baseline (`examples/sid`) to keep SID comparisons decoupled from bridge-specific baselines.
+**1024px recommendation:** For direct 1024x1024 pixel-space diffusion modeling, prefer the standalone SID/SID2 baselines (`examples/sid`, `examples/sid2`) to keep comparisons decoupled from bridge-specific baselines.
 
 **Tasks:**
 
@@ -21,7 +21,7 @@ See also ``configs/model_scaling_variants.yaml`` for size-scaling tiers (small /
 
 **Description:** Denoising Diffusion Bridge Models for image-to-image translation.
 Uses a UNet architecture with conditioning via concatenation.
-For direct 1024x1024 runs with SID, use the standalone ``examples/sid`` baseline.
+For direct 1024x1024 runs with SID/SID2, use the standalone ``examples/sid`` or ``examples/sid2`` baseline.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
@@ -90,7 +90,7 @@ condition_mode: concat
 
 **Description:** Bidirectional Brownian Bridge Diffusion Models with reversible translation.
 Supports bidirectional sampling (source→target and target→source).
-For direct 1024x1024 runs with SID, use the standalone ``examples/sid`` baseline.
+For direct 1024x1024 runs with SID/SID2, use the standalone ``examples/sid`` or ``examples/sid2`` baseline.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
@@ -159,7 +159,7 @@ condition_mode: concat
 
 **Description:** Image-to-Image Schrödinger Bridge for paired image translation.
 Uses Schrödinger Bridge formulation with ODE/SDE samplers.
-For direct 1024x1024 runs with SID, use the standalone ``examples/sid`` baseline.
+For direct 1024x1024 runs with SID/SID2, use the standalone ``examples/sid`` or ``examples/sid2`` baseline.
 
 | Task | Exact Parameters | Resolution | Channels | Model Channels |
 |------|---------------------|------------|----------|----------------|
