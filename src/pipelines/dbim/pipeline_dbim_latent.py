@@ -158,7 +158,7 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
             else lower_order_final
         )
 
-        x_pixel = self.prepare_inputs(source_image, self.device, self.dtype)
+        x_pixel = self.prepare_inputs(source_image, self._get_device(), self._get_dtype())
         x_pixel = self._resize_to_output_size(x_pixel, output_size)
         orig_channels = x_pixel.shape[1]
 

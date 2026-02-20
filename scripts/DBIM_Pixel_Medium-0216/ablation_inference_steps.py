@@ -117,10 +117,12 @@ def main():
     resolution = getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     manifest_path = resolve_manifest(MANIFEST)
+    # In pixel space, DBIM expects symmetric channel counts; use model_channels for source.
+    src_ch = cfg.model_channels if not getattr(cfg, "use_latent_target", False) else cfg.source_channels
     dataset = PairedValDataset(
         manifest_path=manifest_path,
         resolution=resolution,
-        source_channels=cfg.source_channels,
+        source_channels=src_ch,
         target_channels=cfg.target_channels,
         return_order="target_source",
     )

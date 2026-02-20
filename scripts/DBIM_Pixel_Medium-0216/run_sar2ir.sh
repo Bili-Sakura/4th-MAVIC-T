@@ -6,7 +6,7 @@
 #
 # Usage:
 #   bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh --NUM_STEPS 500 --BATCH_SIZE 8
+#   bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh --NUM_STEPS 500 --BATCH_SIZE 8 --DEVICES "cuda:1"
 #   CKPT_PATH=/path/to/checkpoint bash scripts/DBIM_Pixel_Medium-0216/run_sar2ir.sh
 
 set -euo pipefail

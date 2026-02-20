@@ -50,13 +50,23 @@ class DBIMPipelineOutput(BaseOutput):
 class DBIMSamplingMixin:
     """Shared DBIM sampling logic for pixel and latent pipelines."""
 
+    def _get_device(self) -> torch.device:
+        """Get execution device; works with DataParallel-wrapped unet."""
+        unet = self.unet.module if hasattr(self.unet, "module") else self.unet
+        return next(unet.parameters()).device
+
+    def _get_dtype(self) -> torch.dtype:
+        """Get execution dtype; works with DataParallel-wrapped unet."""
+        unet = self.unet.module if hasattr(self.unet, "module") else self.unet
+        return next(unet.parameters()).dtype
+
     @property
     def device(self) -> torch.device:
-        return next(self.unet.parameters()).device
+        return self._get_device()
 
     @property
     def dtype(self) -> torch.dtype:
-        return next(self.unet.parameters()).dtype
+        return self._get_dtype()
 
     @staticmethod
     def _append_dims(x: torch.Tensor, target_dims: int) -> torch.Tensor:
@@ -884,7 +894,7 @@ class DBIMPipeline(DiffusionPipeline, DBIMSamplingMixin):
             else lower_order_final
         )
 
-        x_T = self.prepare_inputs(source_image, self.device, self.dtype)
+        x_T = self.prepare_inputs(source_image, self._get_device(), self._get_dtype())
         if output_size is not None:
             h_out, w_out = output_size
             x_T = F.interpolate(

@@ -5,7 +5,7 @@
 #
 # Usage:
 #   bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
-#   CUDA_VISIBLE_DEVICES=0 bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
+#   bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh --DEVICE "cuda:1"
 #   CKPT_ROOT=/path/to/ckpt bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
 
 set -euo pipefail
@@ -47,7 +47,7 @@ fi
 
 run_ablation() {
   local task="$1"
-  local ckpt="${CKPT_ROOT}/${task}/checkpoint-200000"
+  local ckpt="${CKPT_ROOT}/${task}/checkpoint-100000"
   local manifest="${MANIFEST_DIR}/paired_val_${task}.txt"
   if [[ ! -d "${ckpt}" ]]; then
     echo "  [skip] checkpoint not found: ${ckpt}"
@@ -69,15 +69,15 @@ echo "DEVICE:      ${DEVICE}"
 echo "Output:      /data/projects/4th-MAVIC-T/temp/"
 echo ""
 
-run_ablation sar2ir
-echo ""
+# run_ablation sar2ir
+# echo ""
 
-run_ablation sar2eo
-echo ""
+# run_ablation sar2eo
+# echo ""
 
 run_ablation sar2rgb
 echo ""
 
-run_ablation rgb2ir
+# run_ablation rgb2ir
 
 echo "=== Done (all tasks) ==="
