@@ -49,6 +49,34 @@ python3 scripts/document_model_configs.py
 
 **Baselines covered:** DDBM, BiBBDM, I2SB (shared diffusion UNet), DDIB, CUT, Img2Img-Turbo
 
+### Pixel LPIPS/VGG finetuning launchers (Stage 3b)
+
+**Purpose:** Continue finetuning an already-good **pixel-space DDBM** checkpoint with
+perceptual supervision (LPIPS using VGG backbone) plus L1, without any discriminator.
+
+**Scripts:**
+- `train_stage3b_lpips_sar2eo.sh`
+- `train_stage3b_lpips_rgb2ir.sh`
+- `train_stage3b_lpips_sar2ir.sh`
+- `train_stage3b_lpips_sar2rgb.sh`
+
+**How it works:**
+- Stays in **pixel modeling** (`use_latent_target=false`)
+- Resumes from the latest checkpoint in the Stage-3 output directory (`resume_from_checkpoint=latest`)
+- Enables MAVIC loss (`use_mavic_loss=true`), which is:
+  - LPIPS (VGG) weighted by `mavic_lpips_weight`
+  - L1 weighted by `mavic_l1_weight`
+  - Combined and scaled by `mavic_loss_weight`
+
+**Example:**
+```bash
+bash scripts/train_stage3b_lpips_sar2rgb.sh
+
+# Override perceptual weights / finetune length
+MAVIC_LPIPS_WEIGHT=1.0 MAVIC_L1_WEIGHT=0.3 MAVIC_LOSS_WEIGHT=0.25 MAX_TRAIN_STEPS=4000 \
+  bash scripts/train_stage3b_lpips_sar2rgb.sh
+```
+
 ### `analyze_test_dataset.py`
 
 Analyzes test dataset statistics and metadata.
