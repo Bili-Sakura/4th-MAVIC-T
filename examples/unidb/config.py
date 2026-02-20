@@ -59,6 +59,8 @@ class TaskConfig:
     weight_decay: float = 0.0
     use_ema: bool = True
     ema_decay: float = 0.995
+    # Per-sample conditioning dropout probability for CFG fine-tuning.
+    conditioning_dropout_prob: float = 0.0
 
     # ---- logging / checkpointing ----
     log_with: str = "tensorboard"
@@ -89,6 +91,8 @@ class TaskConfig:
 
     # ---- sampling (evaluation) ----
     num_inference_steps: int = 100
+    # Classifier-Free Guidance scale. 1.0 disables CFG.
+    cfg_scale: float = 1.0
     method: str = "euler"
     solver_type: str = "mean-ode"
     solver_step: int = 100

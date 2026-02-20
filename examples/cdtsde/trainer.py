@@ -37,13 +37,16 @@ class CDTSDETrainer(DDBMTrainer):
 
     def get_inference_kwargs(self, source_inp):
         cfg = self.cfg
-        return {
+        kwargs = {
             "source_image": source_inp,
             "num_inference_steps": cfg.num_inference_steps,
             "stochastic": cfg.stochastic,
             "apply_domain_shift": cfg.apply_domain_shift,
             "output_type": "pt",
         }
+        if not cfg.use_latent_target:
+            kwargs["cfg_scale"] = getattr(cfg, "cfg_scale", 1.0)
+        return kwargs
 
     # ----- dataset -----------------------------------------------------------
 

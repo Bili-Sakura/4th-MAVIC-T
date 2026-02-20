@@ -38,13 +38,16 @@ class BDBMTrainer(BiBBDMTrainer):
     def get_inference_kwargs(self, source_inp: torch.Tensor) -> dict:
         cfg = self.cfg
         num_steps = getattr(cfg, "num_inference_steps", cfg.sample_step)
-        return {
+        kwargs = {
             "source_image": source_inp,
             "direction": "b2a",
             "num_inference_steps": num_steps,
             "clip_denoised": cfg.clip_denoised,
             "output_type": "pt",
         }
+        if not cfg.use_latent_target:
+            kwargs["cfg_scale"] = getattr(cfg, "cfg_scale", 1.0)
+        return kwargs
 
     # ----- dataset -----------------------------------------------------------
 
@@ -164,6 +167,7 @@ class BDBMTrainer(BiBBDMTrainer):
         pixel_target=None,
         pixel_source=None,
         latent_decode_fn=None,
+        conditioning_drop_mask=None,
         in_latent_space: bool = False,
     ):
         bsz = target.shape[0]
@@ -185,6 +189,9 @@ class BDBMTrainer(BiBBDMTrainer):
             context = source
         else:
             context = None
+        if conditioning_drop_mask is not None and context is not None:
+            mask = conditioning_drop_mask.view(bsz, 1, 1, 1)
+            context = torch.where(mask, torch.zeros_like(context), context)
 
         obj_recon = model(x_t, t, context=context)
 

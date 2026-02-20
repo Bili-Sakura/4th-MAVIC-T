@@ -92,13 +92,16 @@ class BiBBDMTrainer:
     def get_inference_kwargs(self, source_inp: torch.Tensor) -> dict:
         cfg = self.cfg
         num_steps = getattr(cfg, "num_inference_steps", cfg.sample_step)
-        return {
+        kwargs = {
             "source_image": source_inp,
             "direction": "b2a",
             "num_inference_steps": num_steps,
             "clip_denoised": cfg.clip_denoised,
             "output_type": "pt",
         }
+        if not cfg.use_latent_target:
+            kwargs["cfg_scale"] = getattr(cfg, "cfg_scale", 1.0)
+        return kwargs
 
     # ----- dataset -----------------------------------------------------------
 
@@ -220,6 +223,25 @@ class BiBBDMTrainer:
         return target, source
 
     @staticmethod
+    def apply_conditioning_dropout(
+        condition: torch.Tensor,
+        dropout_prob: float,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], float]:
+        """Randomly replace conditioning with zeros for CFG training."""
+        if dropout_prob <= 0.0:
+            return condition, None, 0.0
+
+        batch_size = condition.shape[0]
+        drop_mask = torch.rand(batch_size, device=condition.device) < dropout_prob
+        if not torch.any(drop_mask):
+            return condition, None, 0.0
+
+        dropped = condition.clone()
+        dropped[drop_mask] = 0.0
+        drop_ratio = drop_mask.float().mean().item()
+        return dropped, drop_mask, drop_ratio
+
+    @staticmethod
     def compute_training_loss(
         model,
         scheduler,
@@ -239,6 +261,7 @@ class BiBBDMTrainer:
         pixel_target=None,
         pixel_source=None,
         latent_decode_fn=None,
+        conditioning_drop_mask: Optional[torch.Tensor] = None,
         in_latent_space: bool = False,
     ):
         """Compute the BiBBDM training loss for one batch.
@@ -262,6 +285,9 @@ class BiBBDMTrainer:
 
         # Context for conditioning: use source image
         context = source
+        if conditioning_drop_mask is not None:
+            mask = conditioning_drop_mask.view(-1, 1, 1, 1)
+            context = torch.where(mask, torch.zeros_like(context), context)
 
         # UNet prediction
         obj_recon = model(x_t, t, context=context)
@@ -521,6 +547,12 @@ class BiBBDMTrainer:
     def train(self):
         """Run the full training loop."""
         cfg = self.cfg
+        cond_dropout_prob = float(getattr(cfg, "conditioning_dropout_prob", 0.0))
+        if cond_dropout_prob < 0.0 or cond_dropout_prob > 1.0:
+            raise ValueError(
+                f"conditioning_dropout_prob must be in [0, 1], got {cond_dropout_prob}"
+            )
+        use_cond_dropout = cond_dropout_prob > 0.0 and not cfg.use_latent_target
 
         if cfg.task_name:
             cfg.output_dir = os.path.join(cfg.output_dir, self.baseline_name, cfg.task_name)
@@ -725,6 +757,13 @@ class BiBBDMTrainer:
         logger.info(f"  Num epochs       = {num_epochs_this_run}")
         logger.info(f"  Batch size/dev   = {cfg.train_batch_size}")
         logger.info(f"  Total opt steps  = {cfg.max_train_steps}")
+        if use_cond_dropout:
+            logger.info(
+                "  CFG cond dropout = %.3f (null condition = zeros)",
+                cond_dropout_prob,
+            )
+        elif cond_dropout_prob > 0.0 and cfg.use_latent_target:
+            logger.info("  CFG cond dropout skipped (enabled only for pixel-space training).")
 
         progress_bar = tqdm(range(global_step, cfg.max_train_steps), disable=not accelerator.is_local_main_process, desc=f"Training {cfg.task_name}")
 
@@ -739,6 +778,12 @@ class BiBBDMTrainer:
                         with torch.no_grad():
                             target = latent_target_encoder.encode(pixel_target)
                             source = latent_target_encoder.encode(pixel_source)
+                    cond_drop_mask = None
+                    cond_drop_ratio = None
+                    if use_cond_dropout:
+                        source, cond_drop_mask, cond_drop_ratio = self.apply_conditioning_dropout(
+                            source, cond_dropout_prob
+                        )
                     lambda_repa = (
                         lambda_repa_cosine(
                             global_step,
@@ -765,6 +810,7 @@ class BiBBDMTrainer:
                         pixel_target=pixel_target if cfg.use_latent_target else None,
                         pixel_source=pixel_source if cfg.use_latent_target else None,
                         latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
+                        conditioning_drop_mask=cond_drop_mask,
                         in_latent_space=cfg.use_latent_target,
                     )
 
@@ -790,6 +836,8 @@ class BiBBDMTrainer:
                         logs["loss/mavic"] = loss_extras["loss_mavic"].item()
                     if loss_extras.get("loss_latent") is not None:
                         logs["loss/latent"] = loss_extras["loss_latent"].item()
+                    if cond_drop_ratio is not None:
+                        logs["cond/drop_ratio"] = cond_drop_ratio
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 

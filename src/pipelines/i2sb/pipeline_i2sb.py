@@ -121,6 +121,7 @@ class I2SBPipeline(DiffusionPipeline):
         self,
         source_image: Union[torch.Tensor, Image.Image, List[Image.Image]],
         nfe: int = 100,
+        cfg_scale: float = 1.0,
         ot_ode: bool = False,
         clip_denoise: bool = False,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
@@ -171,6 +172,9 @@ class I2SBPipeline(DiffusionPipeline):
         # Condition for concat mode
         has_condition = hasattr(self.unet, 'condition_mode') and self.unet.condition_mode == 'concat'
         cond = x1 if has_condition else None
+        use_cfg = has_condition and abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(cond) if use_cfg else None
+        nfe_per_denoise = 2 if use_cfg else 1
 
         # Backward sampling loop: iterate from large timestep to small
         num_steps = len(steps) - 1
@@ -188,8 +192,16 @@ class I2SBPipeline(DiffusionPipeline):
             t_batch = torch.full((batch_size,), t_emb, device=device, dtype=dtype)
 
             # Model prediction
-            pred = self.unet(xt, t_batch, cond=cond)
-            nfe_count += 1
+            if use_cfg:
+                model_input = torch.cat([xt, xt], dim=0)
+                timestep_input = torch.cat([t_batch, t_batch], dim=0)
+                cond_input = torch.cat([cond, null_condition], dim=0)
+                pred_batched = self.unet(model_input, timestep_input, cond=cond_input)
+                pred_cond, pred_uncond = pred_batched.chunk(2, dim=0)
+                pred = pred_uncond + cfg_scale * (pred_cond - pred_uncond)
+            else:
+                pred = self.unet(xt, t_batch, cond=cond)
+            nfe_count += nfe_per_denoise
 
             # Recover predicted x0 and sample posterior
             pred_x0 = self.scheduler.compute_pred_x0(step_int, xt, pred, clip_denoise=clip_denoise)

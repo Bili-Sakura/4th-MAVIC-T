@@ -49,6 +49,12 @@ def parse_args():
     parser.add_argument("--task", type=str, default="sar2eo", choices=list(_TASK_CONFIG_MAP.keys()))
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--num_inference_steps", type=int, default=100)
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=None,
+        help="Classifier-Free Guidance scale. Defaults to checkpoint config or 1.0.",
+    )
     parser.add_argument("--resolution", type=int, default=None)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--no_fid", action="store_true", help="Disable FID (faster).")
@@ -65,7 +71,14 @@ def load_config(checkpoint_dir: Path, task: str) -> TaskConfig:
         with open(config_yaml) as f:
             saved = yaml.safe_load(f)
         if saved:
-            for key in ("resolution", "source_channels", "target_channels", "validation_resolution"):
+            for key in (
+                "resolution",
+                "source_channels",
+                "target_channels",
+                "validation_resolution",
+                "num_inference_steps",
+                "cfg_scale",
+            ):
                 if key in saved and saved[key] is not None:
                     setattr(cfg, key, saved[key])
     return cfg
@@ -94,12 +107,14 @@ def main():
     pipeline.unet.eval()
 
     num_steps = getattr(cfg, "num_inference_steps", None) or args.num_inference_steps
+    cfg_scale = args.cfg_scale if args.cfg_scale is not None else getattr(cfg, "cfg_scale", 1.0)
 
     def inference_fn(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         source_inp = source * 2 - 1
         result = pipeline(
             image=source_inp,
             num_inference_steps=num_steps,
+            cfg_scale=cfg_scale,
             method=getattr(cfg, "method", "euler"),
             solver_type=getattr(cfg, "solver_type", "mean-ode"),
             solver_step=getattr(cfg, "solver_step", 100),
