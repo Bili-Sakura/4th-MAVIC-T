@@ -94,6 +94,12 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for inference.")
     parser.add_argument("--num_inference_steps", type=int, default=40, help="Denoising steps.")
     parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=1.0,
+        help="Classifier-Free Guidance scale (1.0 disables CFG).",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         nargs="+",
@@ -259,6 +265,7 @@ def main():
             result = pipeline(
                 source_image=source,
                 num_inference_steps=args.num_inference_steps,
+                cfg_scale=args.cfg_scale,
                 output_type="pt",
             )
             images = result.images
@@ -281,6 +288,7 @@ def main():
     checkpoint_config = load_checkpoint_config(args.pretrained_model_name_or_path)
     extra_sampling = [
         f"Num inference steps: {args.num_inference_steps}",
+        f"CFG scale: {args.cfg_scale}",
     ]
     detailed_description = build_detailed_description(
         model_name="SID",

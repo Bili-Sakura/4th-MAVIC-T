@@ -54,6 +54,12 @@ def parse_args():
     parser.add_argument("--task", type=str, default="sar2eo", choices=list(_TASK_CONFIG_MAP.keys()))
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--num_inference_steps", type=int, default=40)
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=None,
+        help="Classifier-Free Guidance scale. Defaults to checkpoint config or 1.0.",
+    )
     parser.add_argument("--resolution", type=int, default=None)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--no_fid", action="store_true", help="Disable FID (faster).")
@@ -102,7 +108,16 @@ def load_config(checkpoint_dir: Path, task: str) -> TaskConfig:
         with open(config_yaml) as f:
             saved = yaml.safe_load(f)
         if saved:
-            for key in ("resolution", "source_channels", "target_channels", "validation_resolution", "num_inference_steps"):
+            for key in (
+                "resolution",
+                "source_channels",
+                "target_channels",
+                "validation_resolution",
+                "num_inference_steps",
+                "guidance",
+                "cfg_scale",
+                "churn_step_ratio",
+            ):
                 if key in saved and saved[key] is not None:
                     setattr(cfg, key, saved[key])
     return cfg
@@ -134,6 +149,7 @@ def main():
 
     # CLI takes precedence over checkpoint config
     num_steps = args.num_inference_steps
+    cfg_scale = args.cfg_scale if args.cfg_scale is not None else getattr(cfg, "cfg_scale", 1.0)
 
     output_size = tuple(args.output_size) if args.output_size else None
     # When using MultiDiffusion, val set is 1024px; resize source to 512px so pipeline sees 512→1024
@@ -150,6 +166,9 @@ def main():
             source_image=source_inp,
             num_inference_steps=num_steps,
             sampler=getattr(cfg, "sampler", "dbim"),
+            guidance=getattr(cfg, "guidance", 1.0),
+            cfg_scale=cfg_scale,
+            churn_step_ratio=getattr(cfg, "churn_step_ratio", 0.33),
             eta=getattr(cfg, "eta", 1.0),
             order=getattr(cfg, "order", 2),
             lower_order_final=getattr(cfg, "lower_order_final", True),

@@ -153,7 +153,15 @@ class DDBMPipeline(DiffusionPipeline):
         
         raise ValueError(f"Unknown pred_mode: {self.pred_mode}")
 
-    def denoise(self, x_t, sigmas, x_T, clip_denoised=True):
+    def denoise(
+        self,
+        x_t,
+        sigmas,
+        x_T,
+        clip_denoised=True,
+        cfg_scale: float = 1.0,
+        null_condition: Optional[torch.Tensor] = None,
+    ):
         """
         Denoise the sample using the UNet model.
         
@@ -168,7 +176,21 @@ class DDBMPipeline(DiffusionPipeline):
         ]
 
         rescaled_t = 1000 * 0.25 * torch.log(sigmas + 1e-44)
-        model_output = self.unet(c_in * x_t, rescaled_t, xT=x_T)
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        if use_cfg:
+            if x_T is None:
+                raise ValueError("cfg_scale != 1.0 requires a non-null conditioning image.")
+            if null_condition is None:
+                null_condition = torch.zeros_like(x_T)
+
+            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0)
+            timestep_input = torch.cat([rescaled_t, rescaled_t], dim=0)
+            cond_input = torch.cat([x_T, null_condition], dim=0)
+            model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
+            model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+            model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+        else:
+            model_output = self.unet(c_in * x_t, rescaled_t, xT=x_T)
         denoised = c_out * model_output + c_skip * x_t
 
         if clip_denoised:
@@ -218,6 +240,7 @@ class DDBMPipeline(DiffusionPipeline):
         source_image: Union[torch.Tensor, Image.Image, List[Image.Image]],
         num_inference_steps: int = 40,
         guidance: float = 1.0,
+        cfg_scale: float = 1.0,
         churn_step_ratio: float = 0.33,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         output_type: str = "pil",
@@ -234,6 +257,7 @@ class DDBMPipeline(DiffusionPipeline):
                 or PIL Image(s).
             num_inference_steps: Number of diffusion steps (default: 40).
             guidance: Guidance weight for sampling (default: 1.0).
+            cfg_scale: Classifier-Free Guidance scale. 1.0 disables CFG.
             churn_step_ratio: Ratio of stochastic churn steps (default: 0.33).
             generator: Random number generator for reproducibility.
             output_type: Output format - "pil", "np", or "pt" (default: "pil").
@@ -257,6 +281,9 @@ class DDBMPipeline(DiffusionPipeline):
 
         # Start from x_T (source image)
         x = x_T.clone()
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(x_T) if use_cfg else None
+        nfe_per_denoise = 2 if use_cfg else 1
 
         # Create s_in for batch processing
         s_in = x.new_ones([batch_size])
@@ -274,8 +301,14 @@ class DDBMPipeline(DiffusionPipeline):
                 sigma_hat = (sigma_next - sigma) * churn_step_ratio + sigma
                 
                 # Denoise at current sigma
-                denoised = self.denoise(x, sigma * s_in, x_T)
-                nfe += 1
+                denoised = self.denoise(
+                    x,
+                    sigma * s_in,
+                    x_T,
+                    cfg_scale=cfg_scale,
+                    null_condition=null_condition,
+                )
+                nfe += nfe_per_denoise
                 
                 # Get stochastic derivative
                 d_1, gt2 = self._get_d_stochastic(x, sigma, denoised, x_T, guidance)
@@ -287,8 +320,14 @@ class DDBMPipeline(DiffusionPipeline):
                 sigma_hat = sigma
 
             # Denoise at sigma_hat
-            denoised = self.denoise(x, sigma_hat * s_in, x_T)
-            nfe += 1
+            denoised = self.denoise(
+                x,
+                sigma_hat * s_in,
+                x_T,
+                cfg_scale=cfg_scale,
+                null_condition=null_condition,
+            )
+            nfe += nfe_per_denoise
 
             # Get derivative
             d = self._get_d(x, sigma_hat, denoised, x_T, guidance)
@@ -301,8 +340,14 @@ class DDBMPipeline(DiffusionPipeline):
             else:
                 # Heun's method
                 x_2 = x + d * dt
-                denoised_2 = self.denoise(x_2, sigma_next * s_in, x_T)
-                nfe += 1
+                denoised_2 = self.denoise(
+                    x_2,
+                    sigma_next * s_in,
+                    x_T,
+                    cfg_scale=cfg_scale,
+                    null_condition=null_condition,
+                )
+                nfe += nfe_per_denoise
 
                 d_2 = self._get_d(x_2, sigma_next, denoised_2, x_T, guidance)
                 d_prime = (d + d_2) / 2

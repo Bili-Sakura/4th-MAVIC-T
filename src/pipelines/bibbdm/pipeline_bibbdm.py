@@ -58,6 +58,7 @@ class BiBBDMPipeline(DiffusionPipeline):
         direction: str = "b2a",
         num_inference_steps: Optional[int] = None,
         clip_denoised: bool = False,
+        cfg_scale: float = 1.0,
         output_type: str = "pt",
         generator: Optional[torch.Generator] = None,
     ) -> BiBBDMPipelineOutput:
@@ -92,20 +93,44 @@ class BiBBDMPipeline(DiffusionPipeline):
             raise RuntimeError("Scheduler steps not initialised; call set_timesteps().")
 
         if direction == "b2a":
-            return self._sample_b2a(source_image, steps, clip_denoised, output_type, generator)
+            return self._sample_b2a(
+                source_image,
+                steps,
+                clip_denoised,
+                output_type,
+                generator,
+                cfg_scale=cfg_scale,
+            )
         elif direction == "a2b":
-            return self._sample_a2b(source_image, steps, clip_denoised, output_type, generator)
+            return self._sample_a2b(
+                source_image,
+                steps,
+                clip_denoised,
+                output_type,
+                generator,
+                cfg_scale=cfg_scale,
+            )
         else:
             raise ValueError(f"Unknown direction: {direction!r}; expected 'b2a' or 'a2b'.")
 
     # ------------------------------------------------------------------
 
-    def _sample_b2a(self, source, steps, clip_denoised, output_type, generator):
+    def _sample_b2a(self, source, steps, clip_denoised, output_type, generator, cfg_scale: float = 1.0):
         """Source → Target (reverse Brownian Bridge)."""
         img = source.clone()
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(source) if use_cfg else None
         for i in tqdm(range(len(steps)), desc="B2A sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=source)
+            if use_cfg:
+                model_input = torch.cat([img, img], dim=0)
+                timestep_input = torch.cat([t, t], dim=0)
+                cond_input = torch.cat([source, null_condition], dim=0)
+                model_output_batched = self.unet(model_input, timestep_input, context=cond_input)
+                model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+                model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+            else:
+                model_output = self.unet(img, t, context=source)
             result = self.scheduler.step_b2a(
                 model_output, step_index=i, x_t=img, source=source,
                 clip_denoised=clip_denoised, generator=generator,
@@ -113,12 +138,22 @@ class BiBBDMPipeline(DiffusionPipeline):
             img = result.prev_sample
         return self._format_output(img, output_type)
 
-    def _sample_a2b(self, target, steps, clip_denoised, output_type, generator):
+    def _sample_a2b(self, target, steps, clip_denoised, output_type, generator, cfg_scale: float = 1.0):
         """Target → Source (forward Brownian Bridge)."""
         img = target.clone()
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(target) if use_cfg else None
         for i in tqdm(reversed(range(len(steps))), desc="A2B sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=target)
+            if use_cfg:
+                model_input = torch.cat([img, img], dim=0)
+                timestep_input = torch.cat([t, t], dim=0)
+                cond_input = torch.cat([target, null_condition], dim=0)
+                model_output_batched = self.unet(model_input, timestep_input, context=cond_input)
+                model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+                model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+            else:
+                model_output = self.unet(img, t, context=target)
             result = self.scheduler.step_a2b(
                 model_output, step_index=i, x_t=img, target=target,
                 clip_denoised=clip_denoised, generator=generator,

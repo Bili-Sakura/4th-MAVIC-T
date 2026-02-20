@@ -95,6 +95,7 @@ class CDTSDEPipeline(DiffusionPipeline):
         self,
         source_image: Union[torch.Tensor, Image.Image, List[Image.Image]],
         num_inference_steps: int = 50,
+        cfg_scale: float = 1.0,
         stochastic: bool = True,
         apply_domain_shift: bool = True,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
@@ -108,6 +109,9 @@ class CDTSDEPipeline(DiffusionPipeline):
 
         x_T = self.prepare_inputs(source_image, device=device, dtype=dtype)
         batch_size = x_T.shape[0]
+        use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
+        null_condition = torch.zeros_like(x_T) if use_cfg else None
+        nfe_per_denoise = 2 if use_cfg else 1
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         if self.scheduler.timesteps is None:
@@ -133,8 +137,16 @@ class CDTSDEPipeline(DiffusionPipeline):
             t_model = self.scheduler.timesteps[j]
             t_batch = torch.full((batch_size,), t_model, device=device, dtype=torch.long)
 
-            pred_noise = self.unet(x, t_batch, xT=x_T)
-            nfe += 1
+            if use_cfg:
+                model_input = torch.cat([x, x], dim=0)
+                timestep_input = torch.cat([t_batch, t_batch], dim=0)
+                cond_input = torch.cat([x_T, null_condition], dim=0)
+                pred_noise_batched = self.unet(model_input, timestep_input, xT=cond_input)
+                pred_noise_cond, pred_noise_uncond = pred_noise_batched.chunk(2, dim=0)
+                pred_noise = pred_noise_uncond + cfg_scale * (pred_noise_cond - pred_noise_uncond)
+            else:
+                pred_noise = self.unet(x, t_batch, xT=x_T)
+            nfe += nfe_per_denoise
 
             idx_batch = torch.full((batch_size,), j, device=device, dtype=torch.long)
             pred_x0 = self.scheduler.predict_start_from_noise(

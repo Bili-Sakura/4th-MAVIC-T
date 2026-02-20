@@ -68,6 +68,7 @@ class UniDBTrainer:
         return {
             "image": source_inp,
             "num_inference_steps": cfg.num_inference_steps,
+            "cfg_scale": getattr(cfg, "cfg_scale", 1.0),
             "method": cfg.method,
             "solver_type": cfg.solver_type,
             "solver_step": cfg.solver_step,
@@ -170,6 +171,25 @@ class UniDBTrainer:
             elif x0.shape[1] == 1 and x_T.shape[1] == 3:
                 x0 = x0.repeat(1, 3, 1, 1)
         return x0 * 2 - 1, x_T * 2 - 1
+
+    @staticmethod
+    def apply_conditioning_dropout(
+        condition: torch.Tensor,
+        dropout_prob: float,
+    ) -> tuple[torch.Tensor, float]:
+        """Randomly replace conditioning with zeros for CFG training."""
+        if dropout_prob <= 0.0:
+            return condition, 0.0
+
+        batch_size = condition.shape[0]
+        drop_mask = torch.rand(batch_size, device=condition.device) < dropout_prob
+        if not torch.any(drop_mask):
+            return condition, 0.0
+
+        dropped = condition.clone()
+        dropped[drop_mask] = 0.0
+        drop_ratio = drop_mask.float().mean().item()
+        return dropped, drop_ratio
 
     @staticmethod
     def compute_training_loss(model, scheduler, x0, x_T):
@@ -321,6 +341,12 @@ class UniDBTrainer:
 
     def train(self):
         cfg = self.cfg
+        cond_dropout_prob = float(getattr(cfg, "conditioning_dropout_prob", 0.0))
+        if cond_dropout_prob < 0.0 or cond_dropout_prob > 1.0:
+            raise ValueError(
+                f"conditioning_dropout_prob must be in [0, 1], got {cond_dropout_prob}"
+            )
+        use_cond_dropout = cond_dropout_prob > 0.0
         if cfg.task_name:
             cfg.output_dir = os.path.join(cfg.output_dir, self.baseline_name, cfg.task_name)
 
@@ -434,12 +460,22 @@ class UniDBTrainer:
             disable=not accelerator.is_local_main_process,
             desc=f"Training {cfg.task_name}",
         )
+        if use_cond_dropout:
+            logger.info(
+                "CFG conditioning dropout enabled: p=%.3f (null condition = zeros)",
+                cond_dropout_prob,
+            )
 
         for epoch in range(first_epoch, cfg.num_epochs):
             model.train()
             for step, batch in enumerate(train_dataloader):
                 with accelerator.accumulate(model):
                     x0, x_T = self.preprocess_batch(batch, accelerator.device)
+                    cond_drop_ratio = None
+                    if use_cond_dropout:
+                        x_T, cond_drop_ratio = self.apply_conditioning_dropout(
+                            x_T, cond_dropout_prob
+                        )
                     loss, _ = self.compute_training_loss(model, scheduler, x0, x_T)
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:
@@ -455,6 +491,8 @@ class UniDBTrainer:
                     global_step += 1
 
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+                    if cond_drop_ratio is not None:
+                        logs["cond/drop_ratio"] = cond_drop_ratio
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 

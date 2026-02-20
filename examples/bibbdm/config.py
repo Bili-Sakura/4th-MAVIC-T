@@ -80,6 +80,8 @@ class TaskConfig:
     prodigy_d0: float = 1e-5  # Prodigy d0 parameter (initial estimate of D)
     use_ema: bool = True
     ema_decay: float = 0.9999
+    # Per-sample conditioning dropout probability for CFG fine-tuning.
+    conditioning_dropout_prob: float = 0.0
 
     # ---- logging / checkpointing ----
     # Accelerate log_with: "tensorboard" | "wandb" | "swanlab" | "all" | comma-separated
@@ -119,6 +121,8 @@ class TaskConfig:
     mavic_loss_weight: float = 0.1
 
     # ---- sampling (evaluation) ----
+    # Classifier-Free Guidance scale. 1.0 disables CFG.
+    cfg_scale: float = 1.0
     output_resolution: Optional[int] = None  # if set, load & infer at this resolution
 
     # ---- latent modeling ablation ----

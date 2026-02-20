@@ -49,13 +49,24 @@ class BDBMPipeline(DiffusionPipeline):
         clip_denoised: bool,
         output_type: str,
         generator: Optional[torch.Generator],
+        cfg_scale: float = 1.0,
     ) -> BDBMPipelineOutput:
         """Source -> target direction."""
         img = source.clone()
         context = self._make_context(source, direction="b2a")
+        use_cfg = context is not None and abs(float(cfg_scale) - 1.0) > 1e-6
+        null_context = torch.zeros_like(context) if use_cfg else None
         for i in tqdm(range(len(steps)), desc="BDBM b2a sampling", total=len(steps)):
             t = torch.full((img.shape[0],), int(steps[i].item()), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=context)
+            if use_cfg:
+                model_input = torch.cat([img, img], dim=0)
+                timestep_input = torch.cat([t, t], dim=0)
+                context_input = torch.cat([context, null_context], dim=0)
+                model_output_batched = self.unet(model_input, timestep_input, context=context_input)
+                model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+                model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+            else:
+                model_output = self.unet(img, t, context=context)
             result = self.scheduler.step_b2a(
                 model_output=model_output,
                 step_index=i,
@@ -74,13 +85,24 @@ class BDBMPipeline(DiffusionPipeline):
         clip_denoised: bool,
         output_type: str,
         generator: Optional[torch.Generator],
+        cfg_scale: float = 1.0,
     ) -> BDBMPipelineOutput:
         """Target -> source direction."""
         img = target.clone()
         context = self._make_context(target, direction="a2b")
+        use_cfg = context is not None and abs(float(cfg_scale) - 1.0) > 1e-6
+        null_context = torch.zeros_like(context) if use_cfg else None
         for i in tqdm(range(len(asc_steps)), desc="BDBM a2b sampling", total=len(asc_steps)):
             t = torch.full((img.shape[0],), int(asc_steps[i].item()), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=context)
+            if use_cfg:
+                model_input = torch.cat([img, img], dim=0)
+                timestep_input = torch.cat([t, t], dim=0)
+                context_input = torch.cat([context, null_context], dim=0)
+                model_output_batched = self.unet(model_input, timestep_input, context=context_input)
+                model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
+                model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
+            else:
+                model_output = self.unet(img, t, context=context)
             result = self.scheduler.step_a2b(
                 model_output=model_output,
                 step_index=i,
@@ -114,6 +136,7 @@ class BDBMPipeline(DiffusionPipeline):
         direction: str = "b2a",
         num_inference_steps: Optional[int] = None,
         clip_denoised: bool = False,
+        cfg_scale: float = 1.0,
         output_type: str = "pt",
         generator: Optional[torch.Generator] = None,
     ) -> BDBMPipelineOutput:
@@ -131,6 +154,7 @@ class BDBMPipeline(DiffusionPipeline):
                 clip_denoised=clip_denoised,
                 output_type=output_type,
                 generator=generator,
+                cfg_scale=cfg_scale,
             )
         if direction == "a2b":
             return self._sample_a2b(
@@ -139,5 +163,6 @@ class BDBMPipeline(DiffusionPipeline):
                 clip_denoised=clip_denoised,
                 output_type=output_type,
                 generator=generator,
+                cfg_scale=cfg_scale,
             )
         raise ValueError(f"Unknown direction: {direction!r}; expected 'b2a' or 'a2b'.")

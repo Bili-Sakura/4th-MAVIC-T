@@ -94,6 +94,12 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for inference.")
     parser.add_argument("--num_inference_steps", type=int, default=100, help="Denoising steps.")
     parser.add_argument("--guidance", type=float, default=1.0)
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=1.0,
+        help="Classifier-Free Guidance scale (1.0 disables CFG).",
+    )
     parser.add_argument("--churn_step_ratio", type=float, default=0.33)
     parser.add_argument("--sampler", type=str, default="dbim", choices=["dbim", "dbim_high_order", "heun"])
     parser.add_argument("--eta", type=float, default=1.0, help="Used by dbim sampler.")
@@ -293,6 +299,7 @@ def main():
                 num_inference_steps=args.num_inference_steps,
                 sampler=args.sampler,
                 guidance=args.guidance,
+                cfg_scale=args.cfg_scale,
                 churn_step_ratio=args.churn_step_ratio,
                 eta=args.eta,
                 order=args.order,
@@ -322,6 +329,7 @@ def main():
         f"Sampler: {args.sampler}",
         f"Num inference steps: {args.num_inference_steps}",
         f"Guidance scale: {args.guidance}",
+        f"CFG scale: {args.cfg_scale}",
         f"Churn step ratio: {args.churn_step_ratio}",
         f"Eta (stochasticity): {args.eta}",
     ]

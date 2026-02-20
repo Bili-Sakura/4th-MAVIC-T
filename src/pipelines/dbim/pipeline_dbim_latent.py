@@ -174,6 +174,7 @@ class DBIMLatentPipeline(DiffusionPipeline, DBIMSamplingMixin):
             num_inference_steps=num_inference_steps,
             sampler=sampler,
             guidance=guidance,
+            cfg_scale=1.0,
             churn_step_ratio=churn_step_ratio,
             eta=eta_val,
             order=order_val,

@@ -108,6 +108,12 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_inference_steps", type=int, default=100)
     parser.add_argument("--direction", type=str, default="b2a", choices=["b2a", "a2b"])
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=1.0,
+        help="Classifier-Free Guidance scale (1.0 disables CFG).",
+    )
     parser.add_argument("--clip_denoised", action="store_true")
     parser.add_argument(
         "--deterministic",
@@ -278,6 +284,7 @@ def main():
                 direction=args.direction,
                 num_inference_steps=args.num_inference_steps,
                 clip_denoised=args.clip_denoised,
+                cfg_scale=args.cfg_scale,
                 output_type="pt",
             )
             images = result.images
@@ -301,6 +308,7 @@ def main():
     extra_sampling = [
         f"Num inference steps: {args.num_inference_steps}",
         f"Direction: {args.direction}",
+        f"CFG scale: {args.cfg_scale}",
         f"Clip denoised: {args.clip_denoised}",
     ]
     detailed_description = build_detailed_description(

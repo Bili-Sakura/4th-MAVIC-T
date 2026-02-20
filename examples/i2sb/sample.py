@@ -107,6 +107,12 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--nfe", type=int, default=100)
+    parser.add_argument(
+        "--cfg_scale",
+        type=float,
+        default=1.0,
+        help="Classifier-Free Guidance scale (1.0 disables CFG).",
+    )
     parser.add_argument("--ot_ode", action="store_true")
     parser.add_argument(
         "--deterministic",
@@ -266,6 +272,7 @@ def main():
             result = pipeline(
                 source_image=source,
                 nfe=args.nfe,
+                cfg_scale=args.cfg_scale,
                 ot_ode=args.ot_ode,
                 clip_denoise=args.clip_denoise,
                 output_type="pt",
@@ -290,6 +297,7 @@ def main():
     checkpoint_config = load_checkpoint_config(args.pretrained_model_name_or_path)
     extra_sampling = [
         f"NFE (function evaluations): {args.nfe}",
+        f"CFG scale: {args.cfg_scale}",
         f"OT-ODE (deterministic): {args.ot_ode}",
         f"Clip denoise: {args.clip_denoise}",
     ]
