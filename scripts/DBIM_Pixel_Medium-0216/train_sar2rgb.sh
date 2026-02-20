@@ -48,9 +48,10 @@ PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifest
 
 # --- Training settings ---
 OPTIMIZER_TYPE="prodigy"
-LEARNING_RATE=2.0           # Prodigy nominal lr; 2.0 more aggressive when loss plateaus
-PRODIGY_D0=1e-6             # Smaller d0 → larger effective steps (default 1e-5 can be too conservative)
-LR_SCHEDULER="cosine"       # Cosine decay helps in late training vs constant
+LEARNING_RATE=1.0
+PRODIGY_D0=1e-5
+PRODIGY_D_COEF=1.0          # 1.0 more stable; 2.0 more aggressive (can increase variance)
+LR_SCHEDULER="constant"     # constant helps reach lower loss; cosine may plateau early
 LR_WARMUP_STEPS=0
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=8
@@ -106,6 +107,7 @@ COMMON_ARGS=(
   --optimizer_type "${OPTIMIZER_TYPE}"
   --learning_rate "${LEARNING_RATE}"
   --prodigy_d0 "${PRODIGY_D0}"
+  --prodigy_d_coef "${PRODIGY_D_COEF}"
   --lr_scheduler "${LR_SCHEDULER}"
   --lr_warmup_steps "${LR_WARMUP_STEPS}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"

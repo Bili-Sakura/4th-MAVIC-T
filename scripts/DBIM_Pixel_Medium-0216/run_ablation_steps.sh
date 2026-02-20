@@ -5,6 +5,7 @@
 #
 # Usage:
 #   bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
+#   CUDA_VISIBLE_DEVICES=0 bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
 #   CKPT_ROOT=/path/to/ckpt bash scripts/DBIM_Pixel_Medium-0216/run_ablation_steps.sh
 
 set -euo pipefail

@@ -75,6 +75,8 @@ def load_config(checkpoint_dir: Path, task: str) -> TaskConfig:
                 "resolution",
                 "source_channels",
                 "target_channels",
+                "model_channels",
+                "use_latent_target",
                 "validation_resolution",
                 "num_inference_steps",
                 "cfg_scale",
@@ -121,10 +123,12 @@ def main():
         )
         return (result.images + 1) * 0.5
 
+    # In pixel space, CDTSDE expects symmetric channel counts; use model_channels for source.
+    src_ch = cfg.model_channels if not getattr(cfg, "use_latent_target", False) else cfg.source_channels
     run_metric_evaluation(
         manifest_path=manifest_path,
         resolution=resolution,
-        source_channels=cfg.source_channels,
+        source_channels=src_ch,
         target_channels=cfg.target_channels,
         device=args.device,
         batch_size=args.batch_size,

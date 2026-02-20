@@ -248,12 +248,14 @@ def main():
     pipeline = _load_pipeline(args.pretrained_model_name_or_path, args.primary_device, device_ids=device_ids)
 
     eval_resolution = args.resolution if args.resolution is not None else cfg.resolution
+    # Use model_channels for source/target to match training (DDBM expects symmetric
+    # channel counts in pixel space; 1-ch SAR is expanded to model_channels).
     dataset = MavicTDBIMDataset(
         task=args.task,
         split=args.split,
         resolution=eval_resolution,
-        source_channels=cfg.source_channels,
-        target_channels=cfg.target_channels,
+        source_channels=cfg.model_channels,
+        target_channels=cfg.model_channels,
         with_target=False,
     )
 
