@@ -66,7 +66,7 @@
 # EDM2 accepts sigma_data (default 0.5).  VDM accepts gamma_min, gamma_max.
 # ---------------------------------------------------------------------------
 # Recommendation: for direct 1024px pixel-space SID modeling, use the
-# standalone ``examples/sid`` baseline instead of setting ``unet_type`` in
+# standalone ``examples/sid`` / ``examples/sid2`` baseline instead of setting ``unet_type`` in
 # bridge baselines.
 #
 # SID exact parameter counts (standalone examples/sid, src/models/unet_sid.py):
@@ -186,8 +186,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px). For SID at 1024px, use
-        the standalone examples/sid baseline.
+        1024 \times1024.  Use huge (tuned for 1024px). For SID/SID2 at 1024px,
+        use the standalone examples/sid or examples/sid2 baseline.
 
     sar2ir:
       source_channels: 1
@@ -196,8 +196,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px). For SID at 1024px, use
-        the standalone examples/sid baseline.
+        1024 \times1024.  Use huge (tuned for 1024px). For SID/SID2 at 1024px,
+        use the standalone examples/sid or examples/sid2 baseline.
 
     sar2rgb:
       source_channels: 1
@@ -206,8 +206,8 @@ diffusion_unet:
       resolution: 1024
       recommended_size: "huge"
       notes: >
-        1024 \times1024.  Use huge (tuned for 1024px). For SID at 1024px, use
-        the standalone examples/sid baseline.
+        1024 \times1024.  Use huge (tuned for 1024px). For SID/SID2 at 1024px,
+        use the standalone examples/sid or examples/sid2 baseline.
 
 
 # ============================================================

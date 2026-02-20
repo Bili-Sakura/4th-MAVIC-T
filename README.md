@@ -47,7 +47,7 @@ Without this, paths are inferred from the script location (works when run from t
 | **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
 | **`models/`** | Pre-trained model weights. |
 | **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_cdtsde`, `unet_ddib`, `unet_unidb`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
-| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, sid, cdtsde, cut, img2img_turbo, domain_classifier). |
+| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, sid, sid2, cdtsde, cut, img2img_turbo, domain_classifier). |
 | **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
 | **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
 
@@ -113,14 +113,22 @@ Training scripts support [SwanLab](https://swanlab.cn) for experiment tracking. 
 
 To sync offline logs later: `swanlab sync ./ckpt/swanlog/run-xxx`
 
-### Standalone SID baseline
+### Standalone SID / SID2 baselines
 
-SID is now available as a dedicated baseline entrypoint (instead of only a UNet type toggle under other methods):
+SID and SID2 are available as dedicated baseline entrypoints (instead of only a UNet type toggle under other methods):
 
 ```bash
 # Example: standalone SID on rgb2ir
 python -m examples.sid.train --task rgb2ir
+
+# Example: standalone SID2 on rgb2ir
+python -m examples.sid2.train --task rgb2ir
 ```
+
+Implementation notes:
+
+- SID alignment checklist: `docs/sid_alignment_checklist.md`
+- SID2 alignment checklist: `docs/sid2_alignment_checklist.md`
 
 ## Citations
 
@@ -183,6 +191,14 @@ python -m examples.sid.train --task rgb2ir
   booktitle = {International Conference on Learning Representations},
   year = {2026},
   url = {https://openreview.net/forum?id=it0GTdiW9t}
+}
+
+@inproceedings{hoogeboom2025sid2,
+  title = {Simpler Diffusion (SiD2): 1.5 FID on ImageNet512 with pixel-space diffusion},
+  author = {Hoogeboom, Emiel and Mensink, Thomas and Heek, Jonathan and Lamerigts, Kay and Gao, Ruiqi and Salimans, Tim},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  year = {2025},
+  url = {https://arxiv.org/abs/2410.19324}
 }
 
 @inproceedings{park2020cut,

@@ -1,4 +1,4 @@
-"""Tests for the EDM2, VDM, and SiD schedulers.
+"""Tests for the EDM2, VDM, SiD, and SiD2 schedulers.
 
 Covers:
 * Module imports and public API
@@ -26,6 +26,8 @@ from src.schedulers import (
     VDMSchedulerOutput,
     SiDScheduler,
     SiDSchedulerOutput,
+    SiD2Scheduler,
+    SiD2SchedulerOutput,
 )
 
 
@@ -568,44 +570,120 @@ class TestSiDScheduler:
 
 
 # ---------------------------------------------------------------------------
+# SiD2 Scheduler
+# ---------------------------------------------------------------------------
+
+
+class TestSiD2Scheduler:
+    """SiD2 scheduler behavior and invariants."""
+
+    def test_default_config(self):
+        sched = SiD2Scheduler()
+        assert sched.logsnr_min == -15.0
+        assert sched.logsnr_max == 15.0
+        assert sched.schedule_type == "cosine_interpolated"
+        assert sched.prediction_type == "v"
+        assert sched.clip_sample is True
+        assert sched.order == 1
+
+    def test_set_timesteps_shape(self):
+        sched = SiD2Scheduler()
+        sched.set_timesteps(10)
+        assert sched.logsnrs.shape == (11,)
+        assert sched.timesteps.shape == (10,)
+        assert sched.num_inference_steps == 10
+
+    def test_logsnrs_monotonically_increasing(self):
+        sched = SiD2Scheduler()
+        sched.set_timesteps(20)
+        for i in range(len(sched.logsnrs) - 1):
+            assert sched.logsnrs[i] <= sched.logsnrs[i + 1]
+
+    def test_step_output_shape_v(self):
+        sched = SiD2Scheduler(prediction_type="v")
+        sched.set_timesteps(10)
+        x = torch.randn(2, 3, 16, 16)
+        v_pred = torch.randn(2, 3, 16, 16)
+        out = sched.step(v_pred, 0, x)
+        assert isinstance(out, SiD2SchedulerOutput)
+        assert out.prev_sample.shape == (2, 3, 16, 16)
+
+    def test_step_output_shape_eps(self):
+        sched = SiD2Scheduler(prediction_type="eps")
+        sched.set_timesteps(10)
+        x = torch.randn(2, 3, 16, 16)
+        eps = torch.randn(2, 3, 16, 16)
+        out = sched.step(eps, 0, x)
+        assert out.prev_sample.shape == (2, 3, 16, 16)
+
+    def test_add_noise_shape(self):
+        sched = SiD2Scheduler()
+        x = torch.randn(2, 3, 16, 16)
+        noise = torch.randn(2, 3, 16, 16)
+        logsnrs = torch.tensor([5.0, -5.0])
+        noisy = sched.add_noise(x, noise, logsnrs)
+        assert noisy.shape == x.shape
+
+    def test_derivative_negative(self):
+        sched = SiD2Scheduler()
+        t = torch.tensor([0.2, 0.5, 0.8])
+        _, dlogsnr_dt = sched.compute_logsnr_and_derivative(t)
+        assert torch.all(dlogsnr_dt < 0)
+
+    def test_config_save_load(self):
+        sched = SiD2Scheduler(
+            schedule_type="cosine_interpolated",
+            interpolated_noise_d_low=32.0,
+            interpolated_noise_d_high=512.0,
+            prediction_type="v",
+        )
+        config = sched.config
+        sched2 = SiD2Scheduler.from_config(config)
+        assert sched2.schedule_type == "cosine_interpolated"
+        assert sched2.interpolated_noise_d_low == 32.0
+        assert sched2.interpolated_noise_d_high == 512.0
+        assert sched2.prediction_type == "v"
+
+
+# ---------------------------------------------------------------------------
 # Cross-scheduler tests
 # ---------------------------------------------------------------------------
 
 
 class TestCrossScheduler:
-    """Tests that apply to all three schedulers."""
+    """Tests that apply to all schedulers in this module."""
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_inherits_scheduler_mixin(self, SchedulerClass):
         sched = SchedulerClass()
         assert isinstance(sched, SchedulerMixin)
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_inherits_config_mixin(self, SchedulerClass):
         sched = SchedulerClass()
         assert isinstance(sched, ConfigMixin)
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_has_set_timesteps(self, SchedulerClass):
         sched = SchedulerClass()
         assert hasattr(sched, "set_timesteps")
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_has_step(self, SchedulerClass):
         sched = SchedulerClass()
         assert hasattr(sched, "step")
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_has_add_noise(self, SchedulerClass):
         sched = SchedulerClass()
         assert hasattr(sched, "add_noise")
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_has_scale_model_input(self, SchedulerClass):
         sched = SchedulerClass()
         assert hasattr(sched, "scale_model_input")
 
-    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler])
+    @pytest.mark.parametrize("SchedulerClass", [EDM2Scheduler, VDMScheduler, SiDScheduler, SiD2Scheduler])
     def test_has_config(self, SchedulerClass):
         sched = SchedulerClass()
         assert hasattr(sched, "config")

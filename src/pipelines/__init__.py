@@ -11,3 +11,4 @@ from .cut import CUTPipeline, CUTPipelineOutput, CUTLatentPipeline, CUTLatentPip
 from .turbo import Pix2PixTurboPipeline, CycleGANTurboPipeline, TurboPipelineOutput
 from .unidb import UniDBPipeline, UniDBPipelineOutput
 from .sid import SIDPipeline, SIDPipelineOutput
+from .sid2 import SID2Pipeline, SID2PipelineOutput
