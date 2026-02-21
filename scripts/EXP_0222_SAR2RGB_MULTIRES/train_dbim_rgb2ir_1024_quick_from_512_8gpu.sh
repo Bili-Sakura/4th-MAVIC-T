@@ -44,7 +44,7 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=5000
+VALIDATION_STEPS=  # empty = disabled (no validation logging)
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
@@ -56,6 +56,12 @@ BASE_512_DIR="./ckpt/DBIM_Pixel_Medium-0216/rgb2ir"
 FALLBACK_PRETRAIN="models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/rgb2ir/checkpoint-100000"
 OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/rgb2ir_1024_quick"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
+
+# --- SwanLab ---
+SWANLOG_DIR="./ckpt/swanlog"
+SWANLAB_EXPERIMENT_NAME="exp-0222-rgb2ir-1024"
+SWANLAB_DESCRIPTION="EXP-0222 DBIM RGB→IR 1024 (quick from 512)"
+SWANLAB_TAGS="dbim,exp-0222,rgb2ir"
 
 # Auto-pick known good 512 checkpoint when not provided.
 if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
@@ -104,7 +110,11 @@ USE_MAVIC_LOSS=false
 SAMPLER="dbim"
 
 COMMON_ARGS=(
-  --log_with tensorboard
+  --log_with swanlab
+  --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
+  --swanlab_description "${SWANLAB_DESCRIPTION}"
+  --swanlab_tags "${SWANLAB_TAGS}"
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'","workspace":"EarthBridge"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
@@ -126,7 +136,6 @@ COMMON_ARGS=(
   --save_model_epochs "${SAVE_MODEL_EPOCHS}"
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
-  --validation_steps "${VALIDATION_STEPS}"
   --num_inference_steps "${NUM_INFERENCE_STEPS}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
@@ -141,6 +150,10 @@ COMMON_ARGS=(
   --use_mavic_loss "${USE_MAVIC_LOSS}"
   --sampler "${SAMPLER}"
 )
+
+if [ -n "${VALIDATION_STEPS}" ]; then
+  COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
+fi
 
 if [ "${NGPU}" -gt 1 ]; then
   nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_rgb2ir \

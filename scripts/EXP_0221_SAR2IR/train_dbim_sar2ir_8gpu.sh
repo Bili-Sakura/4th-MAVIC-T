@@ -35,14 +35,14 @@ PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifest
 # --- Training ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=120000
+MAX_TRAIN_STEPS=50000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=5000
+VALIDATION_STEPS=  # empty = disabled (no validation logging)
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
@@ -53,6 +53,12 @@ HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0221"
 OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
+# --- SwanLab ---
+SWANLOG_DIR="./ckpt/swanlog"
+SWANLAB_EXPERIMENT_NAME="exp-0221-sar2ir-512"
+SWANLAB_DESCRIPTION="EXP-0221 DBIM SAR→IR 512 (runtime crop 1024→512)"
+SWANLAB_TAGS="dbim,exp-0221,sar2ir"
+
 # --- Optional extras ---
 USE_LATENT_TARGET=false
 USE_REP_ALIGNMENT=false
@@ -61,7 +67,11 @@ USE_MAVIC_LOSS=false
 SAMPLER="dbim"
 
 COMMON_ARGS=(
-  --log_with tensorboard
+  --log_with swanlab
+  --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
+  --swanlab_description "${SWANLAB_DESCRIPTION}"
+  --swanlab_tags "${SWANLAB_TAGS}"
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'","workspace":"EarthBridge"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
@@ -83,7 +93,6 @@ COMMON_ARGS=(
   --save_model_epochs "${SAVE_MODEL_EPOCHS}"
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
-  --validation_steps "${VALIDATION_STEPS}"
   --num_inference_steps "${NUM_INFERENCE_STEPS}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
@@ -100,6 +109,9 @@ COMMON_ARGS=(
 
 if [ -n "${RESUME_FROM_CHECKPOINT}" ]; then
   COMMON_ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
+fi
+if [ -n "${VALIDATION_STEPS}" ]; then
+  COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
 fi
 
 if [ "${NGPU}" -gt 1 ]; then
