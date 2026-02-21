@@ -1,26 +1,46 @@
 # EXP_0222_SAR2RGB_MULTIRES
 
-Follow-up experiment for `sar2rgb` with multi-resolution training.
+DBIM-only follow-up experiment set.
 
-## Stage A: 512 crop training (runtime crop from 1024)
+- `sar2eo`: no action in this experiment.
+- `rgb2ir`: use known good 512 checkpoint, then quick 1024 tuning.
+- `sar2ir`: use EXP-0221 512 checkpoint, then 1024 tuning.
+- `sar2rgb`: 512 stage first, then 1024 stage.
 
-- `train_ddbm_sar2rgb_512_8gpu.sh`
+All scripts default to `NGPU=8`.
+
+## RGB→IR (quick 1024 tuning from existing 512 checkpoint)
+
+- `train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh`
+- Resume is required; script auto-searches known checkpoint paths.
+
+## SAR→IR (1024 tuning from EXP-0221)
+
+- `train_dbim_sar2ir_1024_from_0221_8gpu.sh`
+- Resume is required; script auto-searches:
+  - `./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512`
+
+## SAR→RGB multi-resolution
+
+### Stage A (512 crop training)
+
 - `train_dbim_sar2rgb_512_8gpu.sh`
-- SAR-specific architecture override:
+- Runtime crop `1024 -> 512`
+- SAR-lite architecture:
   - `num_channels=96`
   - `channel_mult="1,1,2,2,4,4"`
 
-## Stage B: direct 1024 fine-tune
+### Stage B (direct 1024 fine-tune from Stage A)
 
-- `train_ddbm_sar2rgb_1024_8gpu.sh`
 - `train_dbim_sar2rgb_1024_8gpu.sh`
-- SAR-specific architecture override:
-  - `num_channels=128`
-  - `channel_mult="1,1,2,2,4,4"` (reduced vs `...4,8`)
+- Resume is required; script auto-searches:
+  - `./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/sar2rgb_512`
+- SAR-lite architecture is kept compatible with Stage A for checkpoint loading:
+  - `num_channels=96`
+  - `channel_mult="1,1,2,2,4,4"`
 
-Stage B scripts auto-try to pick the latest checkpoint from Stage A.
-You can override explicitly:
+For any 1024 tuning script, you can override checkpoint explicitly:
 
 ```bash
-RESUME_FROM_CHECKPOINT=/path/to/checkpoint-XXXX bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_1024_8gpu.sh
+RESUME_FROM_CHECKPOINT=/path/to/checkpoint-XXXX bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_1024_8gpu.sh
 ```

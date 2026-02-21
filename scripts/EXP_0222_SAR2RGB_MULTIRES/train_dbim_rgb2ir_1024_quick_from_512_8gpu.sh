@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# EXP-0222 — DDBM — SAR→RGB stage A: runtime random-crop 1024->512
+# EXP-0222 — DBIM — RGB→IR quick direct 1024 tuning from known 512 checkpoint
 #
 # Usage:
-#   bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_512_8gpu.sh
-#   NGPU=8 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_512_8gpu.sh
+#   bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh
+#   NGPU=8 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh
+#   RESUME_FROM_CHECKPOINT=/path/to/checkpoint-XXXX bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh
 
 set -euo pipefail
 
@@ -13,31 +14,29 @@ export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU="${NGPU:-8}"
 LOG_DIR="./logs/EXP_0222_SAR2RGB_MULTIRES"
-LOG_FILE="${LOG_DIR}/train_ddbm_sar2rgb_512_8gpu.log"
+LOG_FILE="${LOG_DIR}/train_dbim_rgb2ir_1024_quick_from_512_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config (SAR-lite medium tier for 512 crop stage) ---
-NUM_CHANNELS=96
+# --- Model config (must match good 512 checkpoint) ---
+NUM_CHANNELS=128
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
+ATTENTION_RESOLUTIONS="64,32,16"
 CHANNEL_MULT="1,1,2,2,4,4"
 
 # --- Data / resolution ---
-RESOLUTION=512
+RESOLUTION=1024
 OUTPUT_RESOLUTION=1024
 USE_AUGMENTED=true
-USE_RANDOM_CROP=true
+USE_RANDOM_CROP=false
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
-PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2rgb.txt"
-USE_SAR2RGB_SUP=true
-SAR2RGB_SUP_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_sar2rgb_sup.txt"
+PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_rgb2ir.txt"
 
-# --- Training ---
+# --- Training (quick tuning) ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=140000
+MAX_TRAIN_STEPS=40000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
@@ -52,14 +51,34 @@ SEED=42
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0222"
-OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/ddbm/sar2rgb_512"
+BASE_512_DIR="./ckpt/DBIM_Pixel_Medium-0216/rgb2ir"
+FALLBACK_PRETRAIN="models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/rgb2ir/checkpoint-100000"
+OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/rgb2ir_1024_quick"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
+
+# Auto-pick known good 512 checkpoint when not provided.
+if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${BASE_512_DIR}" ]; then
+  RESUME_FROM_CHECKPOINT="$(ls -d "${BASE_512_DIR}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+fi
+if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${FALLBACK_PRETRAIN}" ]; then
+  RESUME_FROM_CHECKPOINT="${FALLBACK_PRETRAIN}"
+fi
+
+if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
+  echo "[ERROR] Missing resume checkpoint for RGB2IR quick 1024 tuning."
+  echo "Set RESUME_FROM_CHECKPOINT or place a checkpoint under:"
+  echo "  ${BASE_512_DIR}"
+  echo "or:"
+  echo "  ${FALLBACK_PRETRAIN}"
+  exit 1
+fi
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false
 USE_REP_ALIGNMENT=false
 LAMBDA_REP_ALIGNMENT=0.1
 USE_MAVIC_LOSS=false
+SAMPLER="dbim"
 
 COMMON_ARGS=(
   --log_with tensorboard
@@ -75,8 +94,6 @@ COMMON_ARGS=(
   --use_vertical_flip "${USE_VERTICAL_FLIP}"
   --exclude_file "${EXCLUDE_FILE}"
   --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
-  --use_sar2rgb_sup "${USE_SAR2RGB_SUP}"
-  --sar2rgb_sup_manifest "${SAR2RGB_SUP_MANIFEST}"
   --optimizer_type "${OPTIMIZER_TYPE}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"
   --max_train_steps "${MAX_TRAIN_STEPS}"
@@ -94,20 +111,18 @@ COMMON_ARGS=(
   --push_to_hub "${PUSH_TO_HUB}"
   --hub_model_id "${HUB_MODEL_ID}"
   --output_dir "${OUTPUT_DIR}"
+  --resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}"
   --use_latent_target "${USE_LATENT_TARGET}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"
+  --sampler "${SAMPLER}"
 )
 
-if [ -n "${RESUME_FROM_CHECKPOINT}" ]; then
-  COMMON_ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
-fi
-
 if [ "${NGPU}" -gt 1 ]; then
-  nohup accelerate launch --num_processes "${NGPU}" -m examples.ddbm.train_sar2rgb \
+  nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_rgb2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 else
-  nohup python -m examples.ddbm.train_sar2rgb \
+  nohup python -m examples.dbim.train_rgb2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 fi

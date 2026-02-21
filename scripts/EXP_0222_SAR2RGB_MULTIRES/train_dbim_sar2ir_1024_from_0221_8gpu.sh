@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# EXP-0222 — DDBM — SAR→RGB stage B: direct 1024 fine-tune (multi-resolution)
-#
-# This stage is intended to resume from stage A (512 crop) checkpoint.
+# EXP-0222 — DBIM — SAR→IR direct 1024 tuning from EXP-0221 checkpoint
 #
 # Usage:
-#   bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_1024_8gpu.sh
-#   NGPU=8 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_1024_8gpu.sh
-#   RESUME_FROM_CHECKPOINT=/path/to/checkpoint-XXXX bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_ddbm_sar2rgb_1024_8gpu.sh
+#   bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2ir_1024_from_0221_8gpu.sh
+#   NGPU=8 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2ir_1024_from_0221_8gpu.sh
+#   RESUME_FROM_CHECKPOINT=/path/to/checkpoint-XXXX bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2ir_1024_from_0221_8gpu.sh
 
 set -euo pipefail
 
@@ -16,13 +14,13 @@ export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU="${NGPU:-8}"
 LOG_DIR="./logs/EXP_0222_SAR2RGB_MULTIRES"
-LOG_FILE="${LOG_DIR}/train_ddbm_sar2rgb_1024_8gpu.log"
+LOG_FILE="${LOG_DIR}/train_dbim_sar2ir_1024_from_0221_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config (SAR-lite scaled tier for native 1024 stage) ---
-NUM_CHANNELS=128
+# --- Model config (SAR-lite; must match EXP-0221 512 stage for resume) ---
+NUM_CHANNELS=96
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="128,64,32"
+ATTENTION_RESOLUTIONS="64,32,16"
 CHANNEL_MULT="1,1,2,2,4,4"
 
 # --- Data / resolution ---
@@ -33,14 +31,12 @@ USE_RANDOM_CROP=false
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
-PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2rgb.txt"
-USE_SAR2RGB_SUP=true
-SAR2RGB_SUP_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_sar2rgb_sup.txt"
+PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2ir.txt"
 
 # --- Training ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=100000
+MAX_TRAIN_STEPS=80000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
@@ -55,13 +51,20 @@ SEED=42
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0222"
-BASE_512_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/ddbm/sar2rgb_512"
-OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/ddbm/sar2rgb_1024"
+BASE_0221_DIR="./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512"
+OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/sar2ir_1024"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
-# Auto-pick latest 512-stage checkpoint when not provided.
-if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${BASE_512_DIR}" ]; then
-  RESUME_FROM_CHECKPOINT="$(ls -d "${BASE_512_DIR}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+# Auto-pick latest EXP-0221 checkpoint when not provided.
+if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${BASE_0221_DIR}" ]; then
+  RESUME_FROM_CHECKPOINT="$(ls -d "${BASE_0221_DIR}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+fi
+
+if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
+  echo "[ERROR] Missing resume checkpoint for SAR2IR 1024 tuning."
+  echo "Set RESUME_FROM_CHECKPOINT or ensure EXP-0221 checkpoints exist in:"
+  echo "  ${BASE_0221_DIR}"
+  exit 1
 fi
 
 # --- Optional extras ---
@@ -69,6 +72,7 @@ USE_LATENT_TARGET=false
 USE_REP_ALIGNMENT=false
 LAMBDA_REP_ALIGNMENT=0.1
 USE_MAVIC_LOSS=false
+SAMPLER="dbim"
 
 COMMON_ARGS=(
   --log_with tensorboard
@@ -84,8 +88,6 @@ COMMON_ARGS=(
   --use_vertical_flip "${USE_VERTICAL_FLIP}"
   --exclude_file "${EXCLUDE_FILE}"
   --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
-  --use_sar2rgb_sup "${USE_SAR2RGB_SUP}"
-  --sar2rgb_sup_manifest "${SAR2RGB_SUP_MANIFEST}"
   --optimizer_type "${OPTIMIZER_TYPE}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"
   --max_train_steps "${MAX_TRAIN_STEPS}"
@@ -103,20 +105,18 @@ COMMON_ARGS=(
   --push_to_hub "${PUSH_TO_HUB}"
   --hub_model_id "${HUB_MODEL_ID}"
   --output_dir "${OUTPUT_DIR}"
+  --resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}"
   --use_latent_target "${USE_LATENT_TARGET}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
   --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
   --use_mavic_loss "${USE_MAVIC_LOSS}"
+  --sampler "${SAMPLER}"
 )
 
-if [ -n "${RESUME_FROM_CHECKPOINT}" ]; then
-  COMMON_ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
-fi
-
 if [ "${NGPU}" -gt 1 ]; then
-  nohup accelerate launch --num_processes "${NGPU}" -m examples.ddbm.train_sar2rgb \
+  nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 else
-  nohup python -m examples.ddbm.train_sar2rgb \
+  nohup python -m examples.dbim.train_sar2ir \
     "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
 fi

@@ -19,10 +19,10 @@ LOG_DIR="./logs/EXP_0222_SAR2RGB_MULTIRES"
 LOG_FILE="${LOG_DIR}/train_dbim_sar2rgb_1024_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config (SAR-lite scaled tier for native 1024 stage) ---
-NUM_CHANNELS=128
+# --- Model config (SAR-lite; must match 512 stage for checkpoint loading) ---
+NUM_CHANNELS=96
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="128,64,32"
+ATTENTION_RESOLUTIONS="64,32,16"
 CHANNEL_MULT="1,1,2,2,4,4"
 
 # --- Data / resolution ---
@@ -62,6 +62,13 @@ RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 # Auto-pick latest 512-stage checkpoint when not provided.
 if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${BASE_512_DIR}" ]; then
   RESUME_FROM_CHECKPOINT="$(ls -d "${BASE_512_DIR}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+fi
+
+if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
+  echo "[ERROR] Missing resume checkpoint for SAR2RGB 1024 tuning."
+  echo "Set RESUME_FROM_CHECKPOINT or ensure 512-stage checkpoints exist in:"
+  echo "  ${BASE_512_DIR}"
+  exit 1
 fi
 
 # --- Optional extras ---
