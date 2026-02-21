@@ -2,6 +2,26 @@
 
 This directory contains utility scripts for the 4th-MAVIC-T project.
 
+## Experiment Subfolders
+
+### `EXP_0221_SAR2IR/`
+
+Focused 8-GPU training scripts for failing task `sar2ir`:
+
+- `train_ddbm_sar2ir_8gpu.sh`
+- `train_dbim_sar2ir_8gpu.sh`
+
+Both use runtime random crop (`1024 -> 512`) during training.
+
+### `EXP_0222_SAR2RGB_MULTIRES/`
+
+8-GPU `sar2rgb` follow-up scripts with multi-resolution stages:
+
+- Stage A (crop training at 512):  
+  `train_ddbm_sar2rgb_512_8gpu.sh`, `train_dbim_sar2rgb_512_8gpu.sh`
+- Stage B (direct training/fine-tuning at 1024):  
+  `train_ddbm_sar2rgb_1024_8gpu.sh`, `train_dbim_sar2rgb_1024_8gpu.sh`
+
 ## Available Scripts
 
 ### `document_model_configs.py`
