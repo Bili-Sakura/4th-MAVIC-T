@@ -48,7 +48,7 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=5000
+VALIDATION_STEPS=  # empty = disabled (no validation logging)
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
@@ -127,7 +127,6 @@ COMMON_ARGS=(
   --save_model_epochs "${SAVE_MODEL_EPOCHS}"
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
-  --validation_steps "${VALIDATION_STEPS}"
   --num_inference_steps "${NUM_INFERENCE_STEPS}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
@@ -144,6 +143,9 @@ COMMON_ARGS=(
 
 if [ -n "${RESUME_FROM_CHECKPOINT}" ]; then
   COMMON_ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
+fi
+if [ -n "${VALIDATION_STEPS}" ]; then
+  COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
 fi
 
 if [ "${NGPU}" -gt 1 ]; then

@@ -44,7 +44,7 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=5000
+VALIDATION_STEPS=  # empty = disabled (no validation logging)
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
@@ -121,7 +121,6 @@ COMMON_ARGS=(
   --save_model_epochs "${SAVE_MODEL_EPOCHS}"
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
-  --validation_steps "${VALIDATION_STEPS}"
   --num_inference_steps "${NUM_INFERENCE_STEPS}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
@@ -136,6 +135,10 @@ COMMON_ARGS=(
   --use_mavic_loss "${USE_MAVIC_LOSS}"
   --sampler "${SAMPLER}"
 )
+
+if [ -n "${VALIDATION_STEPS}" ]; then
+  COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
+fi
 
 if [ "${NGPU}" -gt 1 ]; then
   nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2ir \
