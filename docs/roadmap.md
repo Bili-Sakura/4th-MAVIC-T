@@ -131,3 +131,40 @@ bash scripts/CUT_Scaled-0218/train_rgb2ir.sh
 bash scripts/CUT_Scaled-0218/train_sar2ir.sh
 bash scripts/CUT_Scaled-0218/train_sar2rgb.sh
 ```
+
+## EXP-0221 SAR2IR (2026/02/21)
+
+**Pipeline**: `DBIMPipeline` (DBIM in pixel space). Focused recovery experiment for the failing `sar2ir` task. Uses **8-GPU training** by default, runtime random crop `1024 → 512`, and SAR-specific lighter architecture (`num_channels=96`, `channel_mult="1,1,2,2,4,4"`).
+
+| Task      | Pixel shape    | Notes                    |
+|-----------|----------------|--------------------------|
+| SAR → IR  | `(512, 512)`   | SAR-lite, crop from 1024 |
+
+```bash
+bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_8gpu.sh
+```
+
+The 512px checkpoint from this experiment feeds into EXP-0222 for direct 1024px tuning.
+
+## EXP-0222 SAR2RGB MultiRes (2026/02/22)
+
+**Pipeline**: `DBIMPipeline` (DBIM in pixel space). DBIM-only follow-up with multi-resolution training. All scripts default to `NGPU=8`. **sar2eo** has no script in this batch.
+
+| Task      | Stage | Pixel shape    | Notes                                      |
+|-----------|-------|----------------|--------------------------------------------|
+| RGB → IR  | —     | `(1024, 1024)` | Quick 1024 tuning from known good 512 ckpt |
+| SAR → IR  | —     | `(1024, 1024)` | 1024 tuning from EXP-0221 checkpoint       |
+| SAR → RGB | A     | `(512, 512)`   | Runtime crop 1024→512, SAR-lite            |
+| SAR → RGB | B     | `(1024, 1024)` | Direct 1024 fine-tune from Stage A         |
+
+```bash
+# RGB→IR: quick 1024 tuning (resume from known 512 checkpoint)
+bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh
+
+# SAR→IR: 1024 tuning from EXP-0221 (run EXP-0221 first)
+bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2ir_1024_from_0221_8gpu.sh
+
+# SAR→RGB: Stage A (512 crop), then Stage B (1024 fine-tune)
+bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_512_8gpu.sh
+bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_1024_8gpu.sh
+```
