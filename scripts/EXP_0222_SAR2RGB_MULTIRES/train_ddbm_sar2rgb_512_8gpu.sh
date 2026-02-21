@@ -16,8 +16,8 @@ LOG_DIR="./logs/EXP_0222_SAR2RGB_MULTIRES"
 LOG_FILE="${LOG_DIR}/train_ddbm_sar2rgb_512_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config (medium tier for 512 crop stage) ---
-NUM_CHANNELS=128
+# --- Model config (SAR-lite medium tier for 512 crop stage) ---
+NUM_CHANNELS=96
 NUM_RES_BLOCKS=2
 ATTENTION_RESOLUTIONS="32,16,8"
 CHANNEL_MULT="1,1,2,2,4,4"

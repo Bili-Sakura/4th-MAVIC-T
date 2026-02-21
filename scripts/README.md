@@ -12,6 +12,8 @@ Focused 8-GPU training scripts for failing task `sar2ir`:
 - `train_dbim_sar2ir_8gpu.sh`
 
 Both use runtime random crop (`1024 -> 512`) during training.
+These scripts also use a SAR-specific lighter UNet setting
+(`num_channels=96`, `channel_mult="1,1,2,2,4,4"`).
 
 ### `EXP_0222_SAR2RGB_MULTIRES/`
 
@@ -21,6 +23,9 @@ Both use runtime random crop (`1024 -> 512`) during training.
   `train_ddbm_sar2rgb_512_8gpu.sh`, `train_dbim_sar2rgb_512_8gpu.sh`
 - Stage B (direct training/fine-tuning at 1024):  
   `train_ddbm_sar2rgb_1024_8gpu.sh`, `train_dbim_sar2rgb_1024_8gpu.sh`
+
+Both stages use SAR-specific reduced-width architecture overrides to
+decrease capacity versus RGB-heavy defaults.
 
 ## Available Scripts
 

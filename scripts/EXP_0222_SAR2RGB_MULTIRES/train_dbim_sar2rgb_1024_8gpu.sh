@@ -19,11 +19,11 @@ LOG_DIR="./logs/EXP_0222_SAR2RGB_MULTIRES"
 LOG_FILE="${LOG_DIR}/train_dbim_sar2rgb_1024_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config (scaled tier for native 1024 stage) ---
-NUM_CHANNELS=160
+# --- Model config (SAR-lite scaled tier for native 1024 stage) ---
+NUM_CHANNELS=128
 NUM_RES_BLOCKS=2
 ATTENTION_RESOLUTIONS="128,64,32"
-CHANNEL_MULT="1,1,2,2,4,8"
+CHANNEL_MULT="1,1,2,2,4,4"
 
 # --- Data / resolution ---
 RESOLUTION=1024
