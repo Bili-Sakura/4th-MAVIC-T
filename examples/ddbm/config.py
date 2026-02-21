@@ -23,6 +23,7 @@ class TaskConfig:
     target_channels: int = 1
     model_channels: int = 1  # channels the DDBM UNet operates in
     resolution: int = 256
+    load_size: Optional[int] = None  # if set: resize to load_size, then crop (if >resolution) or resize (if <resolution)
     use_augmented: bool = True  # also load *_crop_aug training split
     use_horizontal_flip: bool = False  # random horizontal flip augmentation
     use_vertical_flip: bool = False  # random vertical flip augmentation

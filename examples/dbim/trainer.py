@@ -78,6 +78,7 @@ class DBIMTrainer(DDBMTrainer):
             task=self.cfg.task_name,
             split="train",
             resolution=self.cfg.resolution,
+            load_size=getattr(self.cfg, "load_size", None),
             source_channels=src_ch,
             target_channels=tgt_ch,
             use_augmented=self.cfg.use_augmented,
