@@ -54,7 +54,8 @@ LR_WARMUP_STEPS=0
 USE_MAVIC_LOSS=false
 TRAIN_BATCH_SIZE=8
 NUM_EPOCHS=0
-MAX_TRAIN_STEPS=300000
+FURTHER_TRAIN_STEPS="${FURTHER_TRAIN_STEPS:-200000}"  # additional steps after resume
+MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-}"  # optional absolute total-step override
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=0
@@ -79,7 +80,37 @@ SWANLAB_TAGS="dbim,pixel,sar2ir"
 
 # --- Resume from checkpoint ---
 # Use pre-trained checkpoint from models/ (HF download); set to "latest" to resume from output_dir
-RESUME_FROM_CHECKPOINT="models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-100000"
+RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2ir/checkpoint-100000}"
+RESUME_STEP=0
+if [ -n "${RESUME_FROM_CHECKPOINT}" ]; then
+  STEP_PATH="${RESUME_FROM_CHECKPOINT}"
+  if [ "${RESUME_FROM_CHECKPOINT}" = "latest" ]; then
+    STEP_PATH=""
+    for candidate_dir in "${OUTPUT_DIR}" "${OUTPUT_DIR}/dbim/sar2ir"; do
+      if [ -d "${candidate_dir}" ]; then
+        latest_ckpt="$(ls -d "${candidate_dir}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+        if [ -n "${latest_ckpt}" ]; then
+          STEP_PATH="${latest_ckpt}"
+          break
+        fi
+      fi
+    done
+  fi
+  if [ -n "${STEP_PATH}" ]; then
+    CKPT_BASENAME="$(basename "${STEP_PATH%/}")"
+    if [[ "${CKPT_BASENAME}" =~ ^checkpoint-([0-9]+)$ ]]; then
+      RESUME_STEP="${BASH_REMATCH[1]}"
+    else
+      echo "[ERROR] Resume checkpoint must use 'checkpoint-<step>' naming for further training."
+      echo "Got: ${CKPT_BASENAME}"
+      exit 1
+    fi
+  fi
+fi
+if [ -z "${MAX_TRAIN_STEPS}" ]; then
+  MAX_TRAIN_STEPS=$((RESUME_STEP + FURTHER_TRAIN_STEPS))
+fi
+echo "[INFO] Resume step: ${RESUME_STEP}; target max_train_steps: ${MAX_TRAIN_STEPS}"
 
 COMMON_ARGS=(
   --log_with tensorboard

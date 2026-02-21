@@ -36,7 +36,8 @@ PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifest
 # --- Training (quick tuning) ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=40000
+FURTHER_TRAIN_STEPS="${FURTHER_TRAIN_STEPS:-40000}"  # additional optimizer steps after resume
+MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-}"  # optional absolute total-step override
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
@@ -57,8 +58,16 @@ OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/rgb2ir_1024_quick"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 # Auto-pick known good 512 checkpoint when not provided.
-if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${BASE_512_DIR}" ]; then
-  RESUME_FROM_CHECKPOINT="$(ls -d "${BASE_512_DIR}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
+  for candidate_dir in "${BASE_512_DIR}" "${BASE_512_DIR}/dbim/rgb2ir"; do
+    if [ -d "${candidate_dir}" ]; then
+      latest_ckpt="$(ls -d "${candidate_dir}"/checkpoint-* 2>/dev/null | sort -V | tail -n 1 || true)"
+      if [ -n "${latest_ckpt}" ]; then
+        RESUME_FROM_CHECKPOINT="${latest_ckpt}"
+        break
+      fi
+    fi
+  done
 fi
 if [ -z "${RESUME_FROM_CHECKPOINT}" ] && [ -d "${FALLBACK_PRETRAIN}" ]; then
   RESUME_FROM_CHECKPOINT="${FALLBACK_PRETRAIN}"
@@ -72,6 +81,20 @@ if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
   echo "  ${FALLBACK_PRETRAIN}"
   exit 1
 fi
+
+CKPT_BASENAME="$(basename "${RESUME_FROM_CHECKPOINT%/}")"
+if [[ "${CKPT_BASENAME}" =~ ^checkpoint-([0-9]+)$ ]]; then
+  RESUME_STEP="${BASH_REMATCH[1]}"
+else
+  echo "[ERROR] Resume checkpoint must use 'checkpoint-<step>' naming for further training."
+  echo "Got: ${CKPT_BASENAME}"
+  exit 1
+fi
+
+if [ -z "${MAX_TRAIN_STEPS}" ]; then
+  MAX_TRAIN_STEPS=$((RESUME_STEP + FURTHER_TRAIN_STEPS))
+fi
+echo "[INFO] Resume step: ${RESUME_STEP}; target max_train_steps: ${MAX_TRAIN_STEPS}"
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false

@@ -13,12 +13,20 @@ All scripts default to `NGPU=8`.
 
 - `train_dbim_rgb2ir_1024_quick_from_512_8gpu.sh`
 - Resume is required; script auto-searches known checkpoint paths.
+- Further-training steps are counted as additional steps:
+  - default `FURTHER_TRAIN_STEPS=40000`
+  - effective `max_train_steps = resume_step + FURTHER_TRAIN_STEPS`
+  - optional absolute override: `MAX_TRAIN_STEPS=<total_step_cap>`
 
 ## SAR→IR (1024 tuning from EXP-0221)
 
 - `train_dbim_sar2ir_1024_from_0221_8gpu.sh`
 - Resume is required; script auto-searches:
   - `./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512`
+- Further-training steps are counted as additional steps:
+  - default `FURTHER_TRAIN_STEPS=80000`
+  - effective `max_train_steps = resume_step + FURTHER_TRAIN_STEPS`
+  - optional absolute override: `MAX_TRAIN_STEPS=<total_step_cap>`
 
 ## SAR→RGB multi-resolution
 
@@ -38,6 +46,10 @@ All scripts default to `NGPU=8`.
 - SAR-lite architecture is kept compatible with Stage A for checkpoint loading:
   - `num_channels=96`
   - `channel_mult="1,1,2,2,4,4"`
+- Further-training steps are counted as additional steps:
+  - default `FURTHER_TRAIN_STEPS=100000`
+  - effective `max_train_steps = resume_step + FURTHER_TRAIN_STEPS`
+  - optional absolute override: `MAX_TRAIN_STEPS=<total_step_cap>`
 
 For any 1024 tuning script, you can override checkpoint explicitly:
 
