@@ -145,6 +145,8 @@ class MavicTCUTDataset(Dataset):
     use_augmented : bool
         If ``True`` and ``split == "train"``, also include the ``*_crop_aug``
         variant as additional samples.
+    use_random_crop : bool
+        If ``True`` and ``split == "train"``, apply random crop to ``resolution``.
     use_horizontal_flip : bool
         If ``True`` and ``split == "train"``, randomly apply horizontal flip
         (applied consistently to both source and target).
@@ -165,13 +167,14 @@ class MavicTCUTDataset(Dataset):
         self,
         task: str,
         split: str = "train",
-        resolution: int = 256,
+        resolution: int = 512,
         load_size: Optional[int] = None,
         source_channels: Optional[int] = None,
         target_channels: Optional[int] = None,
         model_channels: int = 3,
         with_target: Optional[bool] = None,
         use_augmented: bool = False,
+        use_random_crop: bool = True,
         use_horizontal_flip: bool = False,
         use_vertical_flip: bool = False,
         refined_root: Optional[str] = None,
@@ -187,6 +190,7 @@ class MavicTCUTDataset(Dataset):
         self.load_size = load_size
         self.source_channels = source_channels or model_channels
         self.target_channels = target_channels or model_channels
+        self.use_random_crop = use_random_crop and split == "train"
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
 
@@ -257,7 +261,7 @@ class MavicTCUTDataset(Dataset):
         """
         rec = self._records[idx]
 
-        use_random_crop = self.split == "train"
+        use_random_crop = self.use_random_crop
         use_resize_mode = self.load_size is not None and self.load_size != self.resolution
         use_resize_and_crop = use_resize_mode and self.load_size > self.resolution
 

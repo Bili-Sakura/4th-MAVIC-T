@@ -106,6 +106,7 @@ class Pix2PixTurboTrainer:
             resolution=self.cfg.resolution,
             model_channels=self.cfg.model_channels,
             use_augmented=self.cfg.use_augmented,
+            use_random_crop=getattr(self.cfg, "use_random_crop", False),
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,

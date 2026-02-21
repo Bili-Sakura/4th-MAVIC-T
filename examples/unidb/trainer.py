@@ -93,6 +93,7 @@ class UniDBTrainer:
             source_channels=src_ch,
             target_channels=tgt_ch,
             use_augmented=cfg.use_augmented,
+            use_random_crop=getattr(cfg, "use_random_crop", False),
             use_horizontal_flip=cfg.use_horizontal_flip,
             use_vertical_flip=cfg.use_vertical_flip,
             exclude_file=cfg.exclude_file,

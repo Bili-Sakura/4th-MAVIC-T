@@ -30,14 +30,29 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
-from examples.ddbm.dataset_wrapper import _load_paired_val_exclude_set  # noqa: E402
+from examples.ddbm.dataset_wrapper import (  # noqa: E402
+    _load_paired_val_exclude_set,
+    _sample_random_crop_pos,
+)
 
 
-def _load_image_as_tensor(path: str, channels: int, resolution: int) -> torch.Tensor:
-    """Load an image from *path*, resize, and return a ``(C, H, W)`` float32 tensor in [0, 1]."""
-    img = Image.open(path)
-    img = img.resize((resolution, resolution), Image.BILINEAR)
-    arr = np.array(img, dtype=np.float32)
+def _load_image_as_tensor(
+    path: str,
+    channels: int,
+    resolution: int,
+    crop_pos: Optional[tuple[int, int]] = None,
+) -> torch.Tensor:
+    """Load an image from *path* and return a ``(C, H, W)`` float32 tensor in [0, 1]."""
+    with Image.open(path) as img:
+        if crop_pos is not None:
+            x, y = crop_pos
+            if img.width >= x + resolution and img.height >= y + resolution:
+                img = img.crop((x, y, x + resolution, y + resolution))
+            else:
+                img = img.resize((resolution, resolution), Image.BILINEAR)
+        else:
+            img = img.resize((resolution, resolution), Image.BILINEAR)
+        arr = np.array(img, dtype=np.float32)
 
     if arr.max() > 1.0:
         if arr.dtype == np.float32 and arr.max() > 255.0:
@@ -96,6 +111,9 @@ class MavicTDDIBDataset(Dataset):
     use_augmented : bool
         If ``True`` and ``split == "train"``, also include the ``*_crop_aug``
         variant.
+    use_random_crop : bool
+        If ``True`` and ``split == "train"``, apply random direct crop of size
+        ``resolution`` at runtime.
     use_horizontal_flip : bool
         Random horizontal flip augmentation for training.
     use_vertical_flip : bool
@@ -112,9 +130,10 @@ class MavicTDDIBDataset(Dataset):
         task: str,
         domain: str = "source",
         split: str = "train",
-        resolution: int = 256,
+        resolution: int = 512,
         model_channels: int = 3,
         use_augmented: bool = False,
+        use_random_crop: bool = False,
         use_horizontal_flip: bool = False,
         use_vertical_flip: bool = False,
         refined_root: Optional[str] = None,
@@ -128,6 +147,7 @@ class MavicTDDIBDataset(Dataset):
         self.split = split
         self.resolution = resolution
         self.model_channels = model_channels
+        self.use_random_crop = use_random_crop and split == "train"
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
 
@@ -185,7 +205,15 @@ class MavicTDDIBDataset(Dataset):
     def __getitem__(self, idx: int) -> torch.Tensor:
         """Return a single image tensor in [0, 1]."""
         rec = self._records[idx]
-        img = _load_image_as_tensor(rec[self._path_key], self.model_channels, self.resolution)
+        crop_pos = None
+        if self.use_random_crop:
+            crop_pos = _sample_random_crop_pos(rec[self._path_key], self.resolution)
+        img = _load_image_as_tensor(
+            rec[self._path_key],
+            self.model_channels,
+            self.resolution,
+            crop_pos=crop_pos,
+        )
 
         if self.use_horizontal_flip and torch.rand(1).item() > 0.5:
             img = TF.hflip(img)

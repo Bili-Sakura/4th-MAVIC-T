@@ -29,8 +29,9 @@ class TaskConfig:
     source_channels: int = 1
     target_channels: int = 1
     model_channels: int = 3  # UniDB ConditionalUNet uses 3-ch (RGB)
-    resolution: int = 256
+    resolution: int = 512
     use_augmented: bool = True
+    use_random_crop: bool = True  # random runtime crop to resolution during train
     use_horizontal_flip: bool = False
     use_vertical_flip: bool = False
     exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
@@ -100,14 +101,14 @@ class TaskConfig:
 
 
 def sar2eo_config(**overrides) -> TaskConfig:
-    """SAR-to-EO: 1-band 256x256 → 1-band 256x256."""
+    """SAR-to-EO: native 1024×1024, runtime random-crop to 512×512."""
     cfg = TaskConfig(
         task_name="sar2eo",
         paired_val_manifest=_default_paired_val_manifest("sar2eo"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=256,
+        resolution=512,
         output_dir="./ckpt",
         train_batch_size=32,
         validation_steps=1000,
@@ -119,14 +120,14 @@ def sar2eo_config(**overrides) -> TaskConfig:
 
 
 def rgb2ir_config(**overrides) -> TaskConfig:
-    """RGB-to-IR: 3-band → 1-band."""
+    """RGB-to-IR: 3-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
         paired_val_manifest=_default_paired_val_manifest("rgb2ir"),
         source_channels=3,
         target_channels=1,
         model_channels=3,
-        resolution=1024,
+        resolution=512,
         output_dir="./ckpt",
         train_batch_size=8,
         validation_steps=1000,
@@ -138,14 +139,14 @@ def rgb2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2ir_config(**overrides) -> TaskConfig:
-    """SAR-to-IR: 1-band → 1-band."""
+    """SAR-to-IR: 1-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2ir",
         paired_val_manifest=_default_paired_val_manifest("sar2ir"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=1024,
+        resolution=512,
         output_dir="./ckpt",
         train_batch_size=8,
         validation_steps=1000,
@@ -157,7 +158,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2rgb_config(**overrides) -> TaskConfig:
-    """SAR-to-RGB: 1-band → 3-band."""
+    """SAR-to-RGB: 1-band → 3-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
@@ -166,7 +167,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=3,
         model_channels=3,
-        resolution=1024,
+        resolution=512,
         output_dir="./ckpt",
         train_batch_size=8,
         validation_steps=1000,
