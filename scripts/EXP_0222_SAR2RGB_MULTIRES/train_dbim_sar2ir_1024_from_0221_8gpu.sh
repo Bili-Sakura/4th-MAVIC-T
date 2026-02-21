@@ -56,6 +56,12 @@ BASE_0221_DIR="./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512"
 OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/sar2ir_1024"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
+# --- SwanLab ---
+SWANLOG_DIR="./ckpt/swanlog"
+SWANLAB_EXPERIMENT_NAME="exp-0222-sar2ir-1024"
+SWANLAB_DESCRIPTION="EXP-0222 DBIM SAR→IR 1024 (from EXP-0221)"
+SWANLAB_TAGS="dbim,exp-0222,sar2ir"
+
 # Auto-pick latest EXP-0221 checkpoint when not provided.
 if [ -z "${RESUME_FROM_CHECKPOINT}" ]; then
   for candidate_dir in "${BASE_0221_DIR}" "${BASE_0221_DIR}/dbim/sar2ir"; do
@@ -99,7 +105,11 @@ USE_MAVIC_LOSS=false
 SAMPLER="dbim"
 
 COMMON_ARGS=(
-  --log_with tensorboard
+  --log_with swanlab
+  --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
+  --swanlab_description "${SWANLAB_DESCRIPTION}"
+  --swanlab_tags "${SWANLAB_TAGS}"
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'","workspace":"EarthBridge"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"

@@ -53,6 +53,12 @@ HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0221"
 OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
+# --- SwanLab ---
+SWANLOG_DIR="./ckpt/swanlog"
+SWANLAB_EXPERIMENT_NAME="exp-0221-sar2ir-512"
+SWANLAB_DESCRIPTION="EXP-0221 DBIM SAR→IR 512 (runtime crop 1024→512)"
+SWANLAB_TAGS="dbim,exp-0221,sar2ir"
+
 # --- Optional extras ---
 USE_LATENT_TARGET=false
 USE_REP_ALIGNMENT=false
@@ -61,7 +67,11 @@ USE_MAVIC_LOSS=false
 SAMPLER="dbim"
 
 COMMON_ARGS=(
-  --log_with tensorboard
+  --log_with swanlab
+  --swanlab_experiment_name "${SWANLAB_EXPERIMENT_NAME}"
+  --swanlab_description "${SWANLAB_DESCRIPTION}"
+  --swanlab_tags "${SWANLAB_TAGS}"
+  --swanlab_init_kwargs_json '{"logdir":"'"${SWANLOG_DIR}"'","workspace":"EarthBridge"}'
   --num_channels "${NUM_CHANNELS}"
   --num_res_blocks "${NUM_RES_BLOCKS}"
   --attention_resolutions "${ATTENTION_RESOLUTIONS}"
