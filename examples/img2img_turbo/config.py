@@ -32,6 +32,7 @@ class TaskConfig:
     model_channels: int = 3  # SD-Turbo VAE expects 3-ch RGB
     resolution: int = 512
     use_augmented: bool = True  # also load *_crop_aug training split
+    use_random_crop: bool = True  # random runtime crop to resolution during train
     use_horizontal_flip: bool = False
     use_vertical_flip: bool = False
 
@@ -147,7 +148,7 @@ def sar2eo_config(**overrides) -> TaskConfig:
 
 
 def rgb2ir_config(**overrides) -> TaskConfig:
-    """RGB-to-IR: 3-band → 1-band."""
+    """RGB-to-IR: 3-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
         paired_val_manifest=_default_paired_val_manifest("rgb2ir"),
@@ -155,7 +156,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
         source_channels=3,
         target_channels=1,
         model_channels=3,
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./outputs/turbo_rgb2ir",
         train_batch_size=4,
@@ -170,7 +171,7 @@ def rgb2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2ir_config(**overrides) -> TaskConfig:
-    """SAR-to-IR: 1-band → 1-band."""
+    """SAR-to-IR: 1-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2ir",
         paired_val_manifest=_default_paired_val_manifest("sar2ir"),
@@ -178,7 +179,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=1,
         model_channels=3,
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./outputs/turbo_sar2ir",
         train_batch_size=4,
@@ -193,7 +194,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2rgb_config(**overrides) -> TaskConfig:
-    """SAR-to-RGB: 1-band → 3-band."""
+    """SAR-to-RGB: 1-band → 3-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
@@ -203,7 +204,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=3,
         model_channels=3,
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./outputs/turbo_sar2rgb",
         train_batch_size=4,

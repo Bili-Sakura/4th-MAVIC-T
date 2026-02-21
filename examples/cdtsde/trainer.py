@@ -73,6 +73,7 @@ class CDTSDETrainer(DDBMTrainer):
             source_channels=src_ch,
             target_channels=tgt_ch,
             use_augmented=self.cfg.use_augmented,
+            use_random_crop=getattr(self.cfg, "use_random_crop", False),
             use_horizontal_flip=self.cfg.use_horizontal_flip,
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,

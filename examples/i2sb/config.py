@@ -22,8 +22,9 @@ class TaskConfig:
     source_channels: int = 1
     target_channels: int = 1
     model_channels: int = 1  # channels the I2SB UNet operates in
-    resolution: int = 256
+    resolution: int = 512
     use_augmented: bool = True  # also load *_crop_aug training split
+    use_random_crop: bool = True  # random runtime crop to resolution during train
     use_horizontal_flip: bool = False  # random horizontal flip augmentation
     use_vertical_flip: bool = False  # random vertical flip augmentation
 
@@ -133,14 +134,14 @@ def _default_sar2rgb_sup_manifest() -> str:
 
 
 def sar2eo_config(**overrides) -> TaskConfig:
-    """SAR-to-EO: 1-band 256x256 → 1-band 256x256."""
+    """SAR-to-EO: native 1024×1024, runtime random-crop to 512×512."""
     cfg = TaskConfig(
         task_name="sar2eo",
         paired_val_manifest=_default_paired_val_manifest("sar2eo"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=256,
+        resolution=512,
         output_dir="./ckpt",
         train_batch_size=32,
         eval_batch_size=16,
@@ -154,14 +155,14 @@ def sar2eo_config(**overrides) -> TaskConfig:
 
 
 def rgb2ir_config(**overrides) -> TaskConfig:
-    """RGB-to-IR: 3-band → 1-band (native 1024×1024)."""
+    """RGB-to-IR: 3-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="rgb2ir",
         paired_val_manifest=_default_paired_val_manifest("rgb2ir"),
         source_channels=3,
         target_channels=1,
         model_channels=3,  # operate in 3-ch space; 1-ch target is expanded
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -176,14 +177,14 @@ def rgb2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2ir_config(**overrides) -> TaskConfig:
-    """SAR-to-IR: 1-band → 1-band (native 1024×1024)."""
+    """SAR-to-IR: 1-band → 1-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2ir",
         paired_val_manifest=_default_paired_val_manifest("sar2ir"),
         source_channels=1,
         target_channels=1,
         model_channels=1,
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,
@@ -198,7 +199,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
 
 
 def sar2rgb_config(**overrides) -> TaskConfig:
-    """SAR-to-RGB: 1-band → 3-band (native 1024×1024)."""
+    """SAR-to-RGB: 1-band → 3-band (native 1024×1024, train at 512×512 crop)."""
     cfg = TaskConfig(
         task_name="sar2rgb",
         paired_val_manifest=_default_paired_val_manifest("sar2rgb"),
@@ -207,7 +208,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         source_channels=1,
         target_channels=3,
         model_channels=3,  # operate in 3-ch space; 1-ch source is expanded
-        resolution=1024,
+        resolution=512,
         use_augmented=True,
         output_dir="./ckpt",
         train_batch_size=8,

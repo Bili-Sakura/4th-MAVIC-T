@@ -35,15 +35,29 @@ from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
 from examples.ddbm.dataset_wrapper import (  # noqa: E402
     _load_paired_val_exclude_set,
     _load_sar2rgb_sup_records,
+    _sample_random_crop_pos,
+    _sample_random_crop_pos_for_pair,
     resolve_sar2rgb_sup_manifest,
 )
 
 
-def _load_image_as_tensor(path: str, channels: int, resolution: int) -> torch.Tensor:
-    """Load an image from *path*, resize, and return a ``(C, H, W)`` float32 tensor in [0, 1]."""
-    img = Image.open(path)
-    img = img.resize((resolution, resolution), Image.BILINEAR)
-    arr = np.array(img, dtype=np.float32)
+def _load_image_as_tensor(
+    path: str,
+    channels: int,
+    resolution: int,
+    crop_pos: Optional[Tuple[int, int]] = None,
+) -> torch.Tensor:
+    """Load an image from *path* and return a ``(C, H, W)`` float32 tensor in [0, 1]."""
+    with Image.open(path) as img:
+        if crop_pos is not None:
+            x, y = crop_pos
+            if img.width >= x + resolution and img.height >= y + resolution:
+                img = img.crop((x, y, x + resolution, y + resolution))
+            else:
+                img = img.resize((resolution, resolution), Image.BILINEAR)
+        else:
+            img = img.resize((resolution, resolution), Image.BILINEAR)
+        arr = np.array(img, dtype=np.float32)
 
     # Normalise to [0, 1]
     if arr.max() > 1.0:
@@ -106,6 +120,9 @@ class MavicTI2SBDataset(Dataset):
     use_augmented : bool
         If ``True`` and ``split == "train"``, also include the ``*_crop_aug``
         variant as additional samples.
+    use_random_crop : bool
+        If ``True`` and ``split == "train"``, apply random direct crop of size
+        ``resolution`` at runtime (same crop applied to source and target).
     use_horizontal_flip : bool
         If ``True`` and ``split == "train"``, randomly apply horizontal flip
         (applied consistently to both source and target).
@@ -126,12 +143,13 @@ class MavicTI2SBDataset(Dataset):
         self,
         task: str,
         split: str = "train",
-        resolution: int = 256,
+        resolution: int = 512,
         source_channels: Optional[int] = None,
         target_channels: Optional[int] = None,
         model_channels: int = 3,
         with_target: Optional[bool] = None,
         use_augmented: bool = False,
+        use_random_crop: bool = False,
         use_horizontal_flip: bool = False,
         use_vertical_flip: bool = False,
         refined_root: Optional[str] = None,
@@ -146,6 +164,7 @@ class MavicTI2SBDataset(Dataset):
         self.resolution = resolution
         self.source_channels = source_channels or model_channels
         self.target_channels = target_channels or model_channels
+        self.use_random_crop = use_random_crop and split == "train"
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
 
@@ -215,11 +234,31 @@ class MavicTI2SBDataset(Dataset):
         zero tensor with the correct shape.
         """
         rec = self._records[idx]
+        crop_pos = None
+        if self.use_random_crop:
+            if self.with_target:
+                crop_pos = _sample_random_crop_pos_for_pair(
+                    rec["input_path"],
+                    rec["target_path"],
+                    self.resolution,
+                )
+            else:
+                crop_pos = _sample_random_crop_pos(rec["input_path"], self.resolution)
 
-        source = _load_image_as_tensor(rec["input_path"], self.source_channels, self.resolution)
+        source = _load_image_as_tensor(
+            rec["input_path"],
+            self.source_channels,
+            self.resolution,
+            crop_pos=crop_pos,
+        )
 
         if self.with_target:
-            target = _load_image_as_tensor(rec["target_path"], self.target_channels, self.resolution)
+            target = _load_image_as_tensor(
+                rec["target_path"],
+                self.target_channels,
+                self.resolution,
+                crop_pos=crop_pos,
+            )
         else:
             target = torch.zeros(self.target_channels, self.resolution, self.resolution)
 
