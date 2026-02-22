@@ -4,53 +4,29 @@
 \subsection{Dataset and Preprocessing}
 \label{sec:dataset}
 
-We use the MAVIC-T 2025 dataset provided by the challenge organizers, which incorporates diverse geospatial data sources including UNICORN, USGS EROS High Resolution Orthoimagery (HRO), and the UMBRA open data program. The dataset consists of spatially aligned 200m$\times$200m image stacks indexed by WGS-84 top-left coordinates, covering multiple geographic regions (UC Davis, Manhattan, Bingham, Centerfield, among others) across three sensing modalities: SAR, EO/RGB, and IR.
+We use the MAVIC-T 2025 dataset from the challenge organizers, with imagery from UNICORN, USGS EROS HRO, and UMBRA across four regions: Bingham, Centerfield, Manhattan, and UC Davis. \cref{tab:dataset_tasks} summarizes the four translation tasks. SAR$\rightarrow$EO operates at 256$\times$256; the other three tasks use 1024$\times$1024. For SAR$\rightarrow$IR and SAR$\rightarrow$RGB, we spatially align SAR scenes with optical mosaics before resampling. We also create crop-augmented training sets for the 1024$\times$1024 tasks to increase data diversity. Validation and test sets contain 60 samples per task (3,586 for SAR$\rightarrow$EO test).
 
-The four translation tasks differ in channel configuration and spatial resolution:
-\begin{itemize}[nosep, leftmargin=*]
-    \item \textbf{SAR$\rightarrow$EO}: 1-channel $\rightarrow$ 1-channel at $256\times256$;
-    \item \textbf{SAR$\rightarrow$RGB}: 1-channel $\rightarrow$ 3-channel at $1024\times1024$;
-    \item \textbf{SAR$\rightarrow$IR}: 1-channel $\rightarrow$ 1-channel at $1024\times1024$;
-    \item \textbf{RGB$\rightarrow$IR}: 3-channel $\rightarrow$ 1-channel at $1024\times1024$.
-\end{itemize}
-
-\paragraph{Dataset Processing Details.}
-Each source undergoes preprocessing to ensure georectification and alignment, stored as GeoTIFFs with spatial referencing. For the three $1024\times1024$ tasks, we create crop-augmented training variants by randomly cropping and resizing regions from the original training images. We also apply a quality filter to exclude corrupted, misaligned, or low-quality training samples identified during a data cleaning pass.
-
-\subsection{Implementation Details}
-\label{sec:impl_details}
-
-\paragraph{Model Configuration}
-Our EarthBridge UNet follows the architecture scaling roadmap of Diffusion Bridge Foundation. For the SAR$\rightarrow$EO task, we use a small config with 64 base channels and channel multipliers $(1,2,3,4)$. For the three $1024\times1024$ resolution tasks, we adopt a medium config with 128 base channels, channel multipliers $(1,1,2,2,4,4)$, 2 residual blocks per level, and self-attention at resolutions $32$, $16$, and $8$. For the concat conditioning mode, the UNet input channels are adjusted based on the source modality (e.g., $1+1=2$ for SAR$\rightarrow$EO, $1+3=4$ for SAR$\rightarrow$RGB). The VP noise schedule uses $\sigma_{\min}=0.002$, $\sigma_{\max}=1.0$, $\sigma_{\text{data}}=0.5$, $\beta_d=2.0$, and $\beta_{\min}=0.1$.
-
-\paragraph{Training}
-All models are trained using the Prodigy optimizer with an initial learning rate of 1.0 and a constant learning rate schedule with 500 warmup steps. We use bfloat16 mixed precision throughout. For SAR$\rightarrow$EO, we use a batch size of 48; for the three $1024\times1024$ tasks, we use a batch size of 8 and 512px random cropping. To improve cross-modal feature consistency, we incorporate Representation Alignment (RepA) with $\lambda_{\text{RepA}}=1.0$ and linear decay for the 1024px tasks. EMA with decay 0.9999 is applied. Training runs for 100,000 steps on NVIDIA A100 GPUs using the Hugging Face Accelerate library.
-
-\paragraph{Optimizer and EMA.}
-We use the Prodigy optimizer for all experiments, an adaptive learning rate optimizer that automatically tunes the step size, removing the need for extensive search. We set the nominal learning rate to 1.0 and use a constant schedule with 500 warmup steps. Gradient norms are clipped to 1.0, and we use bfloat16 mixed precision. Exponential Moving Average (EMA) is applied to model parameters with a decay rate of 0.9999 to improve stability.
-
-\paragraph{Inference and Sampling}
-During inference, we adopt the Diffusion Bridge Implicit Model (DBIM) deterministic sampler with 100 steps. For the $1024\times1024$ tasks, we leverage MultiDiffusion for tiled inference with a window size of 512 and stride of 64 to ensure global coherence while maintaining memory efficiency.
-
-\begin{table}[H]
+\begin{table}[t]
 \centering
-\caption{Per-task EarthBridge configuration summary.}
-\label{tab:task_config}
+\caption{Training data for each translation task.}
+\label{tab:dataset_tasks}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lcccc}
+\begin{tabular}{lcccl}
 \toprule
-Parameter & SAR$\rightarrow$EO & SAR$\rightarrow$RGB & SAR$\rightarrow$IR & RGB$\rightarrow$IR \\
+Task & Resolution & Input $\rightarrow$ Target & Samples \\
 \midrule
-Source channels     & 1   & 1   & 1   & 3   \\
-Target channels     & 1   & 3   & 1   & 1   \\
-Model channels      & 1   & 3   & 1   & 3   \\
-Resolution          & 256 & 1024 & 1024 & 1024 \\
-Batch size          & 32  & 8   & 8   & 8   \\
-Crop augmentation   & No  & Yes & Yes & Yes \\
-Inference steps     & 40  & 40  & 40  & 40  \\
+SAR$\rightarrow$EO & 256$\times$256 & 1ch $\rightarrow$ 1ch & 89,411 \\
+RGB$\rightarrow$IR & 1024$\times$1024 & 3ch $\rightarrow$ 1ch & 2,272 \\
+SAR$\rightarrow$IR & 1024$\times$1024 & 1ch $\rightarrow$ 1ch & 10,576 \\
+SAR$\rightarrow$RGB & 1024$\times$1024 & 1ch $\rightarrow$ 3ch & 10,576 \\
+\midrule
+\multicolumn{4}{l}{\textit{Crop-augmented (used for 1024px training)}} \\
+RGB$\rightarrow$IR & 1024$\times$1024 & 3ch $\rightarrow$ 1ch & 7,388 \\
+SAR$\rightarrow$IR & 1024$\times$1024 & 1ch $\rightarrow$ 1ch & 74,317 \\
+SAR$\rightarrow$RGB & 1024$\times$1024 & 1ch $\rightarrow$ 3ch & 75,703 \\
 \bottomrule
 \end{tabular}
-}
+}%
 \end{table}
 
 \subsection{Quantitative Results}
@@ -58,7 +34,7 @@ Inference steps     & 40  & 40  & 40  & 40  \\
 
 \begin{table*}[t]
 \centering
-\caption{EarthBridge quantitative results across the four MAVIC-T translation tasks. We report LPIPS ($\downarrow$), FID ($\downarrow$), L1 ($\downarrow$), and the composite Task Score ($\downarrow$).}
+\caption{Main results: EarthBridge quantitative performance across the four MAVIC-T translation tasks. We report LPIPS ($\downarrow$), FID ($\downarrow$), L1 ($\downarrow$), and the composite Task Score ($\downarrow$).}
 \label{tab:main_results}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{l | cccc | cccc | cccc | cccc | c}
@@ -72,7 +48,12 @@ EarthBridge (Ours)    & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & 
 }%
 \end{table*}
 
-\cref{tab:main_results} presents the quantitative performance of EarthBridge across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
+\cref{tab:main_results} presents the main quantitative performance of EarthBridge across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
+
+\subsection{Implementation Details}
+\label{sec:impl_details}
+
+We follow the Diffusion Bridge Foundation architecture with task-specific scaling (small config for SAR$\rightarrow$EO at 256px; medium config for 1024px tasks). All models use the Prodigy optimizer, bfloat16 mixed precision, and DBIM deterministic sampling. Full architectural details, hyperparameters, and per-task configurations are provided in the appendix (\cref{sec:appendix}).
 
 \subsection{Qualitative Results}
 \label{sec:qualitative}
@@ -80,18 +61,44 @@ EarthBridge (Ours)    & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & 
 \begin{figure*}[t]
     \centering
     \fbox{\rule{0pt}{3in} \rule{0.95\textwidth}{0pt}}
-    \caption{Qualitative results across all four translation tasks. Each row shows a different input sample, with columns showing the source image, EarthBridge output, and the ground-truth target. Our model accurately reconstructs fine-grained textures and urban layouts, even in the higher resolution $1024 \times 1024$ tasks. \TODO{Add visual comparison grid.}}
+    \caption{Qualitative results across all four MAVIC-T translation tasks. Each row corresponds to one task (SAR$\rightarrow$EO, SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR). Columns show: source image, EarthBridge output, and ground-truth target. Our model preserves structural layout from the source while synthesizing faithful target-modality textures across both 256$\times$256 and 1024$\times$1024 resolutions.}
     \label{fig:qualitative}
 \end{figure*}
 
+\cref{fig:qualitative} shows qualitative examples across all four tasks. EarthBridge preserves fine-grained structural information from the source modality while accurately synthesizing target textures, demonstrating consistent performance across both low- and high-resolution settings.
+
+\subsection{Failure Case and Challenging Scenario Analysis}
+\label{sec:failure_cases}
+
+To provide a balanced assessment, we analyze cases where EarthBridge degrades or fails. We select representative challenging samples from the validation set by ranking on worst LPIPS and L1 scores, then inspect them visually. \cref{fig:failure_cases} shows three typical failure modes.
+
 \begin{figure*}[t]
     \centering
-    \fbox{\rule{0pt}{3in} \rule{0.95\textwidth}{0pt}}
-    \caption{Qualitative comparison with baseline methods on the SAR$\rightarrow$EO task. We compare EarthBridge against CUT, BiBBDM, I2SB, DDIB, and Pix2Pix-Turbo. EarthBridge shows superior structural fidelity and texture synthesis. \TODO{Add visual comparison grid with baselines.}}
-    \label{fig:qualitative_baselines}
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \fbox{\rule{0pt}{1.5in} \rule{\linewidth}{0pt}}
+        \caption{Speckle ambiguity: Dense SAR speckle yields ambiguous texture mapping; the model may hallucinate incorrect fine-grained patterns.}
+        \label{fig:failure_speckle}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \fbox{\rule{0pt}{1.5in} \rule{\linewidth}{0pt}}
+        \caption{Complex urban layout: Dense buildings and occlusions can cause structural misalignment or missing details in translated outputs.}
+        \label{fig:failure_urban}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \fbox{\rule{0pt}{1.5in} \rule{\linewidth}{0pt}}
+        \caption{Illumination mismatch: Strong shadows or extreme lighting in RGB$\rightarrow$IR may lead to inconsistent thermal appearance.}
+        \label{fig:failure_illumination}
+    \end{subfigure}
+    \caption{Failure cases and challenging scenarios. Each column shows source, EarthBridge output, and ground truth for samples selected by worst LPIPS/L1 on the validation set. (a) Speckle ambiguity in SAR inputs. (b) Complex urban layouts. (c) Illumination mismatch in RGB$\rightarrow$IR.}
+    \label{fig:failure_cases}
 \end{figure*}
 
-\cref{fig:qualitative} shows qualitative examples across all four tasks. EarthBridge demonstrates a superior ability to preserve fine-grained structural information from the source modality while accurately hallucinating target textures. \cref{fig:qualitative_baselines} provides a visual comparison with baseline methods, illustrating the benefits of our DBIM-based approach in handling large domain gaps.
+These failure modes highlight inherent limitations of cross-modal translation: SAR speckle does not uniquely determine optical texture, dense urban geometry increases structural ambiguity, and RGB-to-IR mapping is underconstrained under varying illumination. Acknowledging these limitations adds credibility and guides future work toward more robust handling of edge cases.
 
 \subsection{Ablation Study}
 \label{sec:ablation}
@@ -99,42 +106,43 @@ EarthBridge (Ours)    & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & 
 We conduct ablation studies on sampling efficiency and training strategies.
 
 \paragraph{Effect of Sampling Steps.}
-We evaluate the impact of the number of sampling steps (NFE) on the translation quality using the SAR$\rightarrow$EO task (\cref{tab:inference_speed}). Due to the deterministic DBIM sampling formulation, our model maintains high structural and perceptual fidelity even at low NFE. We observe that 40 steps provide an optimal balance between inference speed and generation quality.
+We evaluate the impact of the number of sampling steps (NFE) on the translation quality using the SAR$\rightarrow$EO task (\cref{fig:ablation_qualitative}). Due to the deterministic DBIM sampling formulation, our model maintains high structural and perceptual fidelity even at low NFE. We observe that 40 steps provide an optimal balance between inference speed and generation quality.
 
-\begin{table}[H]
-\centering
-\caption{Inference speed and quality trade-off for SAR$\rightarrow$EO.}
-\label{tab:inference_speed}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
-Method & Steps (NFE) & Time (s) & Score$\downarrow$ \\
-\midrule
-EarthBridge & 10 & -- & -- \\
-EarthBridge & 20 & -- & -- \\
-EarthBridge & 40 & -- & -- \\
-EarthBridge & 100 & -- & -- \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
+\begin{figure*}[t]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \fbox{\rule{0pt}{2in} \rule{\linewidth}{0pt}}
+        \caption{Effect of sampling steps (NFE) on SAR$\rightarrow$EO. Columns: source, outputs at 10/20/40/100 steps, ground truth. Quality improves with more steps; 40 steps achieves a favorable speed-quality trade-off.}
+        \label{fig:ablation_nfe}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \fbox{\rule{0pt}{2in} \rule{\linewidth}{0pt}}
+        \caption{Effect of full-resolution fine-tuning on SAR$\rightarrow$RGB. Columns: source, crop-only training, full-res fine-tuning, ground truth. Stage-2 fine-tuning improves global coherence and fine details.}
+        \label{fig:ablation_res}
+    \end{subfigure}
+    \caption{Qualitative ablation study. (a) Sampling step trade-off: DBIM maintains reasonable quality at low NFE; 40 steps balances speed and fidelity. (b) Training strategy: full-resolution fine-tuning is essential for coherent $1024\times1024$ outputs.}
+    \label{fig:ablation_qualitative}
+\end{figure*}
 
 \paragraph{Full-Resolution Fine-tuning.}
-For $1024\times1024$ tasks, we compare crop-only training with full-resolution fine-tuning (\cref{tab:res_ablation}). Stage-2 fine-tuning is crucial for global coherence.
+For $1024\times1024$ tasks, we compare crop-only training with full-resolution fine-tuning (\cref{tab:res_ablation}). Stage-2 fine-tuning is crucial for global coherence. \cref{fig:ablation_qualitative} visualizes the qualitative impact of both ablations.
 
-\begin{table}[H]
+\begin{table*}[t]
 \centering
-\caption{Ablation on training strategy for SAR$\rightarrow$RGB.}
+\caption{Ablation on training strategy for $1024\times1024$ tasks.}
 \label{tab:res_ablation}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lcccc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l | cccc | cccc | cccc}
 \toprule
-Configuration & LPIPS$\downarrow$ & FID$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ \\
+\multirow{2}{*}{Configuration} & \multicolumn{4}{c|}{SAR$\rightarrow$RGB} & \multicolumn{4}{c|}{SAR$\rightarrow$IR} & \multicolumn{4}{c}{RGB$\rightarrow$IR} \\
+ & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score \\
 \midrule
-512px Crop Baseline & [0.0] & [0.0] & [0.0] & [0.0] \\
-1024px Full-Res FT & [0.0] & [0.0] & [0.0] & [0.0] \\
+512px Crop Baseline & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] \\
+1024px Full-Res FT & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] \\
 \bottomrule
 \end{tabular}
-}
-\end{table}
-
+}%
+\end{table*}

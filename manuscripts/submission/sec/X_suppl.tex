@@ -3,8 +3,8 @@
 \setcounter{page}{1}
 \maketitlesupplementary
 
-
 \section{Extended Related Work}
+\label{sec:appendix}
 \label{sec:suppl_related_work}
 
 This section provides a comprehensive literature review of image-to-image translation, diffusion bridge models, and cross-modality translation to complement the specialized discussion on remote sensing in the main paper.
@@ -25,12 +25,13 @@ Early attempts at translating between SAR and optical modalities leveraged Gener
 Reflecting the recent shift in generative modeling, diffusion models have been increasingly applied to RS translation tasks. Qin et al.~\cite{qinConditionalDiffusionModel2024} introduced a conditional diffusion model incorporating spatial-frequency refinement to capture both global structure and fine-grained textures in SAR-to-optical translation. To address the computational overhead of iterative sampling, Qin et al.~\cite{qinEfficientEndtoEndDiffusion2025} later developed an efficient end-to-end diffusion model capable of one-step SAR-to-optical translation, significantly reducing inference latency while maintaining high generation quality. Furthermore, Wang et al.~\cite{wangAdaptiveDomainShift2026a} proposed adaptive domain shift mechanisms within diffusion frameworks to better handle the large distribution gaps inherent in cross-modality remote sensing datasets. These advancements underscore the growing role of stochastic bridge processes and diffusion-based refinement in enabling robust, high-resolution translation across heterogeneous sensor modalities.
 
 
-\section{EarthBridge Architecture and Implementation Details}
-\label{sec:suppl_architecture}
+\section{Implementation Details}
+\label{sec:suppl_impl}
 
 This section provides the comprehensive technical details of the EarthBridge architecture, training hyperparameters, and multi-modal refinement modules.
 
 \subsection{UNet Denoising Backbone}
+\label{sec:suppl_architecture}
 Our denoiser $D_\theta$ is implemented in PyTorch~\cite{paszkePyTorchImperativeStyle2019} and based on a \texttt{UNet2DModel} backbone from the Hugging Face Diffusers library~\cite{vonplatenDiffusersStateoftheartDiffusion2022} with Adaptive Group Normalization (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}). The detailed architectural parameters are summarized in \cref{tab:suppl_unet_arch}.
 
 \begin{table}[h]
@@ -135,13 +136,10 @@ Concentration & Low noise levels (fine details) \\
 }
 \end{table}
 
-
-\section{Additional Implementation Details}
-\label{sec:suppl_impl}
+\subsection{Training Environment}
+\label{sec:suppl_impl_env}
 
 {\color{gray}
-This section provides a summary of the implementation hyperparameters and training environment used for EarthBridge.
-
 \begin{table}[h]
 \centering
 \caption{{\color{gray}Implementation hyperparameters and training environment.}}
@@ -167,8 +165,7 @@ Gradient Accum. & 1 (default) \\
 \end{table}
 }
 
-
-\section{Dataset Processing Details}
+\subsection{Dataset Processing}
 \label{sec:suppl_dataset}
 
 {\color{gray}
@@ -197,8 +194,7 @@ Quality Filter & Skip manifest (\texttt{bad\_samples.txt}) \\
 \end{table}
 }
 
-
-\section{Per-Task Configuration Summary}
+\subsection{Per-Task Configuration}
 \label{sec:suppl_config}
 
 \begin{table}[h]
@@ -228,9 +224,10 @@ Inference steps     & 40  & 40  & 40  & 40  \\
 \cref{tab:task_config_suppl} summarizes the per-task configuration for our EarthBridge method. All tasks share the same UNet backbone architecture (128 base channels, channel multipliers auto-detected from resolution), Prodigy optimizer (lr=1.0), EMA decay (0.9999), VP noise schedule ($\sigma_{\min}=0.002$, $\sigma_{\max}=1.0$, $\beta_d=2.0$, $\beta_{\min}=0.1$), and training duration (100 epochs). The primary differences are the operating channel count, spatial resolution, and batch size.
 }
 
+\section{Additional Experiments}
+\label{sec:suppl_experiments}
 
-
-\section{Additional Ablation Results}
+\subsection{Ablation Results}
 \label{sec:suppl_ablation}
 
 {\color{gray}
@@ -285,7 +282,7 @@ Stage & Purpose & Details \\
 \end{table}
 }
 
-\section{Additional Qualitative Results}
+\subsection{Qualitative Results}
 \label{sec:suppl_qualitative}
 
 \begin{figure*}[t]
@@ -311,5 +308,27 @@ Stage & Purpose & Details \\
 
 {\color{gray}
 \cref{fig:suppl_sar2eo,fig:suppl_sar2rgb,fig:suppl_rgb2ir} provide additional qualitative results for three of the four translation tasks. \TODO{Add qualitative analysis.} These visualizations show a wider variety of scenes and input conditions, including challenging cases with complex urban structures, varying illumination, and dense vegetation.
-\hypersetup{pageanchor=true}
 }
+
+\section{Lessons and Insights}
+\label{sec:suppl_lessons}
+
+We summarize key lessons and insights from developing EarthBridge for the MAVIC-T translation track.
+
+\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 1: Placeholder}]
+\TODO{Add insight on diffusion bridge vs. standard diffusion for cross-modality translation.}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 2: Placeholder}]
+\TODO{Add insight on resolution scaling and multi-stage training for 1024px tasks.}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 3: Placeholder}]
+\TODO{Add insight on dataset quality and preprocessing choices.}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 4: Placeholder}]
+\TODO{Add insight on inference efficiency and sampling step trade-offs.}
+\end{tcolorbox}
+
+\hypersetup{pageanchor=true}

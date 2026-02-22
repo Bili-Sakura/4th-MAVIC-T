@@ -23,14 +23,14 @@
 % Teaser figure configuration
 \makeatletter
 \apptocmd{\@maketitle}{%
-  \vspace{-1em}
+  % \vspace{-1em}
 \begin{center}
     \centering
-    \fbox{\rule{0pt}{2in} \rule{0.9\textwidth}{0pt}}
+    \includegraphics[page=1,width=1.0\textwidth]{figures/Figures.pdf}
     \captionof{figure}{Teaser: The proposed EarthBridge framework for multi-modal aerial-view image translation across Electro-Optical (EO), Infrared (IR), and Synthetic Aperture Radar (SAR) modalities. Our method accurately bridges the domain gap, preserving structural integrity while synthesizing high-fidelity target textures.}
     \label{fig:teaser}
 \end{center}
-  \vspace{1.5em}
+  \vspace{1em}
 }{}{}
 \makeatother
 

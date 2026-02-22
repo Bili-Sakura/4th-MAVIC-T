@@ -5,7 +5,7 @@ We present our EarthBridge approach based on \textbf{Diffusion Bridge Implicit M
 
 \begin{figure*}[t]
     \centering
-    \fbox{\rule{0pt}{2.5in} \rule{0.95\textwidth}{0pt}}
+    \includegraphics[page=2,width=0.95\textwidth]{figures/Figures.pdf}
     \caption{Overview of our EarthBridge translation pipeline based on DBIM. The source image $\bm{x}$ is concatenated with the noisy sample $\bm{z}_t$ and fed to a UNet denoiser. During training, the bridge forward process constructs $\bm{z}_t$ from the target $\bm{y}$ and source $\bm{x}$ via bridge scalings. During inference, deterministic DBIM sampling transforms $\bm{x}$ into the translated output $\hat{\bm{z}}_0$.}
     \label{fig:method_overview}
 \end{figure*}
@@ -39,24 +39,17 @@ where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clea
 
 \paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
 
-\begin{figure*}[t]
-    \centering
-    \fbox{\rule{0pt}{1.8in} \rule{0.95\textwidth}{0pt}}
-    \caption{Bridge schedules and scaling coefficients $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ over the diffusion time $t$. These scalings are derived from the VP log-SNR schedule to stabilize the training process and improve sampling quality. \TODO{Add bridge schedules plot.}}
-    \label{fig:bridge_schedules}
-\end{figure*}
-
 \subsection{Architecture and Training Objectives}
 \label{sec:objectives}
 
 \paragraph{UNet Denoising Backbone}
-Our denoiser $D_\theta$ is implemented in PyTorch~\cite{paszkePyTorchImperativeStyle2019} and built upon a \texttt{UNet2DModel} backbone from the Hugging Face Diffusers library~\cite{vonplatenDiffusersStateoftheartDiffusion2022} with Adaptive Group Normalization (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that accepts timestep embeddings. The network is instantiated with a base channel count of 128 and resolution-dependent channel multipliers---for example, $(1,1,2,2,4,4)$ for $256\times256$ inputs---yielding block output channels of $(128, 128, 256, 256, 512, 512)$. Each resolution level uses 2 residual blocks. Self-attention is applied at spatial resolutions of $32\times32$, $16\times16$, and $8\times8$ via \texttt{AttnDownBlock2D} and \texttt{AttnUpBlock2D} modules, while other levels use plain \texttt{DownBlock2D}/\texttt{UpBlock2D} without attention.
+Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} that predicts the clean target from the noisy sample $\bm{z}_t$ conditioned on timestep $t$ and source $\bm{x}$. We use a multi-scale encoder-decoder with residual blocks and inject timestep information via sinusoidal embeddings and Adaptive Group Normalization~\cite{dhariwalDiffusionModelsBeat2021}. Self-attention is applied at intermediate resolutions to capture long-range spatial dependencies, which is important for preserving global structure in aerial imagery. The architecture scales to different input resolutions (e.g., $256\times256$ and $1024\times1024$) by adjusting the channel configuration; implementation details are in \cref{sec:impl_details}.
 
 \paragraph{Source Image Conditioning via Channel Concatenation}
 To condition on the source image $\bm{x}$, we adopt the channel-concatenation strategy: the pre-conditioned noisy sample $c_{\text{in}} \cdot \bm{z}_t$ and the source image $\bm{x}$ are concatenated along the channel dimension before being fed to the UNet. This doubles the input channels from $C$ to $2C$, where $C$ is the operating channel count of the model (e.g., $C=1$ for SAR$\rightarrow$EO, $C=3$ for RGB$\rightarrow$IR). The UNet output channels remain $C$, producing the raw denoised prediction.
 
 \paragraph{Bridge Scalings and Schedules}
-The raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule (\cref{fig:bridge_schedules}). The denoised prediction is defined as:
+The raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is defined as:
 \begin{equation}
     D_\theta(\bm{z}_t, t, \bm{x}) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot \bm{z}_t,\, t,\, \bm{x}) + c_{\text{skip}}(t) \cdot \bm{z}_t\,,
     \label{eq:denoiser}
