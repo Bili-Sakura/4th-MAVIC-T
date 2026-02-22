@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# EXP-0221 — Early loss evaluation — cuda:5, num_channels=76, 2000 steps
+# EXP-0221 — Early loss evaluation — cuda:5, num_channels=76, 20000 steps
 #
 # Usage:
 #   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_early_loss_cuda5_nc76.sh
@@ -32,10 +32,10 @@ USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2ir.txt"
 
-# --- Training (early loss eval: 2000 steps) ---
+# --- Training (early loss eval: 20000 steps) ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=2000
+MAX_TRAIN_STEPS=20000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
@@ -55,7 +55,7 @@ RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
 SWANLAB_EXPERIMENT_NAME="exp-0221-early-loss-cuda5-nc76"
-SWANLAB_DESCRIPTION="Early loss eval: cuda:5, num_channels=76, 2000 steps"
+SWANLAB_DESCRIPTION="Early loss eval: cuda:5, num_channels=76, 20000 steps"
 SWANLAB_TAGS="dbim,exp-0221,sar2ir,early-loss,nc76"
 
 # --- Optional extras ---
