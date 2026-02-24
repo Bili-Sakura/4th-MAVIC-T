@@ -2,6 +2,15 @@
 
 > Take our previous results as a quick start point, see [staled-experiments](./staled-roadmaps-experiments/experiment_observations.md) and [staled-roadmap](./staled-roadmaps-experiments/roadmap.md).
 
+## Pre-trained models (default paths)
+
+| Model       | Default path                          | Used by                                      |
+|-------------|---------------------------------------|----------------------------------------------|
+| **Text2Earth** | `models/lcybuaa/Text2Earth`           | EXP-0225 (SAR2RGB InstructPix2Pix)          |
+| **Flux2-VAE**  | `models/BiliSakura/VAEs/FLUX2-VAE`    | Latent-space baselines (i2sb, ddib, ddbm, cut, bibbdm, img2img_turbo) |
+
+Ensure these models are available before running experiments that depend on them.
+
 ## DDBM-Pixel-Medium (2026/02/13)
 
 
@@ -167,4 +176,16 @@ bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2ir_1024_from_0221_8gpu.sh
 # SAR→RGB: Stage A (512 crop), then Stage B (1024 fine-tune)
 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_512_8gpu.sh
 bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_1024_8gpu.sh
+```
+
+## EXP-0225 Text2Earth SAR2RGB InstructPix2Pix (2026/02/25)
+
+**Pipeline**: InstructPix2Pix-style fine-tuning of **Text2Earth** for SAR→RGB. Direct image conditioning by concatenating SAR latent with noisy RGB latent (8-channel UNet input). Only the UNet is trained; VAE and text encoder are frozen. No ControlNet branch. Uses **8-GPU training** by default.
+
+| Task      | Pixel shape    | Base model   | Notes                          |
+|-----------|----------------|--------------|--------------------------------|
+| SAR → RGB | `(512, 512)`   | Text2Earth   | 8ch UNet (noisy + SAR latent)  |
+
+```bash
+bash scripts/EXP_0225_Text2Earth_SAR2RGB/train_sar2rgb_instructpix2pix_8gpu.sh
 ```

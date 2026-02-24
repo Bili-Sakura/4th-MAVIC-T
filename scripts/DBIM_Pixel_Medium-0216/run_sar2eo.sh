@@ -8,6 +8,7 @@
 #   bash scripts/DBIM_Pixel_Medium-0216/run_sar2eo.sh
 #   bash scripts/DBIM_Pixel_Medium-0216/run_sar2eo.sh --NUM_STEPS 500 --BATCH_SIZE 8 --DEVICES "cuda:1"
 #   CKPT_PATH=/path/to/checkpoint bash scripts/DBIM_Pixel_Medium-0216/run_sar2eo.sh
+#   NGPU=8 bash scripts/DBIM_Pixel_Medium-0216/run_sar2eo.sh   # default: 8 GPUs
 
 set -euo pipefail
 
@@ -22,7 +23,7 @@ BATCH_SIZE="${BATCH_SIZE:-8}"
 NUM_STEPS="${NUM_STEPS:-100}"
 SAMPLER="${SAMPLER:-dbim}"
 RESOLUTION="${RESOLUTION:-256}"
-DEVICES="${DEVICES:-cuda:0}"
+NGPU="${NGPU:-8}"
 
 # Parse command-line overrides (e.g. --NUM_STEPS 500)
 while [[ $# -gt 0 ]]; do
@@ -59,12 +60,25 @@ while [[ $# -gt 0 ]]; do
       DEVICES="$2"
       shift 2
       ;;
+    --NGPU)
+      NGPU="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1" >&2
       exit 1
       ;;
   esac
 done
+
+# Build device list from NGPU when DEVICES not set (e.g. cuda:0 cuda:1 ... cuda:7)
+if [[ -z "${DEVICES:-}" ]]; then
+  DEVICES=""
+  for i in $(seq 0 $((NGPU - 1))); do
+    DEVICES="${DEVICES} cuda:${i}"
+  done
+  DEVICES="${DEVICES# }"
+fi
 
 if [[ ! -d "${CKPT_PATH}" ]]; then
   echo "Checkpoint directory not found: ${CKPT_PATH}"

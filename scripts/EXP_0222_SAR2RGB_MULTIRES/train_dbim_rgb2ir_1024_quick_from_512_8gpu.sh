@@ -35,7 +35,7 @@ PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifest
 
 # --- Training (quick tuning) ---
 OPTIMIZER_TYPE="prodigy"
-TRAIN_BATCH_SIZE=8
+TRAIN_BATCH_SIZE=2
 FURTHER_TRAIN_STEPS="${FURTHER_TRAIN_STEPS:-40000}"  # additional optimizer steps after resume
 MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-}"  # optional absolute total-step override
 NUM_EPOCHS=0
@@ -44,18 +44,18 @@ USE_EMA=true
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=  # empty = disabled (no validation logging)
+VALIDATION_STEPS=2000
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-PUSH_TO_HUB=true
+PUSH_TO_HUB=false
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0222"
 BASE_512_DIR="./ckpt/DBIM_Pixel_Medium-0216/rgb2ir"
 FALLBACK_PRETRAIN="models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/rgb2ir/checkpoint-100000"
 OUTPUT_DIR="./ckpt/EXP_0222_SAR2RGB_MULTIRES/dbim/rgb2ir_1024_quick"
-RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
+RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-/data/projects/4th-MAVIC-T/models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/rgb2ir/checkpoint-100000}"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
