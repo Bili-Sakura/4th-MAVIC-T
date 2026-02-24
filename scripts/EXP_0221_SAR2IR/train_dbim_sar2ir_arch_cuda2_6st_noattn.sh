@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# EXP-0221 — Early loss evaluation — cuda:0, num_channels=216, 20000 steps
+# EXP-0221 — Arch search: cuda:2 — 6 stages no attn (more depth)
 #
 # Usage:
-#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_early_loss_cuda0_nc216.sh
+#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_arch_cuda2_6st_noattn.sh
 
 set -euo pipefail
 
@@ -10,22 +10,22 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=2
 NGPU=1
 LOG_DIR="./logs/EXP_0221_SAR2IR/early_loss"
-LOG_FILE="${LOG_DIR}/train_early_loss_cuda0_nc216.log"
+LOG_FILE="${LOG_DIR}/train_early_loss_cuda2_6st_noattn.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config ---
-NUM_CHANNELS=216
+# --- Model config: 6 stages no attn ---
+NUM_CHANNELS=64
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
+ATTENTION_RESOLUTIONS=""
 CHANNEL_MULT="1,1,2,2,4,4"
 
 # --- Data / resolution ---
 RESOLUTION=512
 OUTPUT_RESOLUTION=1024
-USE_AUGMENTED=true
+USE_AUGMENTED=false
 USE_RANDOM_CROP=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
@@ -49,14 +49,14 @@ DATALOADER_NUM_WORKERS=8
 SEED=42
 
 PUSH_TO_HUB=false
-OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda0_nc216"
+OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda2_6st_noattn"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0221-early-loss-cuda0-nc216"
-SWANLAB_DESCRIPTION="Early loss eval: cuda:0, num_channels=216, 20000 steps"
-SWANLAB_TAGS="dbim,exp-0221,sar2ir,early-loss,nc216"
+SWANLAB_EXPERIMENT_NAME="exp-0221-arch-cuda2-6st-noattn"
+SWANLAB_DESCRIPTION="Arch search: 6 stages 1,1,2,2,4,4 no attn nc64"
+SWANLAB_TAGS="dbim,exp-0221,sar2ir,arch-search,6st,noattn"
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false

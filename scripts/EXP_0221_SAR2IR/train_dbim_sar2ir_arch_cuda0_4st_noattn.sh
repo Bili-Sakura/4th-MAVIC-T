@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# EXP-0221 — Early loss evaluation — cuda:7, num_channels=32, 20000 steps
+# EXP-0221 — Arch search: cuda:0 — 4 stages no attn (sar2eo-style at 512px)
+# Target: loss < 0.1 (sar2eo at 256px got ~0.07)
 #
 # Usage:
-#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_early_loss_cuda7_nc32.sh
+#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_arch_cuda0_4st_noattn.sh
 
 set -euo pipefail
 
@@ -10,22 +11,22 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-export CUDA_VISIBLE_DEVICES=7
+export CUDA_VISIBLE_DEVICES=0
 NGPU=1
 LOG_DIR="./logs/EXP_0221_SAR2IR/early_loss"
-LOG_FILE="${LOG_DIR}/train_early_loss_cuda7_nc32.log"
+LOG_FILE="${LOG_DIR}/train_early_loss_cuda0_4st_noattn.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config ---
-NUM_CHANNELS=32
+# --- Model config: 4 stages, no attention (sar2eo arch) ---
+NUM_CHANNELS=64
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
-CHANNEL_MULT="1,1,2,2,4,4"
+ATTENTION_RESOLUTIONS=""
+CHANNEL_MULT="1,2,3,4"
 
 # --- Data / resolution ---
 RESOLUTION=512
 OUTPUT_RESOLUTION=1024
-USE_AUGMENTED=true
+USE_AUGMENTED=false
 USE_RANDOM_CROP=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
@@ -49,14 +50,14 @@ DATALOADER_NUM_WORKERS=8
 SEED=42
 
 PUSH_TO_HUB=false
-OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda7_nc32"
+OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda0_4st_noattn"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0221-early-loss-cuda7-nc32"
-SWANLAB_DESCRIPTION="Early loss eval: cuda:7, num_channels=32, 20000 steps"
-SWANLAB_TAGS="dbim,exp-0221,sar2ir,early-loss,nc32"
+SWANLAB_EXPERIMENT_NAME="exp-0221-arch-cuda0-4st-noattn"
+SWANLAB_DESCRIPTION="Arch search: 4 stages 1,2,3,4 no attn nc64 (sar2eo-style)"
+SWANLAB_TAGS="dbim,exp-0221,sar2ir,arch-search,4st,noattn"
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# EXP-0221 — Early loss evaluation — cuda:2, num_channels=160, 20000 steps
+# EXP-0221 — Arch search: cuda:6 — 4 stages no attn nc128 (more capacity)
 #
 # Usage:
-#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_early_loss_cuda2_nc160.sh
+#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_arch_cuda6_nc128.sh
 
 set -euo pipefail
 
@@ -10,31 +10,31 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=6
 NGPU=1
 LOG_DIR="./logs/EXP_0221_SAR2IR/early_loss"
-LOG_FILE="${LOG_DIR}/train_early_loss_cuda2_nc160.log"
+LOG_FILE="${LOG_DIR}/train_early_loss_cuda6_nc128.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config ---
-NUM_CHANNELS=160
+# --- Model config: 4 stages no attn nc128 ---
+NUM_CHANNELS=128
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
-CHANNEL_MULT="1,1,2,2,4,4"
+ATTENTION_RESOLUTIONS=""
+CHANNEL_MULT="1,2,3,4"
 
 # --- Data / resolution ---
 RESOLUTION=512
 OUTPUT_RESOLUTION=1024
-USE_AUGMENTED=true
+USE_AUGMENTED=false
 USE_RANDOM_CROP=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2ir.txt"
 
-# --- Training (early loss eval: 20000 steps) ---
+# --- Training (early loss eval: 20000 steps, batch 4 for nc128 OOM) ---
 OPTIMIZER_TYPE="prodigy"
-TRAIN_BATCH_SIZE=8
+TRAIN_BATCH_SIZE=4
 MAX_TRAIN_STEPS=20000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
@@ -49,14 +49,14 @@ DATALOADER_NUM_WORKERS=8
 SEED=42
 
 PUSH_TO_HUB=false
-OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda2_nc160"
+OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda6_nc128"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0221-early-loss-cuda2-nc160"
-SWANLAB_DESCRIPTION="Early loss eval: cuda:2, num_channels=160, 20000 steps"
-SWANLAB_TAGS="dbim,exp-0221,sar2ir,early-loss,nc160"
+SWANLAB_EXPERIMENT_NAME="exp-0221-arch-cuda6-nc128"
+SWANLAB_DESCRIPTION="Arch search: 4 stages no attn nc128 (more capacity)"
+SWANLAB_TAGS="dbim,exp-0221,sar2ir,arch-search,4st,nc128"
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false

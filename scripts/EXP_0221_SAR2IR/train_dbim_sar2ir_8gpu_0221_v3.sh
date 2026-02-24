@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# EXP-0221 — Early loss evaluation — cuda:3, num_channels=132, 20000 steps
+# EXP-0221-v3 — DBIM — SAR→IR — runtime random-crop 1024->512
+#
+# Aligns arch with DBIM_Pixel_Medium-0216/sar2eo (no attention, channel_mult 1,2,3,4).
+# v2 (512px + attention) gave loss ~0.15; v3 keeps 512px but uses simpler sar2eo-style arch.
 #
 # Usage:
-#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_early_loss_cuda3_nc132.sh
+#   bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_8gpu_0221_v3.sh
+#   NGPU=8 bash scripts/EXP_0221_SAR2IR/train_dbim_sar2ir_8gpu_0221_v3.sh
 
 set -euo pipefail
 
@@ -10,17 +14,16 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-export CUDA_VISIBLE_DEVICES=3
-NGPU=1
-LOG_DIR="./logs/EXP_0221_SAR2IR/early_loss"
-LOG_FILE="${LOG_DIR}/train_early_loss_cuda3_nc132.log"
+NGPU="${NGPU:-8}"
+LOG_DIR="./logs/EXP_0221_SAR2IR"
+LOG_FILE="${LOG_DIR}/train_dbim_sar2ir_8gpu_0221_v3.log"
 mkdir -p "${LOG_DIR}"
 
-# --- Model config ---
-NUM_CHANNELS=132
+# --- Model config (5 stages for 512px, no attention) ---
+NUM_CHANNELS=64
 NUM_RES_BLOCKS=2
-ATTENTION_RESOLUTIONS="32,16,8"
-CHANNEL_MULT="1,1,2,2,4,4"
+ATTENTION_RESOLUTIONS=""
+CHANNEL_MULT="1,2,4,4,8"
 
 # --- Data / resolution ---
 RESOLUTION=512
@@ -32,31 +35,32 @@ USE_VERTICAL_FLIP=true
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2ir.txt"
 
-# --- Training (early loss eval: 20000 steps) ---
+# --- Training ---
 OPTIMIZER_TYPE="prodigy"
 TRAIN_BATCH_SIZE=8
-MAX_TRAIN_STEPS=20000
+MAX_TRAIN_STEPS=50000
 NUM_EPOCHS=0
 GRADIENT_ACCUMULATION_STEPS=1
 USE_EMA=true
 SAVE_MODEL_EPOCHS=0
-CHECKPOINTING_STEPS=1000
+CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
-VALIDATION_STEPS=
+VALIDATION_STEPS=10000
 NUM_INFERENCE_STEPS=100
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
 
-PUSH_TO_HUB=false
-OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/early_loss/cuda3_nc132"
+PUSH_TO_HUB=true
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0221-v3"
+OUTPUT_DIR="./ckpt/EXP_0221_SAR2IR/dbim/sar2ir_512_0221_v3"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 # --- SwanLab ---
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0221-early-loss-cuda3-nc132"
-SWANLAB_DESCRIPTION="Early loss eval: cuda:3, num_channels=132, 20000 steps"
-SWANLAB_TAGS="dbim,exp-0221,sar2ir,early-loss,nc132"
+SWANLAB_EXPERIMENT_NAME="exp-0221-v3-sar2ir-512"
+SWANLAB_DESCRIPTION="EXP-0221-v3 DBIM SAR→IR 512 (5 stages 1,2,4,4,8, no attn)"
+SWANLAB_TAGS="dbim,exp-0221,v3,sar2ir,512px"
 
 # --- Optional extras ---
 USE_LATENT_TARGET=false
@@ -97,6 +101,7 @@ COMMON_ARGS=(
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
   --seed "${SEED}"
   --push_to_hub "${PUSH_TO_HUB}"
+  --hub_model_id "${HUB_MODEL_ID}"
   --output_dir "${OUTPUT_DIR}"
   --use_latent_target "${USE_LATENT_TARGET}"
   --use_rep_alignment "${USE_REP_ALIGNMENT}"
@@ -112,5 +117,10 @@ if [ -n "${VALIDATION_STEPS}" ]; then
   COMMON_ARGS+=(--validation_steps "${VALIDATION_STEPS}")
 fi
 
-nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2ir \
-  "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
+if [ "${NGPU}" -gt 1 ]; then
+  nohup accelerate launch --num_processes "${NGPU}" -m examples.dbim.train_sar2ir \
+    "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
+else
+  nohup python -m examples.dbim.train_sar2ir \
+    "${COMMON_ARGS[@]}" > "${LOG_FILE}" 2>&1 &
+fi
