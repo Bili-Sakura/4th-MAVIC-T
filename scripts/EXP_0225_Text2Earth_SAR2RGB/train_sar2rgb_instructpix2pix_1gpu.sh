@@ -51,7 +51,7 @@ LAMBDA_REP_ALIGNMENT_DECAY_STEPS=1500
 LAMBDA_REP_ALIGNMENT_END=0.0
 REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
 
-# --- Hub & SwanLab (same as EXP-0222) ---
+# --- Hub & SwanLab
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0225-text2earth-sar2rgb"
 LOG_WITH="swanlab"
