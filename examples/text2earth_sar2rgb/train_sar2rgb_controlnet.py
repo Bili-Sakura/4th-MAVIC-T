@@ -60,7 +60,7 @@ if is_wandb_available():
 
 logger = get_logger(__name__)
 
-DEFAULT_TEXT2EARTH_PATH = "/data/projects/4th-MAVIC-T/models/lcybuaa/Text2Earth"
+DEFAULT_TEXT2EARTH_PATH = "models/lcybuaa/Text2Earth"
 
 
 def parse_args():
@@ -76,6 +76,12 @@ def parse_args():
         type=str,
         default=None,
         help="Path to pretrained ControlNet (optional). If not set, init from UNet.",
+    )
+    parser.add_argument(
+        "--vae_model_name_or_path",
+        type=str,
+        default="models/lcybuaa/Text2Earth/vae",
+        help="VAE model to use. Default: models/lcybuaa/Text2Earth/vae.",
     )
     parser.add_argument(
         "--output_dir",
@@ -343,10 +349,7 @@ def main():
         args.pretrained_model_name_or_path,
         subfolder="text_encoder",
     )
-    vae = AutoencoderKL.from_pretrained(
-        args.pretrained_model_name_or_path,
-        subfolder="vae",
-    )
+    vae = AutoencoderKL.from_pretrained(args.vae_model_name_or_path)
     unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path,
         subfolder="unet",
