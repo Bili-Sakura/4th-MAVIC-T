@@ -25,9 +25,11 @@ import accelerate
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from PIL import Image
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
+from diffusers.utils import make_image_grid
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PretrainedConfig
 
@@ -41,13 +43,18 @@ from huggingface_hub import create_repo, upload_folder
 
 from examples.text2earth_sar2rgb.dataset_utils import (
     MavicTSAR2RGBDataset,
+    load_paired_manifest,
     load_sar2rgb_train_records,
 )
-from src.utils.training_utils import create_optimizer, lambda_repa_cosine
+from src.utils.training_utils import (
+    create_optimizer,
+    lambda_repa_cosine,
+    log_validation_images_to_trackers,
+)
 
 logger = get_logger(__name__)
 
-DEFAULT_TEXT2EARTH_PATH = "/data/projects/4th-MAVIC-T/models/lcybuaa/Text2Earth"
+DEFAULT_TEXT2EARTH_PATH = "models/lcybuaa/Text2Earth"
 
 
 def parse_args():
@@ -63,6 +70,12 @@ def parse_args():
         type=str,
         default="./ckpt/text2earth_sar2rgb_instructpix2pix",
         help="Output directory for checkpoints.",
+    )
+    parser.add_argument(
+        "--vae_model_name_or_path",
+        type=str,
+        default="models/lcybuaa/Text2Earth/vae",
+        help="VAE model to use. Default: models/lcybuaa/Text2Earth/vae.",
     )
     parser.add_argument(
         "--refined_root",
@@ -206,6 +219,24 @@ def parse_args():
         default=None,
     )
     parser.add_argument(
+        "--validation_steps",
+        type=int,
+        default=0,
+        help="Run validation every N steps (0 = disabled). Logs val loss to tracker.",
+    )
+    parser.add_argument(
+        "--validation_num_images",
+        type=int,
+        default=4,
+        help="How many validation examples to run full inference on each validation step.",
+    )
+    parser.add_argument(
+        "--validation_num_inference_steps",
+        type=int,
+        default=30,
+        help="Number of denoising steps for sample-inference validation logging.",
+    )
+    parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
         default=None,
@@ -342,6 +373,106 @@ def collate_fn(examples):
     }
 
 
+@torch.no_grad()
+def log_validation_samples(
+    args,
+    accelerator: Accelerator,
+    unet,
+    vae,
+    text_encoder,
+    noise_scheduler,
+    val_dataloader,
+    weight_dtype,
+    global_step: int,
+    has_class_embedding: bool,
+    class_label: int,
+):
+    if val_dataloader is None or args.validation_num_images <= 0:
+        return
+
+    logger.info("Running sample inference validation at step %d ...", global_step)
+
+    unwrapped_unet = accelerator.unwrap_model(unet)
+    was_training = unwrapped_unet.training
+    unwrapped_unet.eval()
+
+    val_scheduler = DDPMScheduler.from_config(noise_scheduler.config)
+    val_scheduler.set_timesteps(args.validation_num_inference_steps, device=accelerator.device)
+
+    sample_dir = Path(args.output_dir) / "test_results" / f"step-{global_step:06d}"
+    sample_dir.mkdir(parents=True, exist_ok=True)
+
+    logged_grids = []
+    saved = 0
+    for batch in val_dataloader:
+        remaining = args.validation_num_images - saved
+        if remaining <= 0:
+            break
+        take_n = min(remaining, batch["sar_pixel_values"].shape[0])
+
+        sar_pixel_values = batch["sar_pixel_values"][:take_n].to(accelerator.device, dtype=weight_dtype)
+        target_pixel_values = batch["pixel_values"][:take_n].to(accelerator.device, dtype=weight_dtype)
+        input_ids = batch["input_ids"][:take_n].to(accelerator.device)
+
+        encoder_hidden_states = text_encoder(input_ids, return_dict=False)[0]
+        sar_rgb = sar_pixel_values.repeat(1, 3, 1, 1)
+        sar_latents = vae.encode(sar_rgb).latent_dist.sample()
+        sar_latents = sar_latents * vae.config.scaling_factor
+        latents = torch.randn_like(sar_latents)
+
+        for t in val_scheduler.timesteps:
+            latent_input = torch.cat([latents, sar_latents], dim=1)
+            unet_kwargs = dict(return_dict=False)
+            if has_class_embedding:
+                unet_kwargs["class_labels"] = torch.full(
+                    (take_n,),
+                    class_label,
+                    dtype=torch.long,
+                    device=latents.device,
+                )
+            with accelerator.autocast():
+                noise_pred = unwrapped_unet(
+                    latent_input,
+                    t,
+                    encoder_hidden_states,
+                    **unet_kwargs,
+                )[0]
+            latents = val_scheduler.step(noise_pred, t, latents).prev_sample
+
+        pred_pixels = vae.decode(latents / vae.config.scaling_factor).sample
+        pred_pixels = ((pred_pixels / 2) + 0.5).clamp(0, 1)
+        src_vis = ((sar_pixel_values + 1) / 2).repeat(1, 3, 1, 1).clamp(0, 1)
+        tgt_vis = ((target_pixel_values + 1) / 2).clamp(0, 1)
+
+        for i in range(take_n):
+            src_img = Image.fromarray(
+                (src_vis[i].detach().float().cpu().permute(1, 2, 0).numpy() * 255).round().astype("uint8")
+            )
+            pred_img = Image.fromarray(
+                (pred_pixels[i].detach().float().cpu().permute(1, 2, 0).numpy() * 255).round().astype("uint8")
+            )
+            tgt_img = Image.fromarray(
+                (tgt_vis[i].detach().float().cpu().permute(1, 2, 0).numpy() * 255).round().astype("uint8")
+            )
+            grid = make_image_grid([src_img, pred_img, tgt_img], rows=1, cols=3)
+            grid.save(sample_dir / f"sample_{saved:03d}.png")
+            logged_grids.append(grid)
+            saved += 1
+            if saved >= args.validation_num_images:
+                break
+
+    logger.info("Saved %d sample inference grids to %s", saved, sample_dir)
+    if logged_grids:
+        log_validation_images_to_trackers(
+            accelerator,
+            logged_grids,
+            global_step,
+            tag="validation/samples",
+        )
+    if was_training:
+        unwrapped_unet.train()
+
+
 def main():
     args = parse_args()
 
@@ -380,7 +511,7 @@ def main():
 
     # Load models
     noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
-    vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
+    vae = AutoencoderKL.from_pretrained(args.vae_model_name_or_path)
     unet = UNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
     text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path)
     text_encoder = text_encoder_cls.from_pretrained(
@@ -541,6 +672,31 @@ def main():
         batch_size=args.train_batch_size,
         num_workers=args.dataloader_num_workers,
     )
+
+    val_dataloader = None
+    if args.validation_steps > 0 and args.paired_val_manifest:
+        try:
+            val_records = load_paired_manifest(args.paired_val_manifest)
+            if val_records:
+                val_dataset = MavicTSAR2RGBDataset(
+                    records=val_records,
+                    resolution=args.resolution,
+                    caption=args.caption,
+                    use_random_crop=False,
+                    use_horizontal_flip=False,
+                    use_vertical_flip=False,
+                    tokenizer=tokenizer,
+                )
+                val_dataloader = torch.utils.data.DataLoader(
+                    val_dataset,
+                    shuffle=False,
+                    collate_fn=collate_fn,
+                    batch_size=args.train_batch_size,
+                    num_workers=0,
+                )
+                logger.info(f"Validation dataset: {len(val_records)} pairs from {args.paired_val_manifest}")
+        except FileNotFoundError:
+            logger.warning(f"Validation manifest not found: {args.paired_val_manifest}, skipping validation")
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if args.max_train_steps is None:
@@ -707,7 +863,7 @@ def main():
                         noisy_latents - beta_prod_t**0.5 * model_pred
                     ) / alpha_prod_t**0.5
                     pred_x0 = pred_x0 / vae.config.scaling_factor
-                    pred_pixels = vae.decode(pred_x0).sample
+                    pred_pixels = vae.decode(pred_x0.to(weight_dtype)).sample
                     with torch.no_grad():
                         enc_feats = rep_alignment_module.extract_features(
                             edited_pixel_values.to(accelerator.device)
@@ -759,6 +915,86 @@ def main():
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
+            # Validation step
+            if (
+                args.validation_steps > 0
+                and val_dataloader is not None
+                and global_step % args.validation_steps == 0
+                and accelerator.is_main_process
+            ):
+                unet.eval()
+                val_losses = []
+                val_repa_losses = []
+                with torch.no_grad():
+                    for val_batch in val_dataloader:
+                        edited_pixel_values = val_batch["pixel_values"].to(accelerator.device, dtype=weight_dtype)
+                        sar_pixel_values = val_batch["sar_pixel_values"].to(accelerator.device, dtype=weight_dtype)
+                        input_ids = val_batch["input_ids"].to(accelerator.device)
+                        encoder_hidden_states = text_encoder(input_ids, return_dict=False)[0]
+                        if torch.rand(1).item() < args.conditioning_dropout_prob:
+                            encoder_hidden_states = null_conditioning.expand(encoder_hidden_states.shape[0], -1, -1)
+                        latents = vae.encode(edited_pixel_values).latent_dist.sample()
+                        latents = latents * vae.config.scaling_factor
+                        noise = torch.randn_like(latents)
+                        bsz = latents.shape[0]
+                        timesteps = torch.randint(
+                            0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device
+                        ).long()
+                        noisy_latents = noise_scheduler.add_noise(latents.float(), noise.float(), timesteps).to(weight_dtype)
+                        sar_rgb = sar_pixel_values.repeat(1, 3, 1, 1)
+                        sar_latents = vae.encode(sar_rgb).latent_dist.sample()
+                        sar_latents = sar_latents * vae.config.scaling_factor
+                        concatenated_noisy_latents = torch.cat([noisy_latents, sar_latents], dim=1)
+                        unet_kwargs = dict(return_dict=False)
+                        if has_class_embedding:
+                            unet_kwargs["class_labels"] = torch.full(
+                                (bsz,), class_label, dtype=torch.long, device=latents.device
+                            )
+                        model_pred = unet(
+                            concatenated_noisy_latents,
+                            timesteps,
+                            encoder_hidden_states,
+                            **unet_kwargs,
+                        )[0]
+                        if noise_scheduler.config.prediction_type == "epsilon":
+                            target = noise
+                        else:
+                            target = noise_scheduler.get_velocity(latents, noise, timesteps)
+                        v_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean").item()
+                        val_losses.append(v_loss)
+                        if rep_alignment_module is not None:
+                            alpha_prod_t = noise_scheduler.alphas_cumprod.to(
+                                device=timesteps.device, dtype=latents.dtype
+                            )[timesteps]
+                            dims = len(latents.shape) - 1
+                            alpha_prod_t = alpha_prod_t.view(-1, *([1] * dims))
+                            beta_prod_t = 1 - alpha_prod_t
+                            pred_x0 = (noisy_latents - beta_prod_t**0.5 * model_pred) / alpha_prod_t**0.5
+                            pred_x0 = pred_x0 / vae.config.scaling_factor
+                            pred_pixels = vae.decode(pred_x0.to(weight_dtype)).sample
+                            enc_feats = rep_alignment_module.extract_features(edited_pixel_values)
+                            v_repa = rep_alignment_module.compute_alignment_loss(pred_pixels, enc_feats).item()
+                            val_repa_losses.append(v_repa)
+                unet.train()
+                val_logs = {"loss/val": sum(val_losses) / len(val_losses)}
+                if val_repa_losses:
+                    val_logs["loss/val_repa"] = sum(val_repa_losses) / len(val_repa_losses)
+                accelerator.log(val_logs, step=global_step)
+                logger.info(f"Validation step {global_step}: {val_logs}")
+                log_validation_samples(
+                    args=args,
+                    accelerator=accelerator,
+                    unet=unet,
+                    vae=vae,
+                    text_encoder=text_encoder,
+                    noise_scheduler=noise_scheduler,
+                    val_dataloader=val_dataloader,
+                    weight_dtype=weight_dtype,
+                    global_step=global_step,
+                    has_class_embedding=has_class_embedding,
+                    class_label=class_label,
+                )
+
             if global_step >= args.max_train_steps:
                 break
         if global_step >= args.max_train_steps:
@@ -778,14 +1014,17 @@ def main():
         logger.info(f"Saved final UNet to {args.output_dir}")
 
         if args.push_to_hub:
+            hub_token = args.hub_token or os.getenv("HUGGINGFACE_HUB_TOKEN") or os.getenv("HF_TOKEN")
             repo_id = args.hub_model_id or Path(args.output_dir).name
-            create_repo(repo_id=repo_id, exist_ok=True, token=args.hub_token)
+            # Always use official endpoint for write operations.
+            os.environ["HF_ENDPOINT"] = "https://huggingface.co"
+            create_repo(repo_id=repo_id, exist_ok=True, token=hub_token)
             upload_folder(
                 repo_id=repo_id,
                 folder_path=args.output_dir,
                 commit_message="End of training",
                 ignore_patterns=["checkpoint-*"],
-                token=args.hub_token,
+                token=hub_token,
             )
             logger.info(f"Pushed to Hub: {repo_id}")
 

@@ -156,7 +156,9 @@ def _load_pipeline(
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
-        pipeline = CUTPipeline.from_pretrained(pretrained_path)
+        pipeline = CUTPipeline.from_pretrained(
+            pretrained_path, torch_dtype=torch.bfloat16
+        )
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading generator from legacy checkpoint: %s", path)
@@ -180,7 +182,7 @@ def _load_pipeline(
         netG.load_state_dict(ckpt)
         pipeline = CUTPipeline(generator=netG)
 
-    pipeline = pipeline.to(primary_device)
+    pipeline = pipeline.to(primary_device, dtype=torch.bfloat16)
     if device_ids is not None and len(device_ids) > 1:
         pipeline.generator = torch.nn.DataParallel(pipeline.generator, device_ids=device_ids)
         logger.info("Using DataParallel on GPUs %s", device_ids)

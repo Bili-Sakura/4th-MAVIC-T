@@ -183,7 +183,9 @@ def _load_unet(pretrained_path: str, cfg: TaskConfig, in_channels: int) -> DDIBU
         subfolder = "ema_unet" if (path / "ema_unet").is_dir() else "unet"
         if subfolder == "ema_unet":
             logger.info("Loading EMA UNet from %s", path / "ema_unet")
-        return DDIBUNet.from_pretrained(pretrained_path, subfolder=subfolder)
+        return DDIBUNet.from_pretrained(
+            pretrained_path, subfolder=subfolder, torch_dtype=torch.bfloat16
+        )
 
     # ---- legacy single-file checkpoint ----
     logger.info("Loading UNet from legacy checkpoint: %s", path)
@@ -227,15 +229,21 @@ def main():
     if args.pretrained_model_name_or_path:
         # ---- combined pipeline directory ----
         logger.info("Loading DDIBPipeline from: %s", args.pretrained_model_name_or_path)
-        pipeline = DDIBPipeline.from_pretrained(args.pretrained_model_name_or_path)
+        pipeline = DDIBPipeline.from_pretrained(
+            args.pretrained_model_name_or_path, torch_dtype=torch.bfloat16
+        )
         pp = Path(args.pretrained_model_name_or_path)
         if (pp / "source_ema_unet").is_dir():
             logger.info("Loading source EMA UNet")
-            pipeline.source_unet = DDIBUNet.from_pretrained(str(pp), subfolder="source_ema_unet")
+            pipeline.source_unet = DDIBUNet.from_pretrained(
+                str(pp), subfolder="source_ema_unet", torch_dtype=torch.bfloat16
+            )
         if (pp / "target_ema_unet").is_dir():
             logger.info("Loading target EMA UNet")
-            pipeline.target_unet = DDIBUNet.from_pretrained(str(pp), subfolder="target_ema_unet")
-        pipeline = pipeline.to(args.primary_device)
+            pipeline.target_unet = DDIBUNet.from_pretrained(
+                str(pp), subfolder="target_ema_unet", torch_dtype=torch.bfloat16
+            )
+        pipeline = pipeline.to(args.primary_device, dtype=torch.bfloat16)
         if device_ids is not None and len(device_ids) > 1:
             pipeline.source_unet = torch.nn.DataParallel(pipeline.source_unet, device_ids=device_ids)
             pipeline.target_unet = torch.nn.DataParallel(pipeline.target_unet, device_ids=device_ids)
@@ -243,10 +251,14 @@ def main():
     elif args.source_pretrained_path and args.target_pretrained_path:
         # ---- separate source/target paths ----
         source_model = _load_unet(args.source_pretrained_path, cfg, cfg.source_channels)
-        source_model = source_model.to(args.primary_device).eval()
+        source_model = source_model.to(
+            args.primary_device, dtype=torch.bfloat16
+        ).eval()
 
         target_model = _load_unet(args.target_pretrained_path, cfg, cfg.target_channels)
-        target_model = target_model.to(args.primary_device).eval()
+        target_model = target_model.to(
+            args.primary_device, dtype=torch.bfloat16
+        ).eval()
 
         if device_ids is not None and len(device_ids) > 1:
             source_model = torch.nn.DataParallel(source_model, device_ids=device_ids)

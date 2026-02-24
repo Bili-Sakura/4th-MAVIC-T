@@ -147,7 +147,7 @@ def main():
         pretrained_path=args.model_path,
         pretrained_model_name_or_path=cfg.pretrained_model_name_or_path,
     )
-    model = model.to(args.primary_device)
+    model = model.to(args.primary_device, dtype=torch.bfloat16)
     model.set_eval()
     if args.use_multi_gpu:
         device_ids = [
@@ -157,7 +157,7 @@ def main():
         model = torch.nn.DataParallel(model, device_ids=device_ids)
         logger.info("Using DataParallel on GPUs %s", device_ids)
     if args.use_fp16:
-        model.half()
+        model.half()  # override bf16 default to fp16
 
     # Encode prompt
     prompt_embeds = model.encode_prompt(cfg.prompt, torch.device(args.primary_device))

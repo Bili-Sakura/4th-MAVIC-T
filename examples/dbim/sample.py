@@ -182,7 +182,11 @@ def _load_pipeline(pretrained_path: str, primary_device: str, device_ids: list[i
 
     logger.info("Loading DBIM pipeline from checkpoint directory: %s", path)
     unet_subfolder = "ema_unet" if (path / "ema_unet").is_dir() else "unet"
-    unet = DBIMUNet.from_pretrained(pretrained_path, subfolder=unet_subfolder)
+    unet = DBIMUNet.from_pretrained(
+        pretrained_path,
+        subfolder=unet_subfolder,
+        torch_dtype=torch.bfloat16,
+    )
 
     scheduler_dir = path / "scheduler"
     scheduler_config = scheduler_dir / "scheduler_config.json"
@@ -219,7 +223,9 @@ def _load_pipeline(pretrained_path: str, primary_device: str, device_ids: list[i
                 scheduler_dir,
             )
 
-    pipeline = DBIMPipeline(unet=unet, scheduler=scheduler).to(primary_device)
+    pipeline = DBIMPipeline(unet=unet, scheduler=scheduler).to(
+        primary_device, dtype=torch.bfloat16
+    )
 
     if device_ids is not None and len(device_ids) > 1:
         pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)

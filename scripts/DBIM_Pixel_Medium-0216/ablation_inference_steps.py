@@ -60,7 +60,11 @@ def _load_pipeline(pretrained_path: str, device: str) -> DBIMPipeline:
 
     logger.info("Loading pipeline from %s", path)
     unet_subfolder = "ema_unet" if (path / "ema_unet").is_dir() else "unet"
-    unet = DBIMUNet.from_pretrained(pretrained_path, subfolder=unet_subfolder)
+    unet = DBIMUNet.from_pretrained(
+        pretrained_path,
+        subfolder=unet_subfolder,
+        torch_dtype=torch.bfloat16,
+    )
 
     scheduler_config = path / "scheduler" / "scheduler_config.json"
     if scheduler_config.exists():
@@ -85,7 +89,9 @@ def _load_pipeline(pretrained_path: str, device: str) -> DBIMPipeline:
         else:
             scheduler = DBIMScheduler()
 
-    return DBIMPipeline(unet=unet, scheduler=scheduler).to(device)
+    return DBIMPipeline(unet=unet, scheduler=scheduler).to(
+        device, dtype=torch.bfloat16
+    )
 
 
 def _tensor_to_pil(t: torch.Tensor) -> Image.Image:

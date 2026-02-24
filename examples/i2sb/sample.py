@@ -172,11 +172,15 @@ def _load_pipeline(
     if path.is_dir():
         # ---- diffusers from_pretrained path ----
         logger.info("Loading pipeline from pretrained directory: %s", path)
-        pipeline = I2SBPipeline.from_pretrained(pretrained_path)
+        pipeline = I2SBPipeline.from_pretrained(
+            pretrained_path, torch_dtype=torch.bfloat16
+        )
         ema_unet_dir = path / "ema_unet"
         if ema_unet_dir.is_dir():
             logger.info("Loading EMA UNet from %s", ema_unet_dir)
-            pipeline.unet = I2SBUNet.from_pretrained(pretrained_path, subfolder="ema_unet")
+            pipeline.unet = I2SBUNet.from_pretrained(
+                pretrained_path, subfolder="ema_unet", torch_dtype=torch.bfloat16
+            )
     else:
         # ---- legacy single-file checkpoint ----
         logger.info("Loading model from legacy checkpoint: %s", path)
@@ -206,7 +210,7 @@ def _load_pipeline(
         )
         pipeline = I2SBPipeline(unet=model, scheduler=scheduler)
 
-    pipeline = pipeline.to(primary_device)
+    pipeline = pipeline.to(primary_device, dtype=torch.bfloat16)
     if device_ids is not None and len(device_ids) > 1:
         pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
         logger.info("Using DataParallel on GPUs %s", device_ids)

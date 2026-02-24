@@ -275,6 +275,9 @@ class DDBMUNet(ModelMixin, ConfigMixin):
                 unet.load_state_dict(state, strict=True)
             else:
                 raise FileNotFoundError(f"EMA weights not found at: {ema_path}")
+            torch_dtype = kwargs.get("torch_dtype")
+            if torch_dtype is not None:
+                unet = unet.to(dtype=torch_dtype)
             return unet
         return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
 

@@ -133,7 +133,7 @@ def main():
         pipeline = DDBMLatentPipeline(unet=model, scheduler=scheduler, vae=vae_encoder.vae)
     else:
         pipeline = DDBMPipeline(unet=model, scheduler=scheduler)
-    pipeline = pipeline.to(device)
+    pipeline = pipeline.to(device, dtype=torch.bfloat16)
 
     # Load test dataset (first 4 samples)
     # Use output_resolution for loading when set (512-trained model → 1024 inference)

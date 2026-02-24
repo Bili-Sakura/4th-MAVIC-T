@@ -222,21 +222,40 @@ class MavicTSAR2RGBDataset(Dataset):
         return (x, y)
 
     def __getitem__(self, idx: int) -> dict:
-        rec = self.records[idx]
-        crop_pos = self._sample_crop_pos(idx)
+        # Robustly skip occasional corrupted/truncated image pairs instead of
+        # crashing DataLoader workers mid-training.
+        max_attempts = min(16, max(1, len(self.records)))
+        last_err = None
 
-        # When random crop requested but image too small, skip to another sample
-        if self.use_random_crop and crop_pos is None:
-            if len(self.records) > 1:
-                return self.__getitem__(random.randint(0, len(self.records) - 1))
-            raise ValueError(
-                f"All images smaller than resolution {self.resolution}; "
-                "resolution is for random crop only, not resize."
-            )
+        for _ in range(max_attempts):
+            rec = self.records[idx]
+            crop_pos = self._sample_crop_pos(idx)
 
-        # Load SAR (1ch) and RGB (3ch)
-        sar_arr = _load_image(rec["input_path"], 1, self.resolution, crop_pos)
-        rgb_arr = _load_image(rec["target_path"], 3, self.resolution, crop_pos)
+            # When random crop requested but image too small, try another sample.
+            if self.use_random_crop and crop_pos is None:
+                if len(self.records) > 1:
+                    idx = random.randint(0, len(self.records) - 1)
+                    continue
+                raise ValueError(
+                    f"All images smaller than resolution {self.resolution}; "
+                    "resolution is for random crop only, not resize."
+                )
+
+            try:
+                # Load SAR (1ch) and RGB (3ch)
+                sar_arr = _load_image(rec["input_path"], 1, self.resolution, crop_pos)
+                rgb_arr = _load_image(rec["target_path"], 3, self.resolution, crop_pos)
+                break
+            except Exception as err:
+                last_err = err
+                if len(self.records) <= 1:
+                    raise
+                idx = random.randint(0, len(self.records) - 1)
+        else:
+            raise RuntimeError(
+                f"Failed to load a valid sample after {max_attempts} attempts. "
+                f"Last error: {last_err}"
+            ) from last_err
 
         # Augmentations (same for both)
         if self.use_horizontal_flip and random.random() > 0.5:

@@ -160,7 +160,11 @@ def _load_pipeline(
 
     logger.info("Loading SID2 pipeline from checkpoint directory: %s", path)
     unet_subfolder = "ema_unet" if (path / "ema_unet").is_dir() else "unet"
-    unet = SiDUNet.from_pretrained(pretrained_path, subfolder=unet_subfolder)
+    unet = SiDUNet.from_pretrained(
+        pretrained_path,
+        subfolder=unet_subfolder,
+        torch_dtype=torch.bfloat16,
+    )
 
     scheduler_dir = path / "scheduler"
     scheduler_config = scheduler_dir / "scheduler_config.json"
@@ -202,7 +206,9 @@ def _load_pipeline(
                 scheduler_dir,
             )
 
-    pipeline = SID2Pipeline(unet=unet, scheduler=scheduler).to(primary_device)
+    pipeline = SID2Pipeline(unet=unet, scheduler=scheduler).to(
+        primary_device, dtype=torch.bfloat16
+    )
     if device_ids is not None and len(device_ids) > 1:
         pipeline.unet = torch.nn.DataParallel(pipeline.unet, device_ids=device_ids)
         logger.info("Using DataParallel on GPUs %s", device_ids)

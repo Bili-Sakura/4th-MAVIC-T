@@ -138,7 +138,7 @@ class SARCLIPAlignment(nn.Module):
         from PIL import Image
         
         x = adapt_channels(normalize_to_01(images))
-        pil_images = [Image.fromarray((x[i].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)) 
+        pil_images = [Image.fromarray((x[i].permute(1, 2, 0).cpu().float().numpy() * 255).astype(np.uint8)) 
                       for i in range(x.shape[0])]
         return self.image_processor(pil_images, return_tensors="pt").pixel_values.to(images.device)
 
@@ -158,7 +158,7 @@ class SARCLIPAlignment(nn.Module):
         if model_features.ndim == 4:
             model_features = model_features.mean(dim=[2, 3])  # global average pool
         if self.projector is not None:
-            model_features = self.projector(model_features)
+            model_features = self.projector(model_features.float())
         z_model = F.normalize(model_features, dim=-1)
         z_enc = F.normalize(encoder_features.detach(), dim=-1)
         return -(z_model * z_enc).sum(dim=-1).mean()
@@ -204,7 +204,7 @@ class DINOv3SatAlignment(nn.Module):
         from PIL import Image
         
         x = adapt_channels(normalize_to_01(images))
-        pil_images = [Image.fromarray((x[i].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)) 
+        pil_images = [Image.fromarray((x[i].permute(1, 2, 0).cpu().float().numpy() * 255).astype(np.uint8)) 
                       for i in range(x.shape[0])]
         inputs = self.image_processor(images=pil_images, return_tensors="pt")
         return inputs.pixel_values.to(images.device)
@@ -226,7 +226,7 @@ class DINOv3SatAlignment(nn.Module):
         if model_features.ndim == 4:
             model_features = model_features.mean(dim=[2, 3])  # global average pool
         if self.projector is not None:
-            model_features = self.projector(model_features)
+            model_features = self.projector(model_features.float())
         z_model = F.normalize(model_features, dim=-1)
         z_enc = F.normalize(encoder_features.detach(), dim=-1)
         return -(z_model * z_enc).sum(dim=-1).mean()
@@ -278,7 +278,7 @@ class MaRSRGBAlignment(nn.Module):
 
         x = adapt_channels(normalize_to_01(images))
         pil_images = [
-            Image.fromarray((x[i].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8))
+            Image.fromarray((x[i].permute(1, 2, 0).cpu().float().numpy() * 255).astype(np.uint8))
             for i in range(x.shape[0])
         ]
         pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
@@ -303,7 +303,7 @@ class MaRSRGBAlignment(nn.Module):
         if model_features.ndim == 4:
             model_features = model_features.mean(dim=[2, 3])
         if self.projector is not None:
-            model_features = self.projector(model_features)
+            model_features = self.projector(model_features.float())
         z_model = F.normalize(model_features, dim=-1)
         z_enc = F.normalize(encoder_features.detach(), dim=-1)
         return -(z_model * z_enc).sum(dim=-1).mean()
@@ -363,7 +363,7 @@ class MaRSSARAlignment(nn.Module):
             logger.warning("MaRS-SAR encoder received 3-channel input; using first channel only")
             x = x[:, :1]
         pil_images = [
-            Image.fromarray((x[i, 0].cpu().numpy() * 255).astype(np.uint8), mode="L")
+            Image.fromarray((x[i, 0].cpu().float().numpy() * 255).astype(np.uint8), mode="L")
             for i in range(x.shape[0])
         ]
         pixel_values = self.image_processor(pil_images, return_tensors="pt").pixel_values
@@ -388,7 +388,7 @@ class MaRSSARAlignment(nn.Module):
         if model_features.ndim == 4:
             model_features = model_features.mean(dim=[2, 3])
         if self.projector is not None:
-            model_features = self.projector(model_features)
+            model_features = self.projector(model_features.float())
         z_model = F.normalize(model_features, dim=-1)
         z_enc = F.normalize(encoder_features.detach(), dim=-1)
         return -(z_model * z_enc).sum(dim=-1).mean()
