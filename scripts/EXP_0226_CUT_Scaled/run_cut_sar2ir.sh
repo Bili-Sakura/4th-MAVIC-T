@@ -8,6 +8,7 @@
 #   bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
 #   TIER=large bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
 #   TIER=huge  CKPT_PATH=/path/to/checkpoint bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
+#   CUDA_VISIBLE_DEVICES=1 TIER=huge CKPT_PATH="/data/projects/4th-MAVIC-T/ckpt/EXP_0226_CUT_Scaled/cut/sar2ir_huge_512_1gpu/cut/sar2ir/checkpoint-10" bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
 
 set -euo pipefail
 
@@ -19,8 +20,9 @@ TIER="${TIER:-medium}"          # medium | large | huge
 CKPT_PATH="${CKPT_PATH:-}"
 MODEL_NAME="${MODEL_NAME:-exp0226_cut_sar2ir_${TIER}}"
 SUBMISSION_ROOT="${SUBMISSION_ROOT:-${PROJECT_ROOT}/datasets/BiliSakura/MACIV-T-2025-Submissions/ckpt-0226}"
-BATCH_SIZE="${BATCH_SIZE:-8}"
 DEVICES="${DEVICES:-cuda:0}"
+INFER_RESOLUTION="${INFER_RESOLUTION:-1024}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
 
 if [[ -z "${CKPT_PATH}" ]]; then
   BASE_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2ir_${TIER}_512_1gpu"
@@ -45,6 +47,7 @@ echo "=== EXP-0226 CUT SAR→IR inference (tier=${TIER}) ==="
 echo "checkpoint : ${CKPT_PATH}"
 echo "output     : ${SUBMISSION_ROOT}/sar2ir/${MODEL_NAME}"
 echo "devices    : ${DEVICES}"
+echo "resolution : ${INFER_RESOLUTION}"
 
 python -m examples.cut.sample \
   --task sar2ir \
@@ -52,6 +55,7 @@ python -m examples.cut.sample \
   --split test \
   --output_dir "${SUBMISSION_ROOT}/sar2ir/${MODEL_NAME}" \
   --batch_size "${BATCH_SIZE}" \
+  --resolution "${INFER_RESOLUTION}" \
   --device "${DEVICE_ARR[@]}" \
   "$@"
 

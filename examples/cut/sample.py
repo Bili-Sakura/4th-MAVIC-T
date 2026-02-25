@@ -104,6 +104,12 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default="./samples")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument(
+        "--resolution",
+        type=int,
+        default=None,
+        help="Override inference resolution (default: task config resolution).",
+    )
+    parser.add_argument(
         "--deterministic",
         action="store_true",
         help="Use deterministic sampling (CUT is deterministic by default in eval mode).",
@@ -213,10 +219,11 @@ def main():
     )
 
     # Load evaluation data
+    infer_resolution = args.resolution if args.resolution is not None else cfg.resolution
     dataset = MavicTCUTDataset(
         task=args.task,
         split=args.split,
-        resolution=cfg.resolution,
+        resolution=infer_resolution,
         source_channels=cfg.source_channels,
         target_channels=cfg.target_channels,
         model_channels=cfg.model_channels,
