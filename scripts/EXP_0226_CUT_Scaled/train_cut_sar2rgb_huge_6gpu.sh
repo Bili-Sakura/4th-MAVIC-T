@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# EXP-0226 — CUT — SAR→RGB — Huge tier (6 GPU)
+# EXP-0226 — CUT — SAR→RGB — Huge tier (6 GPU, REPA)
 #
 # CUT huge: ngf=256, ndf=256, n_layers_D=4, netG=resnet_9blocks (~292.9 M params)
 # Resolution: 512×512 (crop from 1024)
+# REPA: MaRS-Base-RGB for target-domain representation alignment
 #
 # Usage:
 #   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_huge_6gpu.sh
@@ -45,10 +46,17 @@ CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=999999999999
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
+# --- REPA (target domain RGB encoder) ---
+USE_REP_ALIGNMENT=true
+REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
+LAMBDA_REP_ALIGNMENT=0.2
+LAMBDA_REP_ALIGNMENT_DECAY_STEPS=2000
+LAMBDA_REP_ALIGNMENT_END=0.0
+
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2rgb-huge-512-6gpu"
-SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→RGB Huge (512, ~292.9M, 6 GPU)"
-SWANLAB_TAGS="cut,exp-0226,sar2rgb,huge,6gpu"
+SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2rgb-huge-512-6gpu-repa"
+SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→RGB Huge (512, ~292.9M, 6 GPU, REPA)"
+SWANLAB_TAGS="cut,exp-0226,sar2rgb,huge,6gpu,repa"
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0226"
@@ -92,9 +100,14 @@ ARGS=(
   --push_to_hub "${PUSH_TO_HUB}"
   --hub_model_id "${HUB_MODEL_ID}"
   --hub_path_tier "${HUB_PATH_TIER}"
+  --use_rep_alignment "${USE_REP_ALIGNMENT}"
+  --rep_alignment_model_path "${REP_ALIGNMENT_MODEL_PATH}"
+  --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
+  --lambda_rep_alignment_decay_steps "${LAMBDA_REP_ALIGNMENT_DECAY_STEPS}"
+  --lambda_rep_alignment_end "${LAMBDA_REP_ALIGNMENT_END}"
 )
 
 [ -n "${RESUME_FROM_CHECKPOINT}" ] && ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
 
-echo "EXP-0226 CUT SAR2RGB huge (6 GPU) — log: ${LOG_FILE}"
+echo "EXP-0226 CUT SAR2RGB huge (6 GPU, REPA) — log: ${LOG_FILE}"
 nohup accelerate launch --num_processes "${NGPU}" -m examples.cut.train_sar2rgb "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &
