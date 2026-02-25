@@ -145,7 +145,14 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
                 dim=0,
             )
             t_crops = t.repeat_interleave(vb_size, dim=0)
-            out_crops = self.unet(crops_img, t_crops, context=crops_ctx)
+            model_device = next(self.unet.parameters()).device
+            model_dtype = next(self.unet.parameters()).dtype
+            out_crops = self.unet(
+                crops_img.to(device=model_device, dtype=model_dtype),
+                t_crops,
+                context=crops_ctx.to(device=model_device, dtype=model_dtype),
+            )
+            out_crops = out_crops.to(device=img.device, dtype=img.dtype)
             for b in range(batch_size):
                 for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
                     idx = b * vb_size + k
@@ -203,13 +210,20 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         """
         device = source.device
         img = source.clone()
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
 
         for i in tqdm(range(len(steps)), desc="B2A sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=device, dtype=torch.long)
             if views is not None:
                 model_output = self._unet_tiled(img, t, source, views, view_batch_size=view_batch_size)
             else:
-                model_output = self.unet(img, t, context=source)
+                model_output = self.unet(
+                    img.to(device=model_device, dtype=model_dtype),
+                    t,
+                    context=source.to(device=model_device, dtype=model_dtype),
+                )
+                model_output = model_output.to(device=img.device, dtype=img.dtype)
             result = self.scheduler.step_b2a(
                 model_output,
                 step_index=i,
@@ -254,13 +268,20 @@ class BiBBDMLatentPipeline(DiffusionPipeline):
         """
         device = target.device
         img = target.clone()
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
 
         for i in tqdm(reversed(range(len(steps))), desc="A2B sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=device, dtype=torch.long)
             if views is not None:
                 model_output = self._unet_tiled(img, t, target, views, view_batch_size=view_batch_size)
             else:
-                model_output = self.unet(img, t, context=target)
+                model_output = self.unet(
+                    img.to(device=model_device, dtype=model_dtype),
+                    t,
+                    context=target.to(device=model_device, dtype=model_dtype),
+                )
+                model_output = model_output.to(device=img.device, dtype=img.dtype)
             result = self.scheduler.step_a2b(
                 model_output,
                 step_index=i,

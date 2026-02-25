@@ -175,6 +175,8 @@ class I2SBPipeline(DiffusionPipeline):
         use_cfg = has_condition and abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(cond) if use_cfg else None
         nfe_per_denoise = 2 if use_cfg else 1
+        model_device = self.device
+        model_dtype = self.dtype
 
         # Backward sampling loop: iterate from large timestep to small
         num_steps = len(steps) - 1
@@ -193,14 +195,24 @@ class I2SBPipeline(DiffusionPipeline):
 
             # Model prediction
             if use_cfg:
-                model_input = torch.cat([xt, xt], dim=0)
+                model_input = torch.cat([xt, xt], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 timestep_input = torch.cat([t_batch, t_batch], dim=0)
-                cond_input = torch.cat([cond, null_condition], dim=0)
+                cond_input = torch.cat([cond, null_condition], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 pred_batched = self.unet(model_input, timestep_input, cond=cond_input)
                 pred_cond, pred_uncond = pred_batched.chunk(2, dim=0)
                 pred = pred_uncond + cfg_scale * (pred_cond - pred_uncond)
             else:
-                pred = self.unet(xt, t_batch, cond=cond)
+                cond_input = cond.to(device=model_device, dtype=model_dtype) if cond is not None else None
+                pred = self.unet(
+                    xt.to(device=model_device, dtype=model_dtype),
+                    t_batch,
+                    cond=cond_input,
+                )
+            pred = pred.to(device=xt.device, dtype=xt.dtype)
             nfe_count += nfe_per_denoise
 
             # Recover predicted x0 and sample posterior

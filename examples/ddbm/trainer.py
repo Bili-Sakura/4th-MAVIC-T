@@ -914,7 +914,6 @@ class DDBMTrainer:
                 if accelerator.sync_gradients:
                     if cfg.use_ema and ema_model is not None:
                         ema_model.step(model.parameters())
-                    progress_bar.update(1)
                     global_step += 1
 
                     logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
@@ -928,7 +927,8 @@ class DDBMTrainer:
                         logs["loss/latent"] = loss_extras["loss_latent"].item()
                     if cond_drop_ratio is not None:
                         logs["cond/drop_ratio"] = cond_drop_ratio
-                    progress_bar.set_postfix(**logs)
+                    progress_bar.set_postfix(**logs, refresh=False)
+                    progress_bar.update(1)
                     accelerator.log(logs, step=global_step)
 
                     # Step-based validation

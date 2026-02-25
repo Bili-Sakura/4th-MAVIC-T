@@ -174,12 +174,20 @@ class DDBMLatentPipeline(DiffusionPipeline):
             x_T: Target/condition images.
             clip_denoised: Whether to clip the output to [-1, 1].
         """
+        model_device = self.device
+        model_dtype = self.dtype
+
         c_skip, c_out, c_in = [
             self._append_dims(x, x_t.ndim) for x in self._get_bridge_scalings(sigmas)
         ]
 
         rescaled_t = 1000 * 0.25 * torch.log(sigmas + 1e-44)
-        model_output = self.unet(c_in * x_t, rescaled_t, xT=x_T)
+        model_output = self.unet(
+            (c_in * x_t).to(device=model_device, dtype=model_dtype),
+            rescaled_t.to(device=model_device, dtype=model_dtype),
+            xT=x_T.to(device=model_device, dtype=model_dtype),
+        )
+        model_output = model_output.to(device=x_t.device, dtype=x_t.dtype)
         denoised = c_out * model_output + c_skip * x_t
 
         if clip_denoised:

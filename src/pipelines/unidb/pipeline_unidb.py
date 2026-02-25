@@ -100,6 +100,8 @@ class UniDBPipeline(DiffusionPipeline):
         use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(x_T) if use_cfg else None
         nfe_per_denoise = 2 if use_cfg else 1
+        model_device = self.device
+        model_dtype = self.dtype
 
         self.scheduler.set_timesteps(num_inference_steps, device=self.device)
         self.scheduler._mu = x_T  # condition (LQ)
@@ -130,14 +132,21 @@ class UniDBPipeline(DiffusionPipeline):
             )
 
             if use_cfg:
-                model_input = torch.cat([x, x], dim=0)
-                cond_input = torch.cat([x_T, null_condition], dim=0)
+                model_input = torch.cat([x, x], dim=0).to(device=model_device, dtype=model_dtype)
+                cond_input = torch.cat([x_T, null_condition], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 timestep_input = torch.cat([t_tensor, t_tensor], dim=0)
                 noise_pred_batched = self.unet(model_input, cond_input, timestep_input)
                 noise_pred_cond, noise_pred_uncond = noise_pred_batched.chunk(2, dim=0)
                 noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
             else:
-                noise_pred = self.unet(x, x_T, t_tensor)
+                noise_pred = self.unet(
+                    x.to(device=model_device, dtype=model_dtype),
+                    x_T.to(device=model_device, dtype=model_dtype),
+                    t_tensor,
+                )
+            noise_pred = noise_pred.to(device=x.device, dtype=x.dtype)
             nfe += nfe_per_denoise
 
             scheduler_output = self.scheduler.step(

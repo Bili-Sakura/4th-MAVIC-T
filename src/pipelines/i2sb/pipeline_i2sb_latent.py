@@ -169,7 +169,16 @@ class I2SBLatentPipeline(DiffusionPipeline):
                 else None
             )
             t_crops = t_batch.repeat_interleave(vb_size, dim=0)
-            pred_crops = self.unet(crops_zt, t_crops, cond=crops_cond)
+            pred_crops = self.unet(
+                crops_zt.to(device=self._execution_device, dtype=next(self.unet.parameters()).dtype),
+                t_crops,
+                cond=(
+                    crops_cond.to(device=self._execution_device, dtype=next(self.unet.parameters()).dtype)
+                    if crops_cond is not None
+                    else None
+                ),
+            )
+            pred_crops = pred_crops.to(device=zt.device, dtype=zt.dtype)
             for b in range(batch_size):
                 for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
                     idx = b * vb_size + k
@@ -357,6 +366,8 @@ class I2SBLatentPipeline(DiffusionPipeline):
 
         has_condition = hasattr(self.unet, "condition_mode") and self.unet.condition_mode == "concat"
         cond = z1 if has_condition else None
+        model_device = self._execution_device
+        model_dtype = next(self.unet.parameters()).dtype
 
         # Backward sampling loop
         num_steps = len(steps) - 1
@@ -374,7 +385,12 @@ class I2SBLatentPipeline(DiffusionPipeline):
             if views is not None:
                 pred = self._unet_tiled(zt, t_batch, cond, views, view_batch_size=view_batch_size)
             else:
-                pred = self.unet(zt, t_batch, cond=cond)
+                pred = self.unet(
+                    zt.to(device=model_device, dtype=model_dtype),
+                    t_batch,
+                    cond=cond.to(device=model_device, dtype=model_dtype) if cond is not None else None,
+                )
+                pred = pred.to(device=zt.device, dtype=zt.dtype)
             nfe_count += 1
 
             # No clip_denoise for latent space

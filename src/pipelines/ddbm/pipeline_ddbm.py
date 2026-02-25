@@ -171,6 +171,9 @@ class DDBMPipeline(DiffusionPipeline):
             x_T: Target/condition images.
             clip_denoised: Whether to clip the output to [-1, 1].
         """
+        model_device = self.device
+        model_dtype = self.dtype
+
         c_skip, c_out, c_in = [
             self._append_dims(x, x_t.ndim) for x in self._get_bridge_scalings(sigmas)
         ]
@@ -183,14 +186,25 @@ class DDBMPipeline(DiffusionPipeline):
             if null_condition is None:
                 null_condition = torch.zeros_like(x_T)
 
-            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0)
-            timestep_input = torch.cat([rescaled_t, rescaled_t], dim=0)
-            cond_input = torch.cat([x_T, null_condition], dim=0)
+            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0).to(
+                device=model_device, dtype=model_dtype
+            )
+            timestep_input = torch.cat([rescaled_t, rescaled_t], dim=0).to(
+                device=model_device, dtype=model_dtype
+            )
+            cond_input = torch.cat([x_T, null_condition], dim=0).to(
+                device=model_device, dtype=model_dtype
+            )
             model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
             model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
             model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
         else:
-            model_output = self.unet(c_in * x_t, rescaled_t, xT=x_T)
+            model_output = self.unet(
+                (c_in * x_t).to(device=model_device, dtype=model_dtype),
+                rescaled_t.to(device=model_device, dtype=model_dtype),
+                xT=x_T.to(device=model_device, dtype=model_dtype),
+            )
+        model_output = model_output.to(device=x_t.device, dtype=x_t.dtype)
         denoised = c_out * model_output + c_skip * x_t
 
         if clip_denoised:

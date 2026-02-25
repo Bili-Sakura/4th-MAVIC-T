@@ -92,6 +92,8 @@ class SID2Pipeline(DiffusionPipeline):
         use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(source) if use_cfg else None
         nfe_per_denoise = 2 if use_cfg else 1
+        model_device = self.device
+        model_dtype = self.dtype
 
         xt = randn_tensor(
             (batch_size, target_channels, source.shape[-2], source.shape[-1]),
@@ -116,16 +118,25 @@ class SID2Pipeline(DiffusionPipeline):
             )
 
             if use_cfg:
-                model_input = torch.cat([xt, xt], dim=0)
+                model_input = torch.cat([xt, xt], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 timestep_input = torch.cat([t_batch, t_batch], dim=0)
-                cond_input = torch.cat([source, null_condition], dim=0)
+                cond_input = torch.cat([source, null_condition], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
                 model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
                 model_output = model_output_uncond + cfg_scale * (
                     model_output_cond - model_output_uncond
                 )
             else:
-                model_output = self.unet(xt, t_batch, xT=source)
+                model_output = self.unet(
+                    xt.to(device=model_device, dtype=model_dtype),
+                    t_batch,
+                    xT=source.to(device=model_device, dtype=model_dtype),
+                )
+            model_output = model_output.to(device=xt.device, dtype=xt.dtype)
             nfe_count += nfe_per_denoise
 
             step_output = self.scheduler.step(

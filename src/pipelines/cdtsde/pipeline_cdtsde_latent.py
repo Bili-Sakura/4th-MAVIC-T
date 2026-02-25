@@ -156,7 +156,14 @@ class CDTSDELatentPipeline(DiffusionPipeline):
                 dim=0,
             )
             t_crops = t_batch.repeat_interleave(vb_size, dim=0)
-            pred_noise_crops = self.unet(crops_z, t_crops, xT=crops_z_T)
+            model_device = self.device
+            model_dtype = self.dtype
+            pred_noise_crops = self.unet(
+                crops_z.to(device=model_device, dtype=model_dtype),
+                t_crops,
+                xT=crops_z_T.to(device=model_device, dtype=model_dtype),
+            )
+            pred_noise_crops = pred_noise_crops.to(device=z.device, dtype=z.dtype)
             for b in range(batch_size):
                 for k, (h_start, h_end, w_start, w_end) in enumerate(batch_view):
                     idx = b * vb_size + k
@@ -197,6 +204,8 @@ class CDTSDELatentPipeline(DiffusionPipeline):
     ):
         device = self.device
         dtype = self.dtype
+        model_device = self.device
+        model_dtype = self.dtype
 
         x_pixel = self.prepare_inputs(source_image, device=device, dtype=dtype)
         x_pixel = self._resize_to_output_size(x_pixel, output_size)
@@ -235,7 +244,12 @@ class CDTSDELatentPipeline(DiffusionPipeline):
             if views is not None:
                 pred_noise = self._unet_tiled(z, t_batch, z_T, views, view_batch_size=view_batch_size)
             else:
-                pred_noise = self.unet(z, t_batch, xT=z_T)
+                pred_noise = self.unet(
+                    z.to(device=model_device, dtype=model_dtype),
+                    t_batch,
+                    xT=z_T.to(device=model_device, dtype=model_dtype),
+                )
+                pred_noise = pred_noise.to(device=z.device, dtype=z.dtype)
             nfe += 1
 
             idx_batch = torch.full((batch_size,), j, device=device, dtype=torch.long)

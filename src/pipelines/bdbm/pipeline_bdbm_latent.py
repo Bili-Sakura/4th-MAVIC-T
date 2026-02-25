@@ -80,9 +80,16 @@ class BDBMLatentPipeline(DiffusionPipeline):
     ) -> torch.Tensor:
         img = source.clone()
         context = self._make_context(source, direction="b2a")
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
         for i in tqdm(range(len(steps)), desc="BDBM latent b2a", total=len(steps)):
             t = torch.full((img.shape[0],), int(steps[i].item()), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=context)
+            model_output = self.unet(
+                img.to(device=model_device, dtype=model_dtype),
+                t,
+                context=context.to(device=model_device, dtype=model_dtype),
+            )
+            model_output = model_output.to(device=img.device, dtype=img.dtype)
             img = self.scheduler.step_b2a(
                 model_output=model_output,
                 step_index=i,
@@ -102,9 +109,16 @@ class BDBMLatentPipeline(DiffusionPipeline):
     ) -> torch.Tensor:
         img = target.clone()
         context = self._make_context(target, direction="a2b")
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
         for i in tqdm(range(len(asc_steps)), desc="BDBM latent a2b", total=len(asc_steps)):
             t = torch.full((img.shape[0],), int(asc_steps[i].item()), device=img.device, dtype=torch.long)
-            model_output = self.unet(img, t, context=context)
+            model_output = self.unet(
+                img.to(device=model_device, dtype=model_dtype),
+                t,
+                context=context.to(device=model_device, dtype=model_dtype),
+            )
+            model_output = model_output.to(device=img.device, dtype=img.dtype)
             img = self.scheduler.step_a2b(
                 model_output=model_output,
                 step_index=i,

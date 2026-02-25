@@ -120,17 +120,26 @@ class BiBBDMPipeline(DiffusionPipeline):
         img = source.clone()
         use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(source) if use_cfg else None
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
         for i in tqdm(range(len(steps)), desc="B2A sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=img.device, dtype=torch.long)
             if use_cfg:
-                model_input = torch.cat([img, img], dim=0)
+                model_input = torch.cat([img, img], dim=0).to(device=model_device, dtype=model_dtype)
                 timestep_input = torch.cat([t, t], dim=0)
-                cond_input = torch.cat([source, null_condition], dim=0)
+                cond_input = torch.cat([source, null_condition], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 model_output_batched = self.unet(model_input, timestep_input, context=cond_input)
                 model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
                 model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
             else:
-                model_output = self.unet(img, t, context=source)
+                model_output = self.unet(
+                    img.to(device=model_device, dtype=model_dtype),
+                    t,
+                    context=source.to(device=model_device, dtype=model_dtype),
+                )
+            model_output = model_output.to(device=img.device, dtype=img.dtype)
             result = self.scheduler.step_b2a(
                 model_output, step_index=i, x_t=img, source=source,
                 clip_denoised=clip_denoised, generator=generator,
@@ -143,17 +152,26 @@ class BiBBDMPipeline(DiffusionPipeline):
         img = target.clone()
         use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(target) if use_cfg else None
+        model_device = next(self.unet.parameters()).device
+        model_dtype = next(self.unet.parameters()).dtype
         for i in tqdm(reversed(range(len(steps))), desc="A2B sampling", total=len(steps)):
             t = torch.full((img.shape[0],), steps[i].item(), device=img.device, dtype=torch.long)
             if use_cfg:
-                model_input = torch.cat([img, img], dim=0)
+                model_input = torch.cat([img, img], dim=0).to(device=model_device, dtype=model_dtype)
                 timestep_input = torch.cat([t, t], dim=0)
-                cond_input = torch.cat([target, null_condition], dim=0)
+                cond_input = torch.cat([target, null_condition], dim=0).to(
+                    device=model_device, dtype=model_dtype
+                )
                 model_output_batched = self.unet(model_input, timestep_input, context=cond_input)
                 model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
                 model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
             else:
-                model_output = self.unet(img, t, context=target)
+                model_output = self.unet(
+                    img.to(device=model_device, dtype=model_dtype),
+                    t,
+                    context=target.to(device=model_device, dtype=model_dtype),
+                )
+            model_output = model_output.to(device=img.device, dtype=img.dtype)
             result = self.scheduler.step_a2b(
                 model_output, step_index=i, x_t=img, target=target,
                 clip_denoised=clip_denoised, generator=generator,

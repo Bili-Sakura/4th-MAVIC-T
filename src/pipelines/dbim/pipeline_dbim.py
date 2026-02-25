@@ -133,6 +133,9 @@ class DBIMSamplingMixin:
         null_condition: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Predict denoised bridge state from noisy sample at time `t`."""
+        model_device = self._get_device()
+        model_dtype = self._get_dtype()
+
         c_skip, c_out, c_in, c_noise = self._bridge_scalings(t)
         c_skip = self._append_dims(c_skip, x_t.ndim).to(dtype=x_t.dtype, device=x_t.device)
         c_out = self._append_dims(c_out, x_t.ndim).to(dtype=x_t.dtype, device=x_t.device)
@@ -142,20 +145,29 @@ class DBIMSamplingMixin:
         if use_cfg:
             if null_condition is None:
                 null_condition = torch.zeros_like(x_T)
-            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0)
+            model_input = torch.cat([c_in * x_t, c_in * x_t], dim=0).to(
+                dtype=model_dtype, device=model_device
+            )
             timestep_input = torch.cat(
                 [
-                    c_noise.to(dtype=x_t.dtype, device=x_t.device),
-                    c_noise.to(dtype=x_t.dtype, device=x_t.device),
+                    c_noise.to(dtype=model_dtype, device=model_device),
+                    c_noise.to(dtype=model_dtype, device=model_device),
                 ],
                 dim=0,
             )
-            cond_input = torch.cat([x_T, null_condition], dim=0)
+            cond_input = torch.cat([x_T, null_condition], dim=0).to(
+                dtype=model_dtype, device=model_device
+            )
             model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
             model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
             model_output = model_output_uncond + cfg_scale * (model_output_cond - model_output_uncond)
         else:
-            model_output = self.unet(c_in * x_t, c_noise.to(dtype=x_t.dtype, device=x_t.device), xT=x_T)
+            model_output = self.unet(
+                (c_in * x_t).to(dtype=model_dtype, device=model_device),
+                c_noise.to(dtype=model_dtype, device=model_device),
+                xT=x_T.to(dtype=model_dtype, device=model_device),
+            )
+        model_output = model_output.to(dtype=x_t.dtype, device=x_t.device)
         denoised = c_out * model_output + c_skip * x_t
         if clip_denoised:
             denoised = denoised.clamp(-1, 1)
