@@ -5,6 +5,7 @@
 \backcite {huangPhysicallyExplainableCNN2022}{{2}{1}{section.1}}
 \backcite {majumder2020deep}{{2}{1}{section.1}}
 \backcite {zhengDiffusionBridgeImplicit2025}{{2}{1}{section.1}}
+\backcite {parkContrastiveLearningUnpaired2020}{{2}{1}{section.1}}
 \backcite {karras2022elucidating}{{2}{1}{section.1}}
 \backcite {isolaImageToImageTranslationConditional2017}{{2}{2}{section*.1}}
 \backcite {zhuUnpairedImageToImageTranslation2017}{{2}{2}{section*.1}}
@@ -21,7 +22,7 @@
 \backcite {heConsistencyDiffusionBridge2024}{{2}{2}{section*.2}}
 \backcite {zhengDiffusionBridgeImplicit2025}{{2}{2}{section*.2}}
 \backcite {xiaoDeterministicImagetoImageTranslation2025a}{{2}{2}{section*.2}}
-\backcite {wangAdaptiveDomainShift2026a}{{2}{2}{section*.2}}
+\backcite {wangAdaptiveDomainShift2026a}{{3}{2}{section*.2}}
 \backcite {oliveiraProbabilisticApproachColor2015}{{3}{2}{section*.3}}
 \backcite {suarezInfraRedImageryColorization2018}{{3}{2}{section*.3}}
 \backcite {majumder2020deep}{{3}{2}{section*.3}}
@@ -41,9 +42,10 @@
 \backcite {peluchettinon}{{3}{4.1}{equation.4.2}}
 \backcite {sarkka2019applied}{{3}{4.1}{equation.4.2}}
 \backcite {schauer2017guided}{{3}{4.1}{equation.4.2}}
-\backcite {zhouDenoisingDiffusionBridge2024}{{3}{4.1}{section*.9}}
-\backcite {zhengDiffusionBridgeImplicit2025}{{4}{4.2}{subsection.4.2}}
-\backcite {ronnebergerUNetConvolutionalNetworks2015}{{4}{5.2}{section*.16}}
-\backcite {mishchenkoProdigyExpeditiouslyAdaptive2024}{{5}{5.2}{section*.16}}
-\backcite {dhariwalDiffusionModelsBeat2021}{{5}{6.1}{subsection.6.1}}
+\backcite {zhouDenoisingDiffusionBridge2024}{{4}{4.1}{section*.9}}
+\backcite {parkContrastiveLearningUnpaired2020}{{4}{4.3}{subsection.4.3}}
+\backcite {ronnebergerUNetConvolutionalNetworks2015}{{4}{5.2}{section*.15}}
+\backcite {mishchenkoProdigyExpeditiouslyAdaptive2024}{{5}{5.2}{section*.15}}
+\backcite {parkContrastiveLearningUnpaired2020}{{5}{5.2}{section*.17}}
+\backcite {dhariwalDiffusionModelsBeat2021}{{6}{6.1}{subsection.6.1}}
 \backcite {zhengDiffusionBridgeImplicit2025}{{6}{6.1}{subsection.6.1}}

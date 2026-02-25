@@ -1,8 +1,10 @@
-\section{EarthBridge: Diffusion Bridge Implicit Models for RS Translation}
+\section{EarthBridge: Multi-method Framework for RS Translation}
 \label{sec:method}
 
-\subsection{Diffusion Bridge Foundation}
-\label{sec:background}
+We propose EarthBridge, a flexible framework that explores two distinct methodologies for cross-modal image translation: Diffusion Bridge Implicit Models (DBIM) and Contrastive Unpaired Translation (CUT).
+
+\subsection{Method 1: Diffusion Bridge Implicit Models (DBIM)}
+\label{sec:dbim_formalism}
 
 Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogenous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
 
@@ -26,7 +28,7 @@ where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excel
 \subsection{EarthBridge: Non-Markovian DBIM}
 \label{sec:dbim_formalism}
 
-We present our EarthBridge approach based on \textbf{Diffusion Bridge Implicit Models (DBIM)}~\cite{zhengDiffusionBridgeImplicit2025}, which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
+We present our DBIM approach which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
 
 \begin{figure*}[t]
     \centering
@@ -58,11 +60,9 @@ The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ an
 \end{equation}
 where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clean data prediction and $\hat{\bm{\epsilon}}$ is the predicted noise at time $t_{n+1}$. Setting $\rho_n = 0$ for all steps yields the deterministic \emph{Diffusion Bridge Implicit Model (DBIM)}, which can be viewed as an Euler discretization of a probability flow ODE specifically tailored for diffusion bridges.
 
-\paragraph{Bridge Scalings.}
-Following the Diffusion Bridge framework, the raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is defined as:
-\begin{equation}
-    D_\theta(\bm{z}_t, t, \bm{x}) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot \bm{z}_t,\, t,\, \bm{x}) + c_{\text{skip}}(t) \cdot \bm{z}_t\,,
-    \label{eq:denoiser}
-\end{equation}
-
 \paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
+
+\subsection{Method 2: Contrastive Unpaired Translation (CUT)}
+\label{sec:cut_formalism}
+
+In addition to our diffusion-based approach, we leverage Contrastive Unpaired Translation (CUT)~\cite{parkContrastiveLearningUnpaired2020} as an alternative method for cross-modal translation. Unlike diffusion bridges, CUT utilizes contrastive learning to maintain structural correspondence. Our implementation uses a Patch-based Contrastive Learning (PCL) strategy to maximize the mutual information between corresponding patches of the source and generated target images.

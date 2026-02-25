@@ -225,6 +225,55 @@ The despeckler uses a blended local mean filter: `out = (1 - strength) * x + str
 
 </details>
 
+## EXP-0226 CUT SAR2RGB/SAR2IR/SAR2EO Scaled (2026/02/26)
+
+**Pipeline**: `CUTPipeline` (CUT in pixel space). Multi-tier scaling experiment for **SAR→RGB**, **SAR→IR**, and **SAR→EO** tasks. SAR→RGB and SAR→IR train at **512×512** (crop from 1024) across **medium**, **large**, and **huge** CUT tiers; SAR→EO trains at **256×256** with **medium** and **large** tiers. All runs use **1 GPU**. Logging to **SwanLab**.
+
+| Task      | Pixel shape    | CUT tier | ~Params (1ch) | Script                                   |
+|-----------|----------------|----------|---------------|------------------------------------------|
+| SAR → IR  | `(512, 512)`   | medium   | ~14.1 M       | `train_cut_sar2ir_medium_1gpu.sh`        |
+| SAR → IR  | `(512, 512)`   | large    | ~56.5 M       | `train_cut_sar2ir_large_1gpu.sh`         |
+| SAR → IR  | `(512, 512)`   | huge     | ~292.9 M      | `train_cut_sar2ir_huge_1gpu.sh`          |
+| SAR → RGB | `(512, 512)`   | medium   | ~14.1 M       | `train_cut_sar2rgb_medium_1gpu.sh`       |
+| SAR → RGB | `(512, 512)`   | large    | ~56.5 M       | `train_cut_sar2rgb_large_1gpu.sh`        |
+| SAR → RGB | `(512, 512)`   | huge     | ~292.9 M      | `train_cut_sar2rgb_huge_1gpu.sh`         |
+| SAR → EO  | `(256, 256)`   | medium   | ~14.1 M       | `train_cut_sar2eo_medium_1gpu.sh`        |
+| SAR → EO  | `(256, 256)`   | large    | ~56.5 M       | `train_cut_sar2eo_large_1gpu.sh`         |
+
+```bash
+# SAR→IR (1 GPU each)
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2ir_medium_1gpu.sh
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2ir_large_1gpu.sh
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2ir_huge_1gpu.sh
+
+# SAR→RGB (1 GPU each)
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_medium_1gpu.sh
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_large_1gpu.sh
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_huge_1gpu.sh
+
+# SAR→EO (1 GPU each)
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2eo_medium_1gpu.sh
+bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2eo_large_1gpu.sh
+```
+
+Test-set inference (auto-selects latest checkpoint for the given tier):
+
+```bash
+# SAR→IR
+TIER=medium bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
+TIER=large  bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
+TIER=huge   bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2ir.sh
+
+# SAR→RGB
+TIER=medium bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2rgb.sh
+TIER=large  bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2rgb.sh
+TIER=huge   bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2rgb.sh
+
+# SAR→EO
+TIER=medium bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2eo.sh
+TIER=large  bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2eo.sh
+```
+
 ## EXP-0226 SAR2IR/SAR2RGB Small (2026/02/25)
 
 **Pipeline**: `CUTPipeline` (CUT in pixel space). Recovery experiment for the failing **SAR→IR** and **SAR→RGB** tasks only. Uses a **relatively small architecture** — CUT **medium** tier from [model_scaling_variants.yaml](../configs/model_scaling_variants.yaml): `ngf=64`, `ndf=64`, `netG=resnet_9blocks`, `n_layers_D=3`, ~14.1 M params. Same config that succeeded for [CUT SAR2EO (0217)](#cut-sar2eo-mediumlarge-20260217-and-20260218). Trains at **512×512** (crop from 1024) for these 1024px tasks.

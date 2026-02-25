@@ -38,12 +38,15 @@ The primary training objective is a weighted mean squared error between the deno
 \end{equation}
 where $w(t)$ is the Karras bridge weighting. The diffusion time $t$ is sampled from a Karras inverse-$\rho$ distribution. During inference, we utilize deterministic DBIM sampling for efficiency. Full technical details on the loss weighting, time-sampling distribution, and per-task training configurations are deferred to the appendix (\cref{sec:suppl_impl}).
 
+\paragraph{Baseline: Contrastive Unpaired Translation (CUT)}
+To assess the performance of our EarthBridge framework, we incorporate Contrastive Unpaired Translation (CUT)~\cite{parkContrastiveLearningUnpaired2020} as a primary baseline. Our implementation of CUT follows the original patch-based contrastive learning strategy, where patches from the generated target image are encouraged to be closer to the corresponding patches from the source image in a shared embedding space. We adapt the CUT architecture with ResNet-based generators and PatchGAN discriminators, scaled to match the resolution requirements of each task (e.g., medium tier for 256$\times$256 and large/huge tiers for 1024$\times$1024 as detailed in \cref{sec:suppl_impl}).
+
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
 \begin{table*}[t]
 \centering
-\caption{Main results: EarthBridge quantitative performance across the four MAVIC-T translation tasks. We report LPIPS ($\downarrow$), FID ($\downarrow$), L1 ($\downarrow$), and the composite Task Score ($\downarrow$).}
+\caption{Main results: EarthBridge and CUT baseline quantitative performance across the four MAVIC-T translation tasks. We report LPIPS ($\downarrow$), FID ($\downarrow$), L1 ($\downarrow$), and the composite Task Score ($\downarrow$).}
 \label{tab:main_results}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{l | cccc | cccc | cccc | cccc | c}
@@ -51,13 +54,14 @@ where $w(t)$ is the Karras bridge weighting. The diffusion time $t$ is sampled f
 \multirow{2}{*}{Method} & \multicolumn{4}{c|}{SAR$\rightarrow$EO} & \multicolumn{4}{c|}{SAR$\rightarrow$RGB} & \multicolumn{4}{c|}{SAR$\rightarrow$IR} & \multicolumn{4}{c|}{RGB$\rightarrow$IR} & \multirow{2}{*}{Overall} \\
  & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & \\
 \midrule
-EarthBridge (Ours)    & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] & [0.0] \\
+CUT (Baseline)        & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A \\
+EarthBridge (Ours)    & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A \\
 \bottomrule
 \end{tabular}
 }%
 \end{table*}
 
-\cref{tab:main_results} presents the main quantitative performance of EarthBridge across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
+\cref{tab:main_results} presents the quantitative performance comparison between EarthBridge and the CUT baseline across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
 
 \subsection{Qualitative Results}
 \label{sec:qualitative}
@@ -90,9 +94,11 @@ The EarthBridge architecture and sampling configurations are designed for high-f
 
 Sampling is performed using the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with 1000 inference steps and a Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$ at $t=T$. The bridge process follows a variance-preserving (VP) log-SNR schedule with $\beta_d=2.0$ and $\beta_{\min}=0.1$. For training, we sample diffusion time from a Karras inverse-$\rho$ distribution with $\rho=7$. Per-task architectural and training configurations are summarized in \cref{tab:suppl_arch_tasks}.
 
+The CUT baseline follows the standard configuration with ResNet-based generators and PatchGAN discriminators. We use the \emph{medium} tier for the $256\times256$ SAR$\rightarrow$EO task and the \emph{huge} tier for the $1024\times1024$ tasks to ensure sufficient capacity for high-resolution synthesis. The training hyperparameters for CUT, including the number of filters and residual blocks, are detailed in \cref{tab:suppl_cut_tasks}.
+
 \begin{table*}[t]
 \centering
-\caption{Per-task EarthBridge architectural and training configurations. Resolution denotes the training image input resolution.}
+\caption{Per-task EarthBridge (DBIM) architectural and training configurations. Resolution denotes the training image input resolution.}
 \label{tab:suppl_arch_tasks}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccc}
@@ -109,6 +115,31 @@ Output channels & 1 & 3 & 1 & 1 \\
 Channel multipliers & (1,2,3,4) & (1,1,2,2,4,4) & (1,1,2,2,4,4) & (1,1,2,2,4,4) \\
 \midrule
 Number of epochs & 55 & 24 & 39 & 86 \\
+Use augmented & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+Use random crop & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+Use horizontal flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+Use vertical flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+\bottomrule
+\end{tabular}
+}%
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{Per-task CUT baseline architectural and training configurations. Resolution denotes the training image input resolution.}
+\label{tab:suppl_cut_tasks}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+Parameter & SAR$\rightarrow$EO & SAR$\rightarrow$RGB & SAR$\rightarrow$IR & RGB$\rightarrow$IR \\
+\midrule
+Generator filters (ngf) & 64 & 256 & 256 & 256 \\
+Discriminator filters (ndf) & 64 & 256 & 256 & 256 \\
+Number of ResNet blocks & 9 & 9 & 9 & 9 \\
+Discriminator layers & 3 & 4 & 4 & 4 \\
+Resolution & $256\times256$ & $512\times512$ & $512\times512$ & $512\times512$ \\
+\midrule
+Number of epochs & 100 & 50 & 50 & 50 \\
 Use augmented & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
 Use random crop & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
 Use horizontal flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
