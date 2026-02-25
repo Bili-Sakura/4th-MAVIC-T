@@ -99,6 +99,11 @@ class TaskConfig:
     solver_step: int = 100
     output_resolution: Optional[int] = None
 
+    # ---- SAR-specific preprocessing ----
+    use_sar_despeckle: bool = False
+    sar_despeckle_kernel_size: int = 5
+    sar_despeckle_strength: float = 0.6
+
 
 def sar2eo_config(**overrides) -> TaskConfig:
     """SAR-to-EO: native 1024×1024, runtime random-crop to 512×512."""
@@ -147,6 +152,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         target_channels=1,
         model_channels=1,
         resolution=512,
+        use_sar_despeckle=True,
         output_dir="./ckpt",
         train_batch_size=8,
         validation_steps=1000,
@@ -168,6 +174,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         target_channels=3,
         model_channels=3,
         resolution=512,
+        use_sar_despeckle=True,
         output_dir="./ckpt",
         train_batch_size=8,
         validation_steps=1000,

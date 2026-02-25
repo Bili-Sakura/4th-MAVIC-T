@@ -79,6 +79,9 @@ class CDTSDETrainer(DDBMTrainer):
             exclude_file=self.cfg.exclude_file,
             paired_val_manifest=paired_val_manifest_str,
             sar2rgb_sup_manifest=self.cfg.sar2rgb_sup_manifest if getattr(self.cfg, "use_sar2rgb_sup", False) else None,
+            use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+            sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+            sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
         )
         val_ds = None
         if (
@@ -92,6 +95,9 @@ class CDTSDETrainer(DDBMTrainer):
                     resolution=val_resolution,
                     source_channels=src_ch,
                     target_channels=tgt_ch,
+                    use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+                    sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+                    sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
                 )
                 logger.info(
                     "Using paired val set for validation: %s (%d pairs)",
@@ -112,6 +118,9 @@ class CDTSDETrainer(DDBMTrainer):
                         source_channels=src_ch,
                         target_channels=tgt_ch,
                         with_target=False,
+                        use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+                        sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+                        sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
                     )
                     logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):

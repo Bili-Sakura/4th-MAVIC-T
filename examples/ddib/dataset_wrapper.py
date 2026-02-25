@@ -31,6 +31,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from src.utils.mavic_t_dataset import MavicTImageToImageDataset  # noqa: E402
 from examples.ddbm.dataset_wrapper import (  # noqa: E402
+    _despeckle_tensor,
     _load_paired_val_exclude_set,
     _sample_random_crop_pos,
 )
@@ -140,6 +141,9 @@ class MavicTDDIBDataset(Dataset):
         eval_root: Optional[str] = None,
         exclude_file: Optional[str] = None,
         paired_val_manifest: Optional[str] = None,
+        use_sar_despeckle: bool = False,
+        sar_despeckle_kernel_size: int = 5,
+        sar_despeckle_strength: float = 0.6,
     ) -> None:
         super().__init__()
         self.task = task
@@ -150,6 +154,11 @@ class MavicTDDIBDataset(Dataset):
         self.use_random_crop = use_random_crop and split == "train"
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
+        self.use_sar_despeckle = (
+            use_sar_despeckle and task.startswith("sar2") and domain == "source"
+        )
+        self.sar_despeckle_kernel_size = max(1, int(sar_despeckle_kernel_size))
+        self.sar_despeckle_strength = float(max(0.0, min(1.0, sar_despeckle_strength)))
 
         with_target = domain == "target" or split == "train"
 
@@ -214,6 +223,12 @@ class MavicTDDIBDataset(Dataset):
             self.resolution,
             crop_pos=crop_pos,
         )
+        if self.use_sar_despeckle:
+            img = _despeckle_tensor(
+                img,
+                kernel_size=self.sar_despeckle_kernel_size,
+                strength=self.sar_despeckle_strength,
+            )
 
         if self.use_horizontal_flip and torch.rand(1).item() > 0.5:
             img = TF.hflip(img)

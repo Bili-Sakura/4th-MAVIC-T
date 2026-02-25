@@ -190,6 +190,27 @@ bash scripts/EXP_0222_SAR2RGB_MULTIRES/train_dbim_sar2rgb_1024_8gpu.sh
 bash scripts/EXP_0225_Text2Earth_SAR2RGB/train_sar2rgb_instructpix2pix_8gpu.sh
 ```
 
+## EXP-0225 SAR2IR/SAR2RGB Despeckle Recovery (2026/02/25)
+
+**Pipeline**: `DBIMPipeline` (DBIM in pixel space). Focused recovery experiment for the failing SAR-conditioned tasks with **SAR-specific despeckling** and **CFG conditioning dropout** to reduce overfitting to SAR speckle patterns. Uses **8-GPU training** by default, runtime random crop `1024 → 512`, and SAR-focused no-attention architecture (`num_channels=96`, `channel_mult="1,1,2,2,4,4"`). For SAR→RGB, we keep `sar2rgb_sup` and enable REPA with MaRS-RGB.
+
+| Task      | Pixel shape    | Notes |
+|-----------|----------------|-------|
+| SAR → IR  | `(512, 512)`   | Despeckle + CFG dropout; no attention |
+| SAR → RGB | `(512, 512)`   | Despeckle + CFG dropout + REPA + `sar2rgb_sup` |
+
+```bash
+# SAR→IR (DBIM, despeckle recovery; flexible NGPU via NGPU=<N>)
+bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/train_dbim_sar2ir_despeckle.sh
+
+# SAR→RGB (DBIM, despeckle recovery; flexible NGPU via NGPU=<N>)
+bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/train_dbim_sar2rgb_despeckle.sh
+
+# CFG sweep inference on paired val set (default manifest from task config)
+TASK=sar2ir bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/run_cfg_inference_paired_val.sh
+TASK=sar2rgb bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/run_cfg_inference_paired_val.sh
+```
+
 ## EXP-0226 SAR2IR Small (2026/02/25)
 
 **Pipeline**: `DBIMPipeline` (DBIM in pixel space). Recovery experiment for the failing SAR→IR task. **EXP-0221** (SAR-lite medium, 512px, ~120M) failed; we adopt the **small tier** from the successful [SAR→EO config](models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2eo/checkpoint-100000/config.yaml): `num_channels=64`, `channel_mult="1,2,3,4,4"` (5 stages for 512→16), `attention_resolutions=""` (no self-attention), ~29.6M params. Trains at **512×512** (crop from 1024) for this 1024px task. Uses **8-GPU training** with the same SwanLab/accelerate setup as EXP-0221.

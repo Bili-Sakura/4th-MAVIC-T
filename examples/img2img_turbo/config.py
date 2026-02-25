@@ -112,6 +112,11 @@ class TaskConfig:
     lambda_rep_alignment_decay_steps: int = 0
     lambda_rep_alignment_end: float = 0.0
 
+    # ---- SAR-specific preprocessing ----
+    use_sar_despeckle: bool = False
+    sar_despeckle_kernel_size: int = 5
+    sar_despeckle_strength: float = 0.6
+
 
 # ---------------------------------------------------------------------------
 # Pre-built configs for the four core tasks
@@ -181,6 +186,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         model_channels=3,
         resolution=512,
         use_augmented=True,
+        use_sar_despeckle=True,
         output_dir="./outputs/turbo_sar2ir",
         train_batch_size=4,
         eval_batch_size=1,
@@ -206,6 +212,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         model_channels=3,
         resolution=512,
         use_augmented=True,
+        use_sar_despeckle=True,
         output_dir="./outputs/turbo_sar2rgb",
         train_batch_size=4,
         eval_batch_size=1,

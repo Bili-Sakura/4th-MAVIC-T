@@ -20,6 +20,7 @@ from typing import Literal, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset
 from PIL import Image
@@ -106,6 +107,30 @@ def _sample_random_crop_pos_for_pair(
     x = int(torch.randint(0, w - crop_size + 1, (1,)).item())
     y = int(torch.randint(0, h - crop_size + 1, (1,)).item())
     return x, y
+
+
+def _despeckle_tensor(
+    tensor: torch.Tensor,
+    kernel_size: int,
+    strength: float,
+) -> torch.Tensor:
+    """Apply lightweight SAR despeckling via blended local mean filtering.
+
+    The filter uses average pooling to approximate multi-looking and blends it
+    with the original signal to preserve edges:
+        out = (1 - strength) * x + strength * mean_filter(x)
+    """
+    if kernel_size <= 1 or strength <= 0.0:
+        return tensor
+
+    kernel_size = int(kernel_size)
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    strength = float(max(0.0, min(1.0, strength)))
+
+    pad = kernel_size // 2
+    blurred = F.avg_pool2d(tensor.unsqueeze(0), kernel_size=kernel_size, stride=1, padding=pad).squeeze(0)
+    return (1.0 - strength) * tensor + strength * blurred
 
 
 def _load_exclude_set(exclude_file: Optional[str]) -> Set[str]:
@@ -263,6 +288,9 @@ class MavicTDDBMDataset(Dataset):
         exclude_file: Optional[str] = None,
         paired_val_manifest: Optional[str] = None,
         sar2rgb_sup_manifest: Optional[str] = None,
+        use_sar_despeckle: bool = False,
+        sar_despeckle_kernel_size: int = 5,
+        sar_despeckle_strength: float = 0.6,
     ) -> None:
         super().__init__()
         self.task = task
@@ -273,6 +301,9 @@ class MavicTDDBMDataset(Dataset):
         self.use_random_crop = use_random_crop and split == "train"
         self.use_horizontal_flip = use_horizontal_flip and split == "train"
         self.use_vertical_flip = use_vertical_flip and split == "train"
+        self.use_sar_despeckle = use_sar_despeckle and task.startswith("sar2")
+        self.sar_despeckle_kernel_size = max(1, int(sar_despeckle_kernel_size))
+        self.sar_despeckle_strength = float(max(0.0, min(1.0, sar_despeckle_strength)))
 
         if with_target is None:
             with_target = split == "train"
@@ -364,6 +395,12 @@ class MavicTDDBMDataset(Dataset):
             self.resolution,
             crop_pos=crop_pos,
         )
+        if self.use_sar_despeckle:
+            source = _despeckle_tensor(
+                source,
+                kernel_size=self.sar_despeckle_kernel_size,
+                strength=self.sar_despeckle_strength,
+            )
 
         if self.with_target:
             target = _load_image_as_tensor(
@@ -411,12 +448,18 @@ class PairedValDataset(Dataset):
         source_channels: int,
         target_channels: int,
         return_order: Literal["target_source", "source_target"] = "target_source",
+        use_sar_despeckle: bool = False,
+        sar_despeckle_kernel_size: int = 5,
+        sar_despeckle_strength: float = 0.6,
     ) -> None:
         super().__init__()
         self.resolution = resolution
         self.source_channels = source_channels
         self.target_channels = target_channels
         self.return_order = return_order
+        self.use_sar_despeckle = use_sar_despeckle
+        self.sar_despeckle_kernel_size = max(1, int(sar_despeckle_kernel_size))
+        self.sar_despeckle_strength = float(max(0.0, min(1.0, sar_despeckle_strength)))
         self._pairs: list[tuple[str, str]] = []
         path = Path(manifest_path)
         if not path.is_file():
@@ -441,6 +484,12 @@ class PairedValDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         inp_path, tgt_path = self._pairs[idx]
         source = _load_image_as_tensor(inp_path, self.source_channels, self.resolution)
+        if self.use_sar_despeckle:
+            source = _despeckle_tensor(
+                source,
+                kernel_size=self.sar_despeckle_kernel_size,
+                strength=self.sar_despeckle_strength,
+            )
         target = _load_image_as_tensor(tgt_path, self.target_channels, self.resolution)
         if self.return_order == "source_target":
             return source, target

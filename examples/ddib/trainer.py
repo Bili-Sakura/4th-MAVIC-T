@@ -100,6 +100,9 @@ class DDIBTrainer:
             use_vertical_flip=self.cfg.use_vertical_flip,
             exclude_file=self.cfg.exclude_file,
             paired_val_manifest=paired_val_manifest_str,
+            use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+            sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+            sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
         )
         source_ds = MavicTDDIBDataset(
             domain="source",
@@ -782,6 +785,9 @@ class DDIBTrainer:
                         resolution=cfg.resolution,
                         model_channels=cfg.source_channels,
                         with_target=False,
+                        use_sar_despeckle=getattr(cfg, "use_sar_despeckle", False),
+                        sar_despeckle_kernel_size=getattr(cfg, "sar_despeckle_kernel_size", 5),
+                        sar_despeckle_strength=getattr(cfg, "sar_despeckle_strength", 0.6),
                     )
                     logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):

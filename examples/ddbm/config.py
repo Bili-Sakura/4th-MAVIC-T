@@ -113,6 +113,13 @@ class TaskConfig:
     # Typical range for quick CFG enablement: 0.10 ~ 0.20.
     conditioning_dropout_prob: float = 0.0
 
+    # ---- SAR-specific preprocessing ----
+    # Light despeckling on SAR conditioning image to reduce overfitting to
+    # high-frequency speckle "fingerprints" in weakly aligned SAR->X pairs.
+    use_sar_despeckle: bool = False
+    sar_despeckle_kernel_size: int = 5
+    sar_despeckle_strength: float = 0.6
+
     # ---- latent modeling ablation ----
     use_latent_target: bool = False
     latent_vae_path: Optional[str] = None  # path to pre-trained VAE checkpoint
@@ -192,6 +199,7 @@ def sar2ir_config(**overrides) -> TaskConfig:
         attention_resolutions="128,64,32",
         channel_mult="1,1,2,2,4,8",
         use_augmented=True,
+        use_sar_despeckle=True,
         output_dir="./ckpt",
         train_batch_size=8,
         # latent modeling (VAE encoder from BiliSakura/VAEs)
@@ -222,6 +230,7 @@ def sar2rgb_config(**overrides) -> TaskConfig:
         attention_resolutions="128,64,32",
         channel_mult="1,1,2,2,4,8",
         use_augmented=True,
+        use_sar_despeckle=True,
         output_dir="./ckpt",
         train_batch_size=8,
         # latent modeling (VAE encoder from BiliSakura/VAEs)

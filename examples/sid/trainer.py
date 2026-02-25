@@ -109,6 +109,9 @@ class SIDTrainer(DDBMTrainer):
             exclude_file=self.cfg.exclude_file,
             paired_val_manifest=paired_val_manifest_str,
             sar2rgb_sup_manifest=self.cfg.sar2rgb_sup_manifest if getattr(self.cfg, "use_sar2rgb_sup", False) else None,
+            use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+            sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+            sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
         )
 
         val_ds = None
@@ -123,6 +126,9 @@ class SIDTrainer(DDBMTrainer):
                     resolution=val_resolution,
                     source_channels=src_ch,
                     target_channels=tgt_ch,
+                    use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+                    sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+                    sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
                 )
             if val_ds is None:
                 try:
@@ -133,6 +139,9 @@ class SIDTrainer(DDBMTrainer):
                         source_channels=src_ch,
                         target_channels=tgt_ch,
                         with_target=False,
+                        use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+                        sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+                        sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
                     )
                 except (ValueError, FileNotFoundError, RuntimeError):
                     val_ds = None

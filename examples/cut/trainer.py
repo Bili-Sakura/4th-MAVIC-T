@@ -126,6 +126,9 @@ class CUTTrainer:
             exclude_file=self.cfg.exclude_file,
             paired_val_manifest=paired_val_manifest_str,
             sar2rgb_sup_manifest=self.cfg.sar2rgb_sup_manifest if getattr(self.cfg, "use_sar2rgb_sup", False) else None,
+            use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+            sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+            sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
         )
         val_ds = None
         if self.cfg.validation_epochs is not None or self.cfg.validation_steps is not None:
@@ -159,6 +162,9 @@ class CUTTrainer:
                         target_channels=self.cfg.target_channels,
                         model_channels=self.cfg.model_channels,
                         with_target=False,
+                        use_sar_despeckle=getattr(self.cfg, "use_sar_despeckle", False),
+                        sar_despeckle_kernel_size=getattr(self.cfg, "sar_despeckle_kernel_size", 5),
+                        sar_despeckle_strength=getattr(self.cfg, "sar_despeckle_strength", 0.6),
                     )
                     logger.info("Validation using test split.")
                 except (ValueError, FileNotFoundError, RuntimeError):
