@@ -660,11 +660,11 @@ class Pix2PixTurboTrainer:
                         val_dataloader is not None
                         and cfg.validation_steps is not None
                         and global_step % cfg.validation_steps == 0
-                        and accelerator.is_main_process
                     ):
-                        val_result = self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
-                        if val_result:
-                            accelerator.log(val_result, step=global_step)
+                        if accelerator.is_main_process:
+                            val_result = self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
+                            if val_result:
+                                accelerator.log(val_result, step=global_step)
                         accelerator.wait_for_everyone()
 
                     if (
@@ -718,11 +718,11 @@ class Pix2PixTurboTrainer:
                 val_dataloader is not None
                 and cfg.validation_epochs is not None
                 and (epoch + 1) % cfg.validation_epochs == 0
-                and accelerator.is_main_process
             ):
-                val_result = self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
-                if val_result:
-                    accelerator.log(val_result, step=global_step)
+                if accelerator.is_main_process:
+                    val_result = self.log_validation(model, prompt_embeds, val_dataloader, accelerator, global_step)
+                    if val_result:
+                        accelerator.log(val_result, step=global_step)
                 accelerator.wait_for_everyone()
 
             # Save diffusers-style checkpoint at epoch boundary

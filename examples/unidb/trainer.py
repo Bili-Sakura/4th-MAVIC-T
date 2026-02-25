@@ -514,11 +514,11 @@ class UniDBTrainer:
                         val_dataloader is not None
                         and cfg.validation_steps
                         and global_step % cfg.validation_steps == 0
-                        and accelerator.is_main_process
                     ):
-                        val_result = self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
-                        if val_result:
-                            accelerator.log(val_result, step=global_step)
+                        if accelerator.is_main_process:
+                            val_result = self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                            if val_result:
+                                accelerator.log(val_result, step=global_step)
                         accelerator.wait_for_everyone()
 
                     if (
@@ -558,11 +558,11 @@ class UniDBTrainer:
                 val_dataloader is not None
                 and cfg.validation_epochs
                 and (epoch + 1) % cfg.validation_epochs == 0
-                and accelerator.is_main_process
             ):
-                val_result = self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
-                if val_result:
-                    accelerator.log(val_result, step=global_step)
+                if accelerator.is_main_process:
+                    val_result = self.log_validation(model, scheduler, val_dataloader, accelerator, global_step)
+                    if val_result:
+                        accelerator.log(val_result, step=global_step)
                 accelerator.wait_for_everyone()
 
             if (
