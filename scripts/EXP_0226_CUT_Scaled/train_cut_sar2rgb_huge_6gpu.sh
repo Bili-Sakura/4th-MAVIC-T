@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# EXP-0226 — CUT — SAR→RGB — Large tier (8 GPU, REPA)
+# EXP-0226 — CUT — SAR→RGB — Huge tier (6 GPU)
 #
-# CUT large: ngf=128, ndf=128, n_layers_D=3, netG=resnet_9blocks (~56.5 M params)
+# CUT huge: ngf=256, ndf=256, n_layers_D=4, netG=resnet_9blocks (~292.9 M params)
 # Resolution: 512×512 (crop from 1024)
-# REPA: MaRS-Base-RGB for target-domain representation alignment
 #
 # Usage:
-#   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_large_8gpu.sh
+#   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_huge_6gpu.sh
 
 set -euo pipefail
 
@@ -14,15 +13,15 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-NGPU=8
+NGPU=6
 LOG_DIR="./logs/EXP_0226_CUT_Scaled"
-LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_large_8gpu.log"
+LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_huge_6gpu.log"
 mkdir -p "${LOG_DIR}"
 
-OUTPUT_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2rgb_large_512_8gpu"
-NGF=128
-NDF=128
-N_LAYERS_D=3
+OUTPUT_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2rgb_huge_512_6gpu"
+NGF=256
+NDF=256
+N_LAYERS_D=4
 NET_G="resnet_9blocks"
 
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
@@ -46,21 +45,14 @@ CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=999999999999
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
-# --- REPA (target domain RGB encoder) ---
-USE_REP_ALIGNMENT=true
-REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
-LAMBDA_REP_ALIGNMENT=0.2
-LAMBDA_REP_ALIGNMENT_DECAY_STEPS=2000
-LAMBDA_REP_ALIGNMENT_END=0.0
-
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2rgb-large-512-8gpu-repa"
-SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→RGB Large (512, ~56.5M, 8 GPU, REPA)"
-SWANLAB_TAGS="cut,exp-0226,sar2rgb,large,8gpu,repa"
+SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2rgb-huge-512-6gpu"
+SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→RGB Huge (512, ~292.9M, 6 GPU)"
+SWANLAB_TAGS="cut,exp-0226,sar2rgb,huge,6gpu"
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0226"
-HUB_PATH_TIER="large"
+HUB_PATH_TIER="huge"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
@@ -100,14 +92,9 @@ ARGS=(
   --push_to_hub "${PUSH_TO_HUB}"
   --hub_model_id "${HUB_MODEL_ID}"
   --hub_path_tier "${HUB_PATH_TIER}"
-  --use_rep_alignment "${USE_REP_ALIGNMENT}"
-  --rep_alignment_model_path "${REP_ALIGNMENT_MODEL_PATH}"
-  --lambda_rep_alignment "${LAMBDA_REP_ALIGNMENT}"
-  --lambda_rep_alignment_decay_steps "${LAMBDA_REP_ALIGNMENT_DECAY_STEPS}"
-  --lambda_rep_alignment_end "${LAMBDA_REP_ALIGNMENT_END}"
 )
 
 [ -n "${RESUME_FROM_CHECKPOINT}" ] && ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
 
-echo "EXP-0226 CUT SAR2RGB large (8 GPU, REPA) — log: ${LOG_FILE}"
+echo "EXP-0226 CUT SAR2RGB huge (6 GPU) — log: ${LOG_FILE}"
 nohup accelerate launch --num_processes "${NGPU}" -m examples.cut.train_sar2rgb "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &
