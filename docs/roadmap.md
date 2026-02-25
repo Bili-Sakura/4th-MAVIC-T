@@ -225,20 +225,23 @@ The despeckler uses a blended local mean filter: `out = (1 - strength) * x + str
 
 </details>
 
-## EXP-0226 SAR2IR Small (2026/02/25)
+## EXP-0226 SAR2IR/SAR2RGB Small (2026/02/25)
 
-**Pipeline**: `DBIMPipeline` (DBIM in pixel space). Recovery experiment for the failing SAR→IR task. **EXP-0221** (SAR-lite medium, 512px, ~120M) failed; we adopt the **small tier** from the successful [SAR→EO config](models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2eo/checkpoint-100000/config.yaml): `num_channels=64`, `channel_mult="1,2,3,4,4"` (5 stages for 512→16), `attention_resolutions=""` (no self-attention), ~29.6M params. Trains at **512×512** (crop from 1024) for this 1024px task. Uses **8-GPU training** with the same SwanLab/accelerate setup as EXP-0221.
+**Pipeline**: `DBIMPipeline` (DBIM in pixel space). Recovery experiment for the failing **SAR→IR** and **SAR→RGB** tasks only. Uses a **relatively small architecture** — **EXP-0221** (SAR-lite medium, 512px, ~120M) failed; we adopt the **small tier** from the successful [SAR→EO config](models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2eo/checkpoint-100000/config.yaml): `num_channels=64`, `channel_mult="1,2,3,4,4"` (5 stages for 512→16), `attention_resolutions=""` (no self-attention), ~29.6M params. Trains at **512×512** (crop from 1024) for these 1024px tasks. Uses **8-GPU training** with the same SwanLab/accelerate setup as EXP-0221.
 
 | Task      | Pixel shape    | DBIM tier | ~Params | Notes                          |
 |-----------|----------------|-----------|---------|--------------------------------|
 | SAR → IR  | `(512, 512)`   | small     | ~29.6 M | Crop from 1024; 5-stage arch   |
+| SAR → RGB | `(512, 512)`   | small     | ~29.6 M | Crop from 1024; 5-stage arch   |
 
 Reference config: `models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2eo/checkpoint-100000/config.yaml`.
 
 ```bash
-# 8-GPU (default)
-bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2ir_small_8gpu.sh
+# SAR→IR
+bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2ir_small_8gpu.sh   # 8-GPU (default)
+bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2ir_small_1gpu.sh   # 1-GPU
 
-# 1-GPU
-bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2ir_small_1gpu.sh
+# SAR→RGB
+bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2rgb_small_8gpu.sh   # 8-GPU (default)
+bash scripts/EXP_0226_SAR2IR_Small/train_dbim_sar2rgb_small_1gpu.sh   # 1-GPU
 ```
