@@ -32,7 +32,7 @@ CAPTION="18_GOOGLE_LEVEL_ a satellite optical image"
 OPTIMIZER_TYPE=prodigy
 LEARNING_RATE=1.0
 PRODIGY_D0=1e-5
-TRAIN_BATCH_SIZE=8
+TRAIN_BATCH_SIZE=4
 GRADIENT_ACCUMULATION_STEPS=1
 MAX_TRAIN_STEPS=10000
 CHECKPOINTING_STEPS=1000
@@ -42,7 +42,7 @@ CONDITIONING_DROPOUT_PROB=0.05
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
-RESUME_FROM_CHECKPOINT=latest
+RESUME_FROM_CHECKPOINT=
 
 # --- Representation alignment (REPA) ---
 USE_REP_ALIGNMENT=true
@@ -54,7 +54,6 @@ REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
 # --- Hub & SwanLab
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0225-text2earth-sar2rgb"
-HUB_TOKEN="${HF_TOKEN:-}"
 LOG_WITH="swanlab"
 SWANLOG_DIR="./ckpt/swanlog"
 SWANLAB_EXPERIMENT_NAME="exp-0225-text2earth-sar2rgb-instructpix2pix-1gpu"
@@ -85,6 +84,8 @@ COMMON_ARGS=(
   --seed "$SEED"
   --enable_xformers_memory_efficient_attention
   --report_to "$LOG_WITH"
+  --push_to_hub
+  --hub_model_id "$HUB_MODEL_ID"
   --swanlab_experiment_name "$SWANLAB_EXPERIMENT_NAME"
   --swanlab_description "$SWANLAB_DESCRIPTION"
   --swanlab_tags "$SWANLAB_TAGS"
@@ -109,19 +110,6 @@ fi
 
 if [ -n "$RESUME_FROM_CHECKPOINT" ]; then
   COMMON_ARGS+=(--resume_from_checkpoint "$RESUME_FROM_CHECKPOINT")
-fi
-
-if [ "$PUSH_TO_HUB" = "true" ]; then
-  # Force official Hub endpoint for write operations.
-  export HF_ENDPOINT="https://huggingface.co"
-  export HUGGINGFACE_HUB_TOKEN="${HUB_TOKEN:-}"
-  COMMON_ARGS+=(--push_to_hub --hub_model_id "$HUB_MODEL_ID")
-  if [ -n "${HUB_TOKEN:-}" ]; then
-    COMMON_ARGS+=(--hub_token "$HUB_TOKEN")
-  fi
-else
-  # Mirror endpoint can still be used for model downloading.
-  export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 fi
 
 if [ "$NGPU" -gt 1 ]; then
