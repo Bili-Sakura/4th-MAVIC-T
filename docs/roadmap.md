@@ -211,6 +211,20 @@ TASK=sar2ir bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/run_cfg_inference_pai
 TASK=sar2rgb bash scripts/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/run_cfg_inference_paired_val.sh
 ```
 
+<details>
+<summary>SAR despeckle parameters (click to expand)</summary>
+
+The despeckler uses a blended local mean filter: `out = (1 - strength) * x + strength * mean_filter(x)`.
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| **SAR_DESPECKLE_KERNEL_SIZE** | 5 | odd int (3, 5, 7, 9…) | Window size for local average. Larger → more smoothing, more blur. Smaller → preserves edges, less speckle removal. Use 5 for 512px; consider 7–9 for 1024px. |
+| **SAR_DESPECKLE_STRENGTH** | 0.6 | 0.0–1.0 | Blend ratio toward smoothed image. 0 = no change; 1 = fully blurred. 0.4–0.7 recommended. |
+
+**Tuning:** If outputs show speckle-like artifacts → increase `STRENGTH` (e.g. 0.8) or `KERNEL_SIZE` (e.g. 7). If outputs are too smooth and lose structure → decrease `STRENGTH` (e.g. 0.4) or `KERNEL_SIZE` (e.g. 3).
+
+</details>
+
 ## EXP-0226 SAR2IR Small (2026/02/25)
 
 **Pipeline**: `DBIMPipeline` (DBIM in pixel space). Recovery experiment for the failing SAR→IR task. **EXP-0221** (SAR-lite medium, 512px, ~120M) failed; we adopt the **small tier** from the successful [SAR→EO config](models/BiliSakura/4th-MAVIC-T-ckpt-0216/dbim/sar2eo/checkpoint-100000/config.yaml): `num_channels=64`, `channel_mult="1,2,3,4,4"` (5 stages for 512→16), `attention_resolutions=""` (no self-attention), ~29.6M params. Trains at **512×512** (crop from 1024) for this 1024px task. Uses **8-GPU training** with the same SwanLab/accelerate setup as EXP-0221.
