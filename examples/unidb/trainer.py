@@ -370,12 +370,14 @@ class UniDBTrainer:
         log_with = normalize_accelerate_log_with(cfg.log_with)
         logging_dir = os.path.join(cfg.output_dir, "logs")
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
+        # TODO: Multi-GPU validation deadlock – accelerator.wait_for_everyone() / barrier hangs on some
+        # setups (e.g. RTX 4090) with "No device id is provided via init_process_group or barrier".
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
             mixed_precision=cfg.mixed_precision,
             log_with=log_with,
             project_config=project_config,
-            kwargs_handlers=[InitProcessGroupKwargs(timeout=timedelta(seconds=7200))],
+            kwargs_handlers=[InitProcessGroupKwargs(timeout=timedelta(seconds=7200), backend="nccl")],
         )
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -510,6 +512,7 @@ class UniDBTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
+                    # TODO: multi-GPU sync deadlock – see InitProcessGroupKwargs
                     if (
                         val_dataloader is not None
                         and cfg.validation_steps
@@ -554,6 +557,7 @@ class UniDBTrainer:
                 if global_step >= cfg.max_train_steps:
                     break
 
+            # TODO: multi-GPU sync deadlock – see InitProcessGroupKwargs
             if (
                 val_dataloader is not None
                 and cfg.validation_epochs

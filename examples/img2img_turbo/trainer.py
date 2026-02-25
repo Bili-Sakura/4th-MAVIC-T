@@ -413,7 +413,9 @@ class Pix2PixTurboTrainer:
         # log_with: "tensorboard" | "swanlab" | "wandb" | "all" | "tensorboard,swanlab" etc.
         log_with = normalize_accelerate_log_with(cfg.log_with)
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
-        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
+        # TODO: Multi-GPU validation deadlock – accelerator.wait_for_everyone() / barrier hangs on some
+        # setups (e.g. RTX 4090) with "No device id is provided via init_process_group or barrier".
+        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200), backend="nccl")]
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
             mixed_precision=cfg.mixed_precision,
@@ -655,7 +657,7 @@ class Pix2PixTurboTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
-                    # Step-based validation
+                    # Step-based validation (TODO: multi-GPU sync deadlock – see InitProcessGroupKwargs)
                     if (
                         val_dataloader is not None
                         and cfg.validation_steps is not None
@@ -713,7 +715,7 @@ class Pix2PixTurboTrainer:
                 if global_step >= cfg.max_train_steps:
                     break
 
-            # Epoch-based validation
+            # Epoch-based validation (TODO: multi-GPU sync deadlock – see InitProcessGroupKwargs)
             if (
                 val_dataloader is not None
                 and cfg.validation_epochs is not None

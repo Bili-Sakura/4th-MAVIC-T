@@ -627,6 +627,7 @@ class DomainClassifierTrainer:
                 },
             )
 
+        # TODO: Multi-GPU sync deadlock – wait_for_everyone can hang on some setups (e.g. RTX 4090).
         accelerator.wait_for_everyone()
         return {
             "run_dir": str(run_dir),

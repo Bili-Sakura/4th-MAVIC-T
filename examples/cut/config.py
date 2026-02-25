@@ -102,6 +102,7 @@ class TaskConfig:
     # ---- hub ----
     push_to_hub: bool = True
     hub_model_id: Optional[str] = None
+    hub_path_tier: Optional[str] = None  # e.g. huge/large/medium -> path cut/{task_name}/{tier}/checkpoint-{step}
 
     # ---- hardware ----
     mixed_precision: str = "bf16"

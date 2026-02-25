@@ -647,7 +647,9 @@ class DDIBTrainer:
         # log_with: "tensorboard" | "swanlab" | "wandb" | "all" | "tensorboard,swanlab" etc.
         log_with = normalize_accelerate_log_with(cfg.log_with)
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
-        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
+        # TODO: Multi-GPU validation deadlock – accelerator.wait_for_everyone() / barrier hangs on some
+        # setups (e.g. RTX 4090) with "No device id is provided via init_process_group or barrier".
+        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200), backend="nccl")]
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
             mixed_precision=cfg.mixed_precision,

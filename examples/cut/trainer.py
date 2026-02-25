@@ -600,7 +600,10 @@ class CUTTrainer:
         # log_with: "tensorboard" | "swanlab" | "wandb" | "all" | "tensorboard,swanlab" etc.
         log_with = normalize_accelerate_log_with(cfg.log_with)
         project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
-        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200))]
+        # TODO: Multi-GPU validation deadlock – accelerator.wait_for_everyone() / barrier hangs on some
+        # setups (e.g. RTX 4090) with "No device id is provided via init_process_group or barrier".
+        # InitProcessGroupKwargs does not support device_id; fix distributed sync for validation.
+        kwargs_handlers = [InitProcessGroupKwargs(timeout=timedelta(seconds=7200), backend="nccl")]
         accelerator = Accelerator(
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
             mixed_precision=cfg.mixed_precision,
@@ -933,20 +936,19 @@ class CUTTrainer:
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
 
-                    # Step-based validation
+                    # Step-based validation (main process only; TODO: add barrier when multi-GPU sync fixed)
                     if (
                         val_dataloader is not None
                         and cfg.validation_steps is not None
                         and global_step % cfg.validation_steps == 0
+                        and accelerator.is_main_process
                     ):
-                        if accelerator.is_main_process:
-                            val_result = self.log_validation(
-                                netG, val_dataloader, accelerator, global_step,
-                                latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
-                            )
-                            if val_result:
-                                accelerator.log(val_result, step=global_step)
-                        accelerator.wait_for_everyone()
+                        val_result = self.log_validation(
+                            netG, val_dataloader, accelerator, global_step,
+                            latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                        )
+                        if val_result:
+                            accelerator.log(val_result, step=global_step)
 
                     if (
                         checkpointing_steps is not None
@@ -970,11 +972,14 @@ class CUTTrainer:
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:
+                            hub_subpath = f"cut/{cfg.task_name}"
+                            if cfg.hub_path_tier:
+                                hub_subpath = f"{hub_subpath}/{cfg.hub_path_tier}"
                             push_checkpoint_to_hub(
                                 save_path,
                                 hub_model_id=cfg.hub_model_id,
                                 commit_message=f"cut {cfg.task_name} step {global_step}",
-                                path_in_repo=f"cut/{cfg.task_name}/checkpoint-{global_step}",
+                                path_in_repo=f"{hub_subpath}/checkpoint-{global_step}",
                                 request_timeout=30,
                             )
 
@@ -994,20 +999,19 @@ class CUTTrainer:
                 scheduler_G.step()
                 scheduler_D.step()
 
-            # Epoch-based validation
+            # Epoch-based validation (main process only; TODO: add barrier when multi-GPU sync fixed)
             if (
                 val_dataloader is not None
                 and cfg.validation_epochs is not None
                 and (epoch + 1) % cfg.validation_epochs == 0
+                and accelerator.is_main_process
             ):
-                if accelerator.is_main_process:
-                    val_result = self.log_validation(
-                        netG, val_dataloader, accelerator, global_step,
-                        latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
-                    )
-                    if val_result:
-                        accelerator.log(val_result, step=global_step)
-                accelerator.wait_for_everyone()
+                val_result = self.log_validation(
+                    netG, val_dataloader, accelerator, global_step,
+                    latent_target_encoder=latent_target_encoder if cfg.use_latent_target else None,
+                )
+                if val_result:
+                    accelerator.log(val_result, step=global_step)
 
             # Save at epoch boundary
             if (
@@ -1033,11 +1037,14 @@ class CUTTrainer:
                 logger.info(f"Saved models at epoch {epoch + 1}")
 
                 if cfg.push_to_hub and cfg.hub_model_id:
+                    hub_subpath = f"cut/{cfg.task_name}"
+                    if cfg.hub_path_tier:
+                        hub_subpath = f"{hub_subpath}/{cfg.hub_path_tier}"
                     push_checkpoint_to_hub(
                         epoch_dir,
                         hub_model_id=cfg.hub_model_id,
                         commit_message=f"cut {cfg.task_name} epoch {epoch + 1}",
-                        path_in_repo=f"cut/{cfg.task_name}/checkpoint-epoch-{epoch + 1}",
+                        path_in_repo=f"{hub_subpath}/checkpoint-epoch-{epoch + 1}",
                         request_timeout=30,
                     )
 
