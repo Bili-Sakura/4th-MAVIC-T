@@ -245,6 +245,7 @@ bash scripts/EXP_0226_SAR2IR_Small/train_cut_sar2ir_small_1gpu.sh   # 1-GPU
 bash scripts/EXP_0226_SAR2IR_Small/train_cut_sar2rgb_small_8gpu.sh   # 8-GPU (default)
 bash scripts/EXP_0226_SAR2IR_Small/train_cut_sar2rgb_small_1gpu.sh   # 1-GPU
 ```
+
 ## EXP-0226 CUT SAR2RGB/SAR2IR/SAR2EO Scaled (2026/02/26)
 
 **Pipeline**: `CUTPipeline` (CUT in pixel space). Multi-tier scaling experiment for **SAR→RGB**, **SAR→IR**, and **SAR→EO** tasks. SAR→RGB and SAR→IR train at **512×512** (crop from 1024) across **medium**, **large**, and **huge** CUT tiers; SAR→EO trains at **256×256** with **medium** and **large** tiers. All runs use **1 GPU**. Logging to **SwanLab**.

@@ -544,8 +544,7 @@ class DDIBTrainer:
                         and accelerator.is_main_process
                     ):
                         save_path = os.path.join(domain_output_dir, f"checkpoint-{global_step}")
-                        accelerator.save_state(save_path)
-                        # Also save diffusers-style structure for pipeline.from_pretrained()
+                        # Save diffusers-style structure for pipeline.from_pretrained()
                         unwrapped_for_ckpt = accelerator.unwrap_model(model)
                         extra_sd_ckpt = {}
                         if cfg.use_ema and ema_model is not None:

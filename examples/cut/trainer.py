@@ -956,8 +956,7 @@ class CUTTrainer:
                         and accelerator.is_main_process
                     ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
-                        accelerator.save_state(save_path)
-                        # Also save diffusers-style structure for pipeline.from_pretrained()
+                        # Save diffusers-style structure for pipeline.from_pretrained()
                         save_checkpoint_diffusers(
                             save_path,
                             accelerator.unwrap_model(netG),
