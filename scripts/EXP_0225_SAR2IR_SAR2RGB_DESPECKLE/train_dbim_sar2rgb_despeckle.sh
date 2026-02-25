@@ -7,6 +7,10 @@
 
 set -euo pipefail
 
+export HF_TOKEN="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"
+export HF_ENDPOINT="https://hf-mirror.com"
+export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
+
 NGPU="${NGPU:-1}"
 LOG_DIR="./logs/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE"
 LOG_FILE="${LOG_DIR}/train_dbim_sar2rgb_despeckle_ngpu${NGPU}.log"
@@ -66,7 +70,7 @@ LAMBDA_REP_ALIGNMENT_END=0.0
 REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
 
 PUSH_TO_HUB=true
-HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0225b"
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0225-v2"
 OUTPUT_DIR="./ckpt/EXP_0225_SAR2IR_SAR2RGB_DESPECKLE/dbim/sar2rgb"
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-latest}"
 
