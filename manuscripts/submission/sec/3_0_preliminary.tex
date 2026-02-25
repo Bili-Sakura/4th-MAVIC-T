@@ -2,25 +2,7 @@
 \label{sec:preliminary}
 
 \paragraph{Problem Formulation}
-Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ denote the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ denote the target domain, where $C_s$ and $C_t$ are the number of channels in the source and target modalities, respectively. Given a set of spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$ with $x_i \in \mathcal{X}$ and $y_i \in \mathcal{Y}$, the goal of cross-modal image-to-image translation is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$ that minimizes a composite distance between the generated image $\hat{y} = G(x)$ and the ground-truth target $y$. In the context of the MAVIC-T challenge, four translation tasks are defined: SAR$\rightarrow$EO ($1 \!\rightarrow\! 1$ channel, $256 \times 256$), SAR$\rightarrow$RGB ($1 \!\rightarrow\! 3$, $1024 \times 1024$), SAR$\rightarrow$IR ($1 \!\rightarrow\! 1$, $1024 \times 1024$), and RGB$\rightarrow$IR ($3 \!\rightarrow\! 1$, $1024 \times 1024$).
-
-\begin{table}[H]
-\centering
-\caption{Task specifications for the MAVIC-T challenge.}
-\label{tab:task_specs}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
-Task & Modality Mapping & Resolution & Channels \\
-\midrule
-SAR$\rightarrow$EO & SAR $\rightarrow$ Electro-Optical & $256^2$ & $1 \rightarrow 1$ \\
-SAR$\rightarrow$RGB & SAR $\rightarrow$ RGB & $1024^2$ & $1 \rightarrow 3$ \\
-SAR$\rightarrow$IR & SAR $\rightarrow$ Infrared & $1024^2$ & $1 \rightarrow 1$ \\
-RGB$\rightarrow$IR & RGB $\rightarrow$ Infrared & $1024^2$ & $3 \rightarrow 1$ \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
+Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ denote the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ denote the target domain, where $C_s$ and $C_t$ are the number of channels in the source and target modalities, respectively. Given a set of spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$ with $x_i \in \mathcal{X}$ and $y_i \in \mathcal{Y}$, the goal of cross-modal image-to-image translation is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$ that minimizes a composite distance between the generated image $\hat{y} = G(x)$ and the ground-truth target $y$. In the context of the MAVIC-T challenge, four translation tasks are defined (see \cref{tab:dataset_tasks}): SAR$\rightarrow$EO ($1 \!\rightarrow\! 1$ channel, $256 \times 256$), SAR$\rightarrow$RGB ($1 \!\rightarrow\! 3$, $1024 \times 1024$), SAR$\rightarrow$IR ($1 \!\rightarrow\! 1$, $1024 \times 1024$), and RGB$\rightarrow$IR ($3 \!\rightarrow\! 1$, $1024 \times 1024$).
 
 \paragraph{Evaluation Metric}
 The MAVIC-T challenge evaluates submissions using a composite score derived from three complementary metrics: LPIPS~\cite{zhangUnreasonableEffectivenessDeep2018} (Learned Perceptual Image Patch Similarity, based on VGG-16) for perceptual fidelity, FID~\cite{heuselGANsTrainedTwo2017} (Fr\'{e}chet Inception Distance, based on InceptionV3) for distributional similarity, and L1 norm for pixel-level structural accuracy. These are combined into a task score:

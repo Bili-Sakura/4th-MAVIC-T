@@ -1,6 +1,31 @@
 \section{EarthBridge: Diffusion Bridge Implicit Models for RS Translation}
 \label{sec:method}
 
+\subsection{Diffusion Bridge Foundation}
+\label{sec:background}
+
+Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogenous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
+
+\paragraph{Stochastic Bridges via $h$-transform.}
+Given a base diffusion process $dx_t = f(x_t, t)dt + g(t)dw_t$, the conditioned SDE that almost surely reaches a prescribed target $x_0 = y$ at $t=0$ starting from a source $x_T = x$ at $t=T$ is given by:
+\begin{align}
+    dx_t &= f(x_t, t)dt + g(t)dw_t \nonumber \\
+    &\quad + g(t)^2 \nabla_{x_t} \log p(x_0 = y \mid x_t)dt,
+    \label{eq:bridge_sde}
+\end{align}
+where $p(x_0 = y \mid x_t)$ is the transition density of the original process. When the endpoints are fixed, the resulting conditioned process is called a \emph{diffusion bridge}~\cite{sarkka2019applied,heng2021simulating,delyon2006simulation,schauer2017guided,peluchettinon,liu2022let}, which forms the foundational mechanism for transporting one state to another. In the context of cross-modal translation, $x$ represents the source modality (e.g., SAR) and $y$ the target modality (e.g., optical). This formulation ensures that the generative trajectory is directly constrained by both endpoints, providing a more principled framework for paired translation than standard conditional diffusion.
+
+\paragraph{Denoising Diffusion Bridge Models.}
+Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024} provide a tractable realization of Eq.~\ref{eq:bridge_sde}. Under a variance-preserving (VP) schedule, the forward bridge process constructs intermediate states $z_t$ as:
+\begin{equation}
+    z_t = a_t x + b_t y + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
+    \label{eq:bridge_forward}
+\end{equation}
+where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excels in high-fidelity generation, its inference typically relies on simulating Eq.~\ref{eq:bridge_sde} via computationally expensive numerical solvers (e.g., Heun or stochastic samplers), often requiring hundreds of function evaluations (NFE) for optimal results. In this work, we adopt the more efficient \emph{implicit} formulation to accelerate this process.
+
+\subsection{EarthBridge: Non-Markovian DBIM}
+\label{sec:dbim_formalism}
+
 We present our EarthBridge approach based on \textbf{Diffusion Bridge Implicit Models (DBIM)}~\cite{zhengDiffusionBridgeImplicit2025}, which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
 
 \begin{figure*}[t]
@@ -10,9 +35,7 @@ We present our EarthBridge approach based on \textbf{Diffusion Bridge Implicit M
     \label{fig:method_overview}
 \end{figure*}
 
-\subsection{Non-Markovian Diffusion Bridges}
-\label{sec:dbim_formalism}
-
+\paragraph{Non-Markovian Diffusion Bridges.}
 In contrast to the continuous-time Markovian bridge processes in DDBM, we consider a family of non-Markovian diffusion bridges defined over a sequence of discretized timesteps $0 = t_0 < t_1 < \dots < t_N = T$, controlled by a variance parameter $\rho \in \mathbb{R}^{N-1}$. The joint probability distribution $q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x})$ is factorized through a chain of conditional distributions:
 \begin{equation}
     q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x}) = q_0(\bm{z}_{t_0}) \prod_{n=1}^{N-1} q^{(\rho)}(\bm{z}_{t_n} \mid \bm{z}_0, \bm{z}_{t_{n+1}}, \bm{x}),
@@ -24,9 +47,7 @@ where $q_0$ is the target modality distribution and each step $q^{(\rho)}$ is de
 \end{equation}
 with $\bm{\eta}_{n+1} = (\bm{z}_{t_{n+1}} - a_{t_{n+1}} \bm{x} - b_{t_{n+1}} \bm{z}_0) / c_{t_{n+1}}$. Here, $a_t, b_t, c_t$ are known coefficients determined by the VP log-SNR schedule (\cref{sec:background}). Under this construction, the marginal distributions $q^{(\rho)}(\bm{z}_{t_n} \mid \bm{x})$ are preserved to be consistent with the continuous-time forward bridge (\cref{eq:bridge_forward}). The variance parameter $\rho$ controls the level of stochasticity in the sampling process, ranging from a purely Markovian stochastic process to a fully deterministic implicit model.
 
-\subsection{Reverse Generative Process and Sampling}
-\label{sec:dbim_sampling}
-
+\paragraph{Reverse Generative Process and Sampling.}
 The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ and iteratively samples $\bm{z}_{t_n}$ from $\bm{z}_{t_{n+1}}$ via a parameterized data predictor $D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$. The core updating rule is given by:
 \begin{equation}
     \begin{split}
@@ -37,29 +58,11 @@ The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ an
 \end{equation}
 where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clean data prediction and $\hat{\bm{\epsilon}}$ is the predicted noise at time $t_{n+1}$. Setting $\rho_n = 0$ for all steps yields the deterministic \emph{Diffusion Bridge Implicit Model (DBIM)}, which can be viewed as an Euler discretization of a probability flow ODE specifically tailored for diffusion bridges.
 
-\paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
-
-\subsection{Architecture and Training Objectives}
-\label{sec:objectives}
-
-\paragraph{UNet Denoising Backbone}
-Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} that predicts the clean target from the noisy sample $\bm{z}_t$ conditioned on timestep $t$ and source $\bm{x}$. We use a multi-scale encoder-decoder with residual blocks and inject timestep information via sinusoidal embeddings and Adaptive Group Normalization~\cite{dhariwalDiffusionModelsBeat2021}. Self-attention is applied at intermediate resolutions to capture long-range spatial dependencies, which is important for preserving global structure in aerial imagery. The architecture scales to different input resolutions (e.g., $256\times256$ and $1024\times1024$) by adjusting the channel configuration; implementation details are in \cref{sec:impl_details}.
-
-\paragraph{Source Image Conditioning via Channel Concatenation}
-To condition on the source image $\bm{x}$, we adopt the channel-concatenation strategy: the pre-conditioned noisy sample $c_{\text{in}} \cdot \bm{z}_t$ and the source image $\bm{x}$ are concatenated along the channel dimension before being fed to the UNet. This doubles the input channels from $C$ to $2C$, where $C$ is the operating channel count of the model (e.g., $C=1$ for SAR$\rightarrow$EO, $C=3$ for RGB$\rightarrow$IR). The UNet output channels remain $C$, producing the raw denoised prediction.
-
-\paragraph{Bridge Scalings and Schedules}
-The raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is defined as:
+\paragraph{Bridge Scalings.}
+Following the Diffusion Bridge framework, the raw model output $F_\theta$ is post-processed through bridge scalings $(c_{\text{skip}}, c_{\text{out}}, c_{\text{in}})$ derived from the VP log-SNR schedule. The denoised prediction is defined as:
 \begin{equation}
     D_\theta(\bm{z}_t, t, \bm{x}) = c_{\text{out}}(t) \cdot F_\theta(c_{\text{in}}(t) \cdot \bm{z}_t,\, t,\, \bm{x}) + c_{\text{skip}}(t) \cdot \bm{z}_t\,,
     \label{eq:denoiser}
 \end{equation}
-where the scalings are computed from the VP parameters $\beta_d=2.0$ and $\beta_{\min}=0.1$. The timestep is rescaled as $\hat{t} = 1000 \cdot 0.25 \cdot \log(\sigma + \varepsilon)$ (with $\varepsilon = 10^{-44}$ for numerical stability) before being passed to the model's sinusoidal embedding layer.
 
-\paragraph{Training Objective}
-The primary training objective is a weighted mean squared error between the denoised prediction $D_\theta(\bm{z}_t, t, \bm{x})$ and the clean target $\bm{y}$:
-\begin{equation}
-    \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(\bm{x},\bm{y}),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(\bm{z}_t, t, \bm{x}) - \bm{y} \|_2^2 \right],
-    \label{eq:denoising_loss}
-\end{equation}
-where $w(t) = A(t) / c_{\text{out}}(t)^2$ is the Karras bridge weighting derived from the combined variance $A(t) = a_t^2 \sigma_{\text{data,end}}^2 + b_t^2 \sigma_{\text{data}}^2 + c^2 c_t$. The diffusion time $t$ (parameterized as sigma $\sigma$) is sampled from a Karras inverse-$\rho$ distribution with $\rho=7$. Detailed hyperparameters are provided in \cref{sec:impl_details}.
+\paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
