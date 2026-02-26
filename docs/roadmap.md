@@ -304,6 +304,8 @@ TIER=large  bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2eo.sh
 
 **Pipeline**: `CUTPipeline` (CUT in pixel space). **4- and 8-GPU training** for **SAR→RGB** and **SAR→IR** on **medium** (~14.1 M), **large** (~56.5 M), and **huge** (~293 M) CUT tiers. Trains at **512×512** (crop from 1024). **Gradient clipping** (`max_grad_norm=1.0`) and NaN-skip logic are enabled in the CUT trainer to mitigate mode collapse and NaN loss.
 
+**MAVIC loss (paired pixel supervision):** When `use_mavic_loss=true`, the generator is trained with an additional differentiable loss matching the MAVIC-T evaluation metric: `LPIPS + L1` between predicted and paired target images. This adds direct pixel-to-pixel supervision on top of the standard CUT losses (GAN + NCE). Config: `mavic_lpips_weight=1.0`, `mavic_l1_weight=1.0`, `mavic_loss_weight=0.1`. Enabled for SAR→RGB huge 8-GPU runs.
+
 | Task      | Pixel shape    | CUT tier | ~Params (1ch) | GPUs |
 |-----------|----------------|----------|---------------|------|
 | SAR → RGB | `(512, 512)`   | medium   | ~14.1 M       | 4, 8 |

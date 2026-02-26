@@ -26,11 +26,12 @@ NGF=256
 NDF=256
 N_LAYERS_D=4
 NET_G="resnet_9blocks"
+INIT_GAIN=0.01
 
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2rgb.txt"
 USE_AUGMENTED=true
-USE_HORIZONTAL_FLIP=true
+USE_HORIZONTAL_FLIP=false
 USE_VERTICAL_FLIP=false
 RESOLUTION=512
 USE_SAR2RGB_SUP=false
@@ -38,19 +39,24 @@ USE_SAR2RGB_SUP=false
 TRAIN_BATCH_SIZE=4
 N_EPOCHS=0
 N_EPOCHS_DECAY=0
-MAX_TRAIN_STEPS=50000
+MAX_TRAIN_STEPS=100000
 GRADIENT_ACCUMULATION_STEPS=1
 OPTIMIZER_TYPE="prodigy"
 LEARNING_RATE=1.0
 LR_POLICY="constant"
-NCE_T=0.1
-NCE_IDT=false
+NCE_T=0.2
+NCE_IDT=true
 LAMBDA_GAN=0.5
 SAVE_MODEL_EPOCHS=0
 CHECKPOINTING_STEPS=10000
 CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=999999999999
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
+
+USE_MAVIC_LOSS=true
+MAVIC_LPIPS_WEIGHT=1.0
+MAVIC_L1_WEIGHT=1.0
+MAVIC_LOSS_WEIGHT=0.1
 
 USE_REP_ALIGNMENT=false
 REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
@@ -60,7 +66,7 @@ LAMBDA_REP_ALIGNMENT_END=0.0
 
 SWANLOG_DIR="./ckpt/swanlog"
 SWANLAB_EXPERIMENT_NAME="exp-0227-cut-sar2rgb-huge-512-8gpu"
-SWANLAB_DESCRIPTION="EXP-0227 CUT SAR→RGB Huge (512, ~292.9M, 8 GPU, grad clip)"
+SWANLAB_DESCRIPTION="EXP-0227 CUT SAR→RGB Huge (512, ~292.9M, 8 GPU, mavic LPIPS+L1)"
 SWANLAB_TAGS="cut,exp-0227,sar2rgb,huge,8gpu"
 
 PUSH_TO_HUB=true
@@ -81,6 +87,7 @@ ARGS=(
   --ndf "${NDF}"
   --n_layers_D "${N_LAYERS_D}"
   --netG "${NET_G}"
+  --init_gain "${INIT_GAIN}"
   --resolution "${RESOLUTION}"
   --exclude_file "${EXCLUDE_FILE}"
   --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
@@ -103,6 +110,10 @@ ARGS=(
   --checkpointing_steps "${CHECKPOINTING_STEPS}"
   --checkpoints_total_limit "${CHECKPOINTS_TOTAL_LIMIT}"
   --validation_steps "${VALIDATION_STEPS}"
+  --use_mavic_loss "${USE_MAVIC_LOSS}"
+  --mavic_lpips_weight "${MAVIC_LPIPS_WEIGHT}"
+  --mavic_l1_weight "${MAVIC_L1_WEIGHT}"
+  --mavic_loss_weight "${MAVIC_LOSS_WEIGHT}"
   --mixed_precision "${MIXED_PRECISION}"
   --dataloader_num_workers "${DATALOADER_NUM_WORKERS}"
   --seed "${SEED}"
