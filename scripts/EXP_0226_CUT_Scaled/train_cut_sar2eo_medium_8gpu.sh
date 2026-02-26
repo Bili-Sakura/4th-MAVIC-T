@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# EXP-0226 — CUT — SAR→EO — Medium tier (1 GPU)
+# EXP-0226 — CUT — SAR→EO — Medium tier (8 GPU)
 #
 # CUT medium: ngf=64, ndf=64, n_layers_D=3, netG=resnet_9blocks (~14.1 M params)
 # Resolution: 256×256
 #
 # Usage:
-#   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2eo_medium_1gpu.sh
+#   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2eo_medium_8gpu.sh
 
 set -euo pipefail
 
@@ -13,12 +13,12 @@ export HF_TOKEN="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"
 export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
-NGPU=1
+NGPU=8
 LOG_DIR="./logs/EXP_0226_CUT_Scaled"
-LOG_FILE="${LOG_DIR}/train_cut_sar2eo_medium_1gpu.log"
+LOG_FILE="${LOG_DIR}/train_cut_sar2eo_medium_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-OUTPUT_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2eo_medium_256_1gpu"
+OUTPUT_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2eo_medium_256_8gpu"
 NGF=64
 NDF=64
 N_LAYERS_D=3
@@ -30,7 +30,7 @@ USE_AUGMENTED=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=false
 
-TRAIN_BATCH_SIZE=4
+TRAIN_BATCH_SIZE=8
 N_EPOCHS=0
 N_EPOCHS_DECAY=0
 MAX_TRAIN_STEPS=200000
@@ -44,9 +44,9 @@ VALIDATION_STEPS=999999999999
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2eo-medium-256-1gpu"
-SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→EO Medium (256, ~14.1M, 1 GPU)"
-SWANLAB_TAGS="cut,exp-0226,sar2eo,medium,1gpu"
+SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2eo-medium-256-8gpu"
+SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→EO Medium (256, ~14.1M, 8 GPU)"
+SWANLAB_TAGS="cut,exp-0226,sar2eo,medium,8gpu"
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0226"
@@ -92,5 +92,5 @@ ARGS=(
 
 [ -n "${RESUME_FROM_CHECKPOINT}" ] && ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
 
-echo "EXP-0226 CUT SAR2EO medium (1 GPU) — log: ${LOG_FILE}"
-nohup python -m examples.cut.train_sar2eo "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &
+echo "EXP-0226 CUT SAR2EO medium (8 GPU) — log: ${LOG_FILE}"
+nohup accelerate launch --num_processes "${NGPU}" -m examples.cut.train_sar2eo "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &
