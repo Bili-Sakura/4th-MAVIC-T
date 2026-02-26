@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
-# EXP-0226 — CUT — SAR→RGB — Large tier (8 GPU, REPA)
+# EXP-0227 — CUT — SAR→RGB — Medium tier (8 GPU)
 #
-# CUT large: ngf=128, ndf=128, n_layers_D=3, netG=resnet_9blocks (~56.5 M params)
+# CUT medium: ngf=64, ndf=64, n_layers_D=3, netG=resnet_9blocks (~14.1 M params)
 # Resolution: 512×512 (crop from 1024)
-# REPA: MaRS-Base-RGB for target-domain representation alignment
+# Gradient clipping + NaN skip (mode collapse mitigation)
 #
-# Stability tweaks (mode collapse / NaN mitigation):
-#   - Prodigy optimizer
-#   - nce_T=0.1, nce_idt=false, lambda_GAN=0.5
-#   - use_sar2rgb_sup=false (unpaired only)
-#   - REPA disabled
-#   - Gradient clipping + NaN skip in trainer
+# Stability: nce_T=0.1, nce_idt=false, lambda_GAN=0.5
 #
 # Usage:
-#   bash scripts/EXP_0226_CUT_Scaled/train_cut_sar2rgb_large_8gpu.sh
+#   bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_medium_8gpu.sh
 
 set -euo pipefail
 
@@ -22,13 +17,13 @@ export HF_ENDPOINT="https://hf-mirror.com"
 export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU=8
-LOG_DIR="./logs/EXP_0226_CUT_Scaled"
-LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_large_8gpu.log"
+LOG_DIR="./logs/EXP_0227_CUT_Huge_8GPU"
+LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_medium_8gpu.log"
 mkdir -p "${LOG_DIR}"
 
-OUTPUT_DIR="./ckpt/EXP_0226_CUT_Scaled/cut/sar2rgb_large_512_8gpu"
-NGF=128
-NDF=128
+OUTPUT_DIR="./ckpt/EXP_0227_CUT_Huge_8GPU/cut/sar2rgb_medium_512_8gpu"
+NGF=64
+NDF=64
 N_LAYERS_D=3
 NET_G="resnet_9blocks"
 
@@ -40,7 +35,7 @@ USE_VERTICAL_FLIP=false
 RESOLUTION=512
 USE_SAR2RGB_SUP=false
 
-TRAIN_BATCH_SIZE=4
+TRAIN_BATCH_SIZE=8
 N_EPOCHS=0
 N_EPOCHS_DECAY=0
 MAX_TRAIN_STEPS=50000
@@ -57,7 +52,6 @@ CHECKPOINTS_TOTAL_LIMIT=1
 VALIDATION_STEPS=999999999999
 RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-}"
 
-# --- REPA (target domain RGB encoder) ---
 USE_REP_ALIGNMENT=false
 REP_ALIGNMENT_MODEL_PATH="./models/BiliSakura/MaRS-Base-RGB"
 LAMBDA_REP_ALIGNMENT=0.2
@@ -65,13 +59,13 @@ LAMBDA_REP_ALIGNMENT_DECAY_STEPS=10000
 LAMBDA_REP_ALIGNMENT_END=0.0
 
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0226-cut-sar2rgb-large-512-8gpu-stability"
-SWANLAB_DESCRIPTION="EXP-0226 CUT SAR→RGB Large (512, ~56.5M, 8 GPU, stability: Prodigy, nce_T=0.1, nce_idt=0, lambda_GAN=0.5, unpaired, no REPA)"
-SWANLAB_TAGS="cut,exp-0226,sar2rgb,large,8gpu,stability"
+SWANLAB_EXPERIMENT_NAME="exp-0227-cut-sar2rgb-medium-512-8gpu"
+SWANLAB_DESCRIPTION="EXP-0227 CUT SAR→RGB Medium (512, ~14.1M, 8 GPU, grad clip)"
+SWANLAB_TAGS="cut,exp-0227,sar2rgb,medium,8gpu"
 
 PUSH_TO_HUB=true
-HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0226"
-HUB_PATH_TIER="large"
+HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0227"
+HUB_PATH_TIER="medium"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
@@ -124,5 +118,5 @@ ARGS=(
 
 [ -n "${RESUME_FROM_CHECKPOINT}" ] && ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
 
-echo "EXP-0226 CUT SAR2RGB large (8 GPU, stability) — log: ${LOG_FILE}"
+echo "EXP-0227 CUT SAR2RGB medium (8 GPU) — log: ${LOG_FILE}"
 nohup accelerate launch --num_processes "${NGPU}" -m examples.cut.train_sar2rgb "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &

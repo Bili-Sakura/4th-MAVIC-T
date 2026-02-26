@@ -871,51 +871,69 @@ class CUTTrainer:
                     # ---- Update D ----
                     loss_D = self.compute_D_loss(netD, criterion_GAN, real_B, fake_B)
                     accelerator.backward(loss_D)
-                    optimizer_D.step()
+                    nan_skip = torch.isnan(loss_D) or torch.isinf(loss_D)
+                    if not nan_skip:
+                        accelerator.clip_grad_norm_(netD.parameters(), cfg.max_grad_norm)
+                        optimizer_D.step()
                     optimizer_D.zero_grad()
 
                     # ---- Update G + F ----
-                    lambda_repa = (
-                        lambda_repa_cosine(
-                            global_step,
-                            cfg.lambda_rep_alignment,
-                            cfg.lambda_rep_alignment_end,
-                            cfg.lambda_rep_alignment_decay_steps,
+                    if nan_skip:
+                        loss_G = torch.tensor(float("nan"), device=real_A.device)
+                        loss_G_GAN = loss_G
+                        loss_NCE = loss_G
+                        loss_NCE_Y = loss_G
+                        loss_extras = {"loss_mavic": None, "loss_latent": None, "loss_rep_alignment": None}
+                    else:
+                        lambda_repa = (
+                            lambda_repa_cosine(
+                                global_step,
+                                cfg.lambda_rep_alignment,
+                                cfg.lambda_rep_alignment_end,
+                                cfg.lambda_rep_alignment_decay_steps,
+                            )
+                            if rep_alignment_module is not None and cfg.lambda_rep_alignment_decay_steps > 0
+                            else cfg.lambda_rep_alignment
                         )
-                        if rep_alignment_module is not None and cfg.lambda_rep_alignment_decay_steps > 0
-                        else cfg.lambda_rep_alignment
-                    )
-                    loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y, loss_extras = self.compute_G_loss(
-                        netG, netD, netF, criterion_GAN, nce_criteria,
-                        real_A, fake_B, real_B,
-                        nce_layers=nce_layers,
-                        lambda_GAN=cfg.lambda_GAN,
-                        lambda_NCE=cfg.lambda_NCE,
-                        nce_idt=cfg.nce_idt,
-                        num_patches=cfg.num_patches,
-                        mavic_criterion=mavic_criterion,
-                        mavic_loss_weight=cfg.mavic_loss_weight,
-                        latent_target_encoder=latent_target_encoder,
-                        lambda_latent=cfg.lambda_latent,
-                        rep_alignment_module=rep_alignment_module,
-                        lambda_rep_alignment=lambda_repa,
-                        pixel_target=pixel_real_B if cfg.use_latent_target else None,
-                        pixel_source=pixel_real_A if cfg.use_latent_target else None,
-                        latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
-                        in_latent_space=cfg.use_latent_target,
-                        source_channels=cfg.source_channels,
-                        target_channels=cfg.target_channels,
-                    )
-                    accelerator.backward(loss_G)
-                    optimizer_G.step()
-                    optimizer_G.zero_grad()
-                    if optimizer_F is not None:
-                        optimizer_F.step()
-                        optimizer_F.zero_grad()
+                        loss_G, loss_G_GAN, loss_NCE, loss_NCE_Y, loss_extras = self.compute_G_loss(
+                            netG, netD, netF, criterion_GAN, nce_criteria,
+                            real_A, fake_B, real_B,
+                            nce_layers=nce_layers,
+                            lambda_GAN=cfg.lambda_GAN,
+                            lambda_NCE=cfg.lambda_NCE,
+                            nce_idt=cfg.nce_idt,
+                            num_patches=cfg.num_patches,
+                            mavic_criterion=mavic_criterion,
+                            mavic_loss_weight=cfg.mavic_loss_weight,
+                            latent_target_encoder=latent_target_encoder,
+                            lambda_latent=cfg.lambda_latent,
+                            rep_alignment_module=rep_alignment_module,
+                            lambda_rep_alignment=lambda_repa,
+                            pixel_target=pixel_real_B if cfg.use_latent_target else None,
+                            pixel_source=pixel_real_A if cfg.use_latent_target else None,
+                            latent_decode_fn=latent_target_encoder.decode if cfg.use_latent_target else None,
+                            in_latent_space=cfg.use_latent_target,
+                            source_channels=cfg.source_channels,
+                            target_channels=cfg.target_channels,
+                        )
+                        accelerator.backward(loss_G)
+                        nan_skip = torch.isnan(loss_G) or torch.isinf(loss_G)
+                        if not nan_skip:
+                            accelerator.clip_grad_norm_(g_params, cfg.max_grad_norm)
+                            optimizer_G.step()
+                            if optimizer_F is not None:
+                                accelerator.clip_grad_norm_(netF.parameters(), cfg.max_grad_norm)
+                                optimizer_F.step()
+                        optimizer_G.zero_grad(set_to_none=True)
+                        if optimizer_F is not None:
+                            optimizer_F.zero_grad(set_to_none=True)
 
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
                     global_step += 1
+
+                    if nan_skip:
+                        logger.warning("NaN/Inf detected in loss, skipped optimizer step (step %d)", global_step)
 
                     logs = {
                         "loss_D": loss_D.detach().item(),
@@ -925,6 +943,8 @@ class CUTTrainer:
                         "lr": optimizer_G.param_groups[0]["lr"],
                         "epoch": epoch,
                     }
+                    if nan_skip:
+                        logs["nan_skip"] = 1
                     if loss_extras.get("loss_rep_alignment") is not None:
                         logs["loss/repa"] = loss_extras["loss_rep_alignment"].item()
                         if cfg.lambda_rep_alignment_decay_steps > 0:

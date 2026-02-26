@@ -67,6 +67,7 @@ class TaskConfig:
     # ---- training ----
     output_dir: str = "./outputs/cut"
     train_batch_size: int = 1
+    max_grad_norm: float = 1.0  # gradient clipping (G, D, F)
     eval_batch_size: int = 4
     n_epochs: int = 100  # epochs with initial lr
     n_epochs_decay: int = 0  # epochs to linearly decay lr to zero
