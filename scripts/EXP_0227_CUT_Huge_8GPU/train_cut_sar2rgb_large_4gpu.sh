@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# EXP-0227 — CUT — SAR→RGB — Medium tier (4 GPU)
+# EXP-0227 — CUT — SAR→RGB — Large tier (4 GPU)
 #
-# CUT medium: ngf=64, ndf=64, n_layers_D=3, netG=resnet_9blocks (~14.1 M params)
+# CUT large: ngf=128, ndf=128, n_layers_D=3, netG=resnet_9blocks (~56.5 M params)
 # Resolution: 512×512 (crop from 1024)
 # Gradient clipping + NaN skip (mode collapse mitigation)
 #
 # Stability: nce_T=0.1, nce_idt=false, lambda_GAN=0.5
 #
 # Usage:
-#   bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_medium_4gpu.sh
+#   bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_large_4gpu.sh
 
 set -euo pipefail
 
@@ -18,12 +18,12 @@ export SWANLAB_API_KEY="MR3DpLBq2VJ01nXRIMh8f"
 
 NGPU=4
 LOG_DIR="./logs/EXP_0227_CUT_Huge_8GPU"
-LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_medium_4gpu.log"
+LOG_FILE="${LOG_DIR}/train_cut_sar2rgb_large_4gpu.log"
 mkdir -p "${LOG_DIR}"
 
-OUTPUT_DIR="./ckpt/EXP_0227_CUT_Huge_8GPU/cut/sar2rgb_medium_512_4gpu"
-NGF=64
-NDF=64
+OUTPUT_DIR="./ckpt/EXP_0227_CUT_Huge_8GPU/cut/sar2rgb_large_512_4gpu"
+NGF=128
+NDF=128
 N_LAYERS_D=3
 NET_G="resnet_9blocks"
 
@@ -35,10 +35,10 @@ USE_VERTICAL_FLIP=false
 RESOLUTION=512
 USE_SAR2RGB_SUP=false
 
-TRAIN_BATCH_SIZE=8
+TRAIN_BATCH_SIZE=4
 N_EPOCHS=0
 N_EPOCHS_DECAY=0
-MAX_TRAIN_STEPS=100000
+MAX_TRAIN_STEPS=50000
 GRADIENT_ACCUMULATION_STEPS=1
 OPTIMIZER_TYPE="prodigy"
 LEARNING_RATE=1.0
@@ -59,13 +59,13 @@ LAMBDA_REP_ALIGNMENT_DECAY_STEPS=10000
 LAMBDA_REP_ALIGNMENT_END=0.0
 
 SWANLOG_DIR="./ckpt/swanlog"
-SWANLAB_EXPERIMENT_NAME="exp-0227-cut-sar2rgb-medium-512-4gpu"
-SWANLAB_DESCRIPTION="EXP-0227 CUT SAR→RGB Medium (512, ~14.1M, 4 GPU, grad clip)"
-SWANLAB_TAGS="cut,exp-0227,sar2rgb,medium,4gpu"
+SWANLAB_EXPERIMENT_NAME="exp-0227-cut-sar2rgb-large-512-4gpu"
+SWANLAB_DESCRIPTION="EXP-0227 CUT SAR→RGB Large (512, ~56.5M, 4 GPU, grad clip)"
+SWANLAB_TAGS="cut,exp-0227,sar2rgb,large,4gpu"
 
 PUSH_TO_HUB=true
 HUB_MODEL_ID="BiliSakura/4th-MAVIC-T-ckpt-0227"
-HUB_PATH_TIER="medium"
+HUB_PATH_TIER="large"
 MIXED_PRECISION="bf16"
 DATALOADER_NUM_WORKERS=8
 SEED=42
@@ -118,5 +118,5 @@ ARGS=(
 
 [ -n "${RESUME_FROM_CHECKPOINT}" ] && ARGS+=(--resume_from_checkpoint "${RESUME_FROM_CHECKPOINT}")
 
-echo "EXP-0227 CUT SAR2RGB medium (4 GPU) — log: ${LOG_FILE}"
+echo "EXP-0227 CUT SAR2RGB large (4 GPU) — log: ${LOG_FILE}"
 nohup accelerate launch --num_processes "${NGPU}" -m examples.cut.train_sar2rgb "${ARGS[@]}" > "${LOG_FILE}" 2>&1 &

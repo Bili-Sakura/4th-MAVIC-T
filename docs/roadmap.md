@@ -300,21 +300,27 @@ TIER=medium bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2eo.sh
 TIER=large  bash scripts/EXP_0226_CUT_Scaled/run_cut_sar2eo.sh
 ```
 
-## EXP-0227 CUT SAR2RGB/SAR2IR Medium & Huge (2026/02/27)
+## EXP-0227 CUT SAR2RGB/SAR2IR Medium, Large & Huge (2026/02/27)
 
-**Pipeline**: `CUTPipeline` (CUT in pixel space). **4- and 8-GPU training** for **SAR→RGB** and **SAR→IR** on **medium** (~14.1 M) and **huge** (~293 M) CUT tiers. Trains at **512×512** (crop from 1024). **Gradient clipping** (`max_grad_norm=1.0`) and NaN-skip logic are enabled in the CUT trainer to mitigate mode collapse and NaN loss.
+**Pipeline**: `CUTPipeline` (CUT in pixel space). **4- and 8-GPU training** for **SAR→RGB** and **SAR→IR** on **medium** (~14.1 M), **large** (~56.5 M), and **huge** (~293 M) CUT tiers. Trains at **512×512** (crop from 1024). **Gradient clipping** (`max_grad_norm=1.0`) and NaN-skip logic are enabled in the CUT trainer to mitigate mode collapse and NaN loss.
 
 | Task      | Pixel shape    | CUT tier | ~Params (1ch) | GPUs |
 |-----------|----------------|----------|---------------|------|
 | SAR → RGB | `(512, 512)`   | medium   | ~14.1 M       | 4, 8 |
+| SAR → RGB | `(512, 512)`   | large    | ~56.5 M       | 4, 8 |
 | SAR → RGB | `(512, 512)`   | huge     | ~292.9 M      | 4, 8 |
 | SAR → IR  | `(512, 512)`   | medium   | ~14.1 M       | 4, 8 |
+| SAR → IR  | `(512, 512)`   | large    | ~56.5 M       | 4, 8 |
 | SAR → IR  | `(512, 512)`   | huge     | ~292.9 M      | 4, 8 |
 
 ```bash
 # SAR→RGB — medium (4 or 8 GPU)
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_medium_4gpu.sh
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_medium_8gpu.sh
+
+# SAR→RGB — large (4 or 8 GPU)
+bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_large_4gpu.sh
+bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_large_8gpu.sh
 
 # SAR→RGB — huge (4 or 8 GPU)
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_huge_4gpu.sh
@@ -323,6 +329,10 @@ bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2rgb_huge_8gpu.sh
 # SAR→IR — medium (4 or 8 GPU)
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2ir_medium_4gpu.sh
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2ir_medium_8gpu.sh
+
+# SAR→IR — large (4 or 8 GPU)
+bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2ir_large_4gpu.sh
+bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2ir_large_8gpu.sh
 
 # SAR→IR — huge (4 or 8 GPU)
 bash scripts/EXP_0227_CUT_Huge_8GPU/train_cut_sar2ir_huge_4gpu.sh
