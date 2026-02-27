@@ -70,6 +70,7 @@ from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
+    checkpoint_has_accelerator_state,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -384,6 +385,23 @@ class CUTTrainer:
         return total_nce_loss / n_layers
 
     # ----- linear lr decay scheduler ----------------------------------------
+
+    @staticmethod
+    def _load_cut_models_from_checkpoint(netG, netD, netF, load_path: str | Path, accelerator) -> None:
+        """Load generator, discriminator, and feature network from a diffusers-style checkpoint."""
+        from safetensors.torch import load_file
+        load_path = Path(load_path)
+        gen_path = load_path / "generator" / "diffusion_pytorch_model.safetensors"
+        disc_path = load_path / "discriminator" / "diffusion_pytorch_model.safetensors"
+        feat_path = load_path / "feature_network" / "diffusion_pytorch_model.safetensors"
+        if not gen_path.is_file():
+            raise FileNotFoundError(f"CUT checkpoint missing generator: {gen_path}")
+        unwrapped_G = accelerator.unwrap_model(netG)
+        unwrapped_D = accelerator.unwrap_model(netD)
+        unwrapped_G.load_state_dict(load_file(str(gen_path)), strict=True)
+        unwrapped_D.load_state_dict(load_file(str(disc_path)), strict=True)
+        if feat_path.is_file():
+            netF.load_state_dict(load_file(str(feat_path)), strict=True)
 
     @staticmethod
     def _get_scheduler(optimizer, n_epochs, n_epochs_decay, last_epoch=-1):
@@ -789,6 +807,31 @@ class CUTTrainer:
                 init_kwargs=tracker_init_kwargs or {},
             )
 
+        # Register schedulers for checkpointing (not passed to prepare)
+        accelerator.register_for_checkpointing(scheduler_G, scheduler_D)
+
+        # Hooks so accelerator.save_state/load_state use our diffusers-style layout
+        def _save_model_hook(models, weights, output_dir):
+            save_checkpoint_diffusers(
+                output_dir,
+                accelerator.unwrap_model(models[0]),
+                scheduler=None,
+                model_name="generator",
+                pipeline_class_name="CUTPipeline",
+                extra_state_dicts={
+                    "discriminator": accelerator.unwrap_model(models[1]).state_dict(),
+                    "feature_network": netF.state_dict(),
+                },
+            )
+
+        def _load_model_hook(models, input_dir):
+            self._load_cut_models_from_checkpoint(
+                models[0], models[1], netF, input_dir, accelerator
+            )
+
+        accelerator.register_save_state_pre_hook(_save_model_hook)
+        accelerator.register_load_state_pre_hook(_load_model_hook)
+
         global_step = 0
         first_epoch = 0
         # optimizer_F is created after data-dependent initialisation of netF
@@ -799,23 +842,36 @@ class CUTTrainer:
         if cfg.resume_from_checkpoint:
             path = cfg.resume_from_checkpoint
             if path == "latest":
-                # Only step checkpoints (checkpoint-{step}) have full accelerator state; ignore checkpoint-epoch-*
-                all_ckpt_dirs = [
+                # Prefer step checkpoints (full state); fall back to latest epoch checkpoint (model-only)
+                step_dirs = [
                     d for d in os.listdir(cfg.output_dir)
                     if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 0
                 ]
-                dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
-                path = dirs[-1] if dirs else None
+                epoch_dirs = [
+                    d for d in os.listdir(cfg.output_dir)
+                    if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 1
+                ]
+                step_dirs = sorted(step_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
+                epoch_dirs = sorted(epoch_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
+                path = step_dirs[-1] if step_dirs else (epoch_dirs[-1] if epoch_dirs else None)
             if path is not None:
                 if os.path.isabs(path) or os.path.sep in path:
                     load_path = os.path.abspath(path)
                 else:
                     load_path = os.path.join(cfg.output_dir, path)
-                accelerator.load_state(load_path)
-                # path is checkpoint-{global_step} when from "latest"
-                global_step = int(Path(path).name.split("-")[1])
-                first_epoch = global_step // num_update_steps_per_epoch
-                logger.info(f"Resumed from {path}")
+                if checkpoint_has_accelerator_state(load_path):
+                    accelerator.load_state(load_path)
+                    global_step = int(Path(path).name.split("-")[1])
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info(f"Resumed from {path} (full state)")
+                else:
+                    # Model-only checkpoint (e.g. checkpoint-epoch-*): load weights, restart optimizers
+                    self._load_cut_models_from_checkpoint(netG, netD, netF, load_path, accelerator)
+                    # Infer step from path if checkpoint-{step}; else 0
+                    parts = Path(path).name.split("-")
+                    global_step = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info(f"Resumed from {path} (model-only; optimizers reset)")
 
         num_epochs_this_run = total_epochs - first_epoch
         logger.info("***** Running CUT training *****")
@@ -976,18 +1032,8 @@ class CUTTrainer:
                         and accelerator.is_main_process
                     ):
                         save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
-                        # Save diffusers-style structure for pipeline.from_pretrained()
-                        save_checkpoint_diffusers(
-                            save_path,
-                            accelerator.unwrap_model(netG),
-                            scheduler=None,
-                            model_name="generator",
-                            pipeline_class_name="CUTPipeline",
-                            extra_state_dicts={
-                                "discriminator": accelerator.unwrap_model(netD).state_dict(),
-                                "feature_network": netF.state_dict(),
-                            },
-                        )
+                        # Full state (models + optimizer + scheduler) for resume
+                        accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:

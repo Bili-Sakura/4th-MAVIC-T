@@ -195,6 +195,11 @@ class MavicTSAR2RGBDataset(Dataset):
         use_vertical_flip: bool = False,
         tokenizer=None,
     ):
+        if use_random_crop and (resolution is None or resolution <= 0):
+            raise ValueError(
+                "When use_random_crop is True, resolution must be set and > 0. "
+                f"Got resolution={resolution}."
+            )
         self.records = records
         self.resolution = resolution
         self.caption = caption

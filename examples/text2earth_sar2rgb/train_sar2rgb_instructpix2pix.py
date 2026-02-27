@@ -879,8 +879,8 @@ def main():
                 progress_bar.update(1)
                 global_step += 1
 
-                if accelerator.is_main_process and global_step % args.checkpointing_steps == 0:
-                    if args.checkpoints_total_limit is not None:
+                if global_step % args.checkpointing_steps == 0:
+                    if accelerator.is_main_process and args.checkpoints_total_limit is not None:
                         checkpoints = sorted(
                             [d for d in os.listdir(args.output_dir) if d.startswith("checkpoint")],
                             key=lambda x: int(x.split("-")[1]),
@@ -888,9 +888,11 @@ def main():
                         if len(checkpoints) >= args.checkpoints_total_limit:
                             for d in checkpoints[: len(checkpoints) - args.checkpoints_total_limit + 1]:
                                 shutil.rmtree(os.path.join(args.output_dir, d))
+                    accelerator.wait_for_everyone()
                     save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                     accelerator.save_state(save_path)
-                    logger.info(f"Saved checkpoint to {save_path}")
+                    if accelerator.is_main_process:
+                        logger.info(f"Saved checkpoint to {save_path}")
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             if rep_loss is not None:

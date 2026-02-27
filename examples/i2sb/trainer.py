@@ -42,6 +42,7 @@ from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
+    checkpoint_has_accelerator_state,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -714,15 +715,20 @@ class I2SBTrainer:
                     load_path = os.path.abspath(path)
                 else:
                     load_path = os.path.join(cfg.output_dir, path)
-                accelerator.load_state(load_path)
-                global_step = int(Path(path).name.split("-")[1])
-                first_epoch = global_step // num_update_steps_per_epoch
-                logger.info(f"Resumed from {path}")
-                # Clear optimizer state when REPA is used: projector may have changed (e.g. 3→1)
-                # to avoid Prodigy shape mismatch errors during resumed optimization.
-                if rep_alignment_module is not None:
-                    optimizer.state.clear()
-                    logger.info("Cleared optimizer state (REPA projector shape may have changed)")
+                if checkpoint_has_accelerator_state(load_path):
+                    accelerator.load_state(load_path)
+                    global_step = int(Path(path).name.split("-")[1])
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info(f"Resumed from {path} (full state)")
+                    if rep_alignment_module is not None:
+                        optimizer.state.clear()
+                        logger.info("Cleared optimizer state (REPA projector shape may have changed)")
+                else:
+                    logger.warning(
+                        "Checkpoint %s lacks accelerator state (optimizer.pt/bin); "
+                        "skipping resume. Use a step checkpoint (checkpoint-N) for full resume.",
+                        load_path,
+                    )
 
         num_epochs_this_run = cfg.num_epochs - first_epoch
         logger.info("***** Running training *****")
@@ -848,6 +854,7 @@ class I2SBTrainer:
                             pipeline_class_name="I2SBPipeline",
                             extra_state_dicts=extra_sd_ckpt if extra_sd_ckpt else None,
                         )
+                        accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:

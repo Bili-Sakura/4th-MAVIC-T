@@ -40,6 +40,7 @@ from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
+    checkpoint_has_accelerator_state,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -181,6 +182,26 @@ class DDBMTrainer:
     @property
     def pipeline_class_name(self) -> str:
         return "DDBMPipeline"
+
+    @staticmethod
+    def _load_ddbm_model_from_checkpoint(model, ema_model, load_path: str | Path, accelerator, use_ema: bool) -> None:
+        """Load UNet (and optionally EMA) from a diffusers-style checkpoint."""
+        from safetensors.torch import load_file
+        load_path = Path(load_path)
+        unet_path = load_path / "unet" / "diffusion_pytorch_model.safetensors"
+        if not unet_path.is_file():
+            raise FileNotFoundError(f"DDBM checkpoint missing unet: {unet_path}")
+        unwrapped = accelerator.unwrap_model(model)
+        unwrapped.load_state_dict(load_file(str(unet_path)), strict=True)
+        if use_ema and ema_model is not None:
+            ema_path = load_path / "ema_unet" / "diffusion_pytorch_model.safetensors"
+            if ema_path.is_file():
+                ema_sd = load_file(str(ema_path))
+                model_param_names = list(unwrapped.state_dict().keys())
+                ema_params = [ema_sd[name].clone() for name in model_param_names if name in ema_sd]
+                if len(ema_params) == len(ema_model.shadow_params):
+                    for i, p in enumerate(ema_params):
+                        ema_model.shadow_params[i].copy_(p)
 
     def get_validation_pipelines(self):
         from src.pipelines.ddbm import DDBMPipeline, DDBMLatentPipeline
@@ -831,27 +852,39 @@ class DDBMTrainer:
         if cfg.resume_from_checkpoint:
             path = cfg.resume_from_checkpoint
             if path == "latest":
-                all_ckpt_dirs = [
+                step_dirs = [
                     d for d in os.listdir(cfg.output_dir)
                     if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 0
                 ]
-                dirs = sorted(all_ckpt_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
-                path = dirs[-1] if dirs else None
+                epoch_dirs = [
+                    d for d in os.listdir(cfg.output_dir)
+                    if d.startswith("checkpoint") and checkpoint_dir_sort_key(d)[0] == 1
+                ]
+                step_dirs = sorted(step_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
+                epoch_dirs = sorted(epoch_dirs, key=lambda x: checkpoint_dir_sort_key(x)[1])
+                path = step_dirs[-1] if step_dirs else (epoch_dirs[-1] if epoch_dirs else None)
             if path is not None:
-                # External path: absolute or path with dir sep; otherwise relative to output_dir
                 if os.path.isabs(path) or os.path.sep in path:
                     load_path = os.path.abspath(path)
                 else:
                     load_path = os.path.join(cfg.output_dir, path)
-                accelerator.load_state(load_path)
-                global_step = int(Path(path).name.split("-")[1])
-                first_epoch = global_step // num_update_steps_per_epoch
-                logger.info(f"Resumed from {path}")
-                # Clear optimizer state when REPA is used: projector may have changed (e.g. 3→1)
-                # to avoid Prodigy "size of tensor a (6144) must match size of tensor b (2048)"
-                if rep_alignment_module is not None:
-                    optimizer.state.clear()
-                    logger.info("Cleared optimizer state (REPA projector shape may have changed)")
+                if checkpoint_has_accelerator_state(load_path):
+                    accelerator.load_state(load_path)
+                    global_step = int(Path(path).name.split("-")[1])
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info(f"Resumed from {path} (full state)")
+                    if rep_alignment_module is not None:
+                        optimizer.state.clear()
+                        logger.info("Cleared optimizer state (REPA projector shape may have changed)")
+                else:
+                    # Model-only checkpoint: load weights, restart optimizers
+                    self._load_ddbm_model_from_checkpoint(
+                        model, ema_model, load_path, accelerator, cfg.use_ema
+                    )
+                    parts = Path(path).name.split("-")
+                    global_step = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info(f"Resumed from {path} (model-only; optimizers reset)")
 
         num_epochs_this_run = cfg.num_epochs - first_epoch
         logger.info("***** Running training *****")
@@ -980,6 +1013,8 @@ class DDBMTrainer:
                             pipeline_class_name=self.pipeline_class_name,
                             extra_state_dicts=extra_sd_ckpt if extra_sd_ckpt else None,
                         )
+                        # Full state (optimizer, scheduler) for resume
+                        accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:

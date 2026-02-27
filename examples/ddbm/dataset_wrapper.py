@@ -292,6 +292,11 @@ class MavicTDDBMDataset(Dataset):
         sar_despeckle_kernel_size: int = 5,
         sar_despeckle_strength: float = 0.6,
     ) -> None:
+        if use_random_crop and split == "train" and (resolution is None or resolution <= 0):
+            raise ValueError(
+                "When use_random_crop is True for train split, resolution must be set and > 0. "
+                f"Got resolution={resolution}."
+            )
         super().__init__()
         self.task = task
         self.split = split

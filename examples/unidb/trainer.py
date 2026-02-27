@@ -37,6 +37,7 @@ from src.utils.training_utils import (
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
+    checkpoint_has_accelerator_state,
     create_optimizer,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
@@ -467,9 +468,17 @@ class UniDBTrainer:
                     load_path = os.path.abspath(path)
                 else:
                     load_path = os.path.join(cfg.output_dir, path)
-                accelerator.load_state(load_path)
-                global_step = int(Path(path).name.split("-")[1])
-                first_epoch = global_step // num_update_steps_per_epoch
+                if checkpoint_has_accelerator_state(load_path):
+                    accelerator.load_state(load_path)
+                    global_step = int(Path(path).name.split("-")[1])
+                    first_epoch = global_step // num_update_steps_per_epoch
+                    logger.info("Resumed from %s (full state)", path)
+                else:
+                    logger.warning(
+                        "Checkpoint %s lacks accelerator state (optimizer.pt/bin); "
+                        "skipping resume. Use a step checkpoint (checkpoint-N) for full resume.",
+                        load_path,
+                    )
 
         progress_bar = tqdm(
             range(global_step, cfg.max_train_steps),
@@ -545,6 +554,7 @@ class UniDBTrainer:
                             pipeline_class_name=self.pipeline_class_name,
                             extra_state_dicts=extra_sd if extra_sd else None,
                         )
+                        accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info("Saved checkpoint to %s", save_path)
 

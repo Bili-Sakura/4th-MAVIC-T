@@ -129,6 +129,21 @@ def lambda_repa_cosine(step: int, start: float, end: float, decay_steps: int) ->
     return end + 0.5 * (start - end) * (1 + math.cos(math.pi * progress))
 
 
+def checkpoint_has_accelerator_state(checkpoint_dir: str | Path) -> bool:
+    """Return True if the checkpoint contains full Accelerate state (optimizer, scheduler, etc.).
+
+    Used to distinguish step checkpoints (full state) from epoch checkpoints (model-only).
+    """
+    p = Path(checkpoint_dir)
+    if not p.is_dir():
+        return False
+    # Accelerate saves optimizer.pt or optimizer.bin (safetensors)
+    for name in ("optimizer.pt", "optimizer.bin"):
+        if (p / name).is_file():
+            return True
+    return False
+
+
 def checkpoint_dir_sort_key(name: str) -> tuple[int, int]:
     """Sort key for checkpoint dirs: (0, step) for checkpoint-{step}, (1, epoch) for checkpoint-epoch-{epoch}.
 
