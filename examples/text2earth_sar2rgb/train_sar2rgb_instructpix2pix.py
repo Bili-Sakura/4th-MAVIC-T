@@ -225,6 +225,12 @@ def parse_args():
         default=None,
     )
     parser.add_argument(
+        "--validation_steps",
+        type=int,
+        default=0,
+        help="Run validation every N steps. 0 disables validation.",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=None,
