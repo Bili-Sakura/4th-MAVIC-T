@@ -49,6 +49,7 @@ from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_config,
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
+    checkpoint_has_accelerator_state,
     create_optimizer,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
@@ -451,10 +452,17 @@ class DDIBTrainer:
                 else:
                     full_path = os.path.join(domain_output_dir, path)
                 if os.path.isdir(full_path):
-                    accelerator.load_state(full_path)
-                    global_step = int(Path(path).name.split("-")[1])
-                    first_epoch = global_step // num_update_steps_per_epoch
-                    logger.info(f"Resumed {domain_label} from {path}")
+                    if checkpoint_has_accelerator_state(full_path):
+                        accelerator.load_state(full_path)
+                        global_step = int(Path(path).name.split("-")[1])
+                        first_epoch = global_step // num_update_steps_per_epoch
+                        logger.info(f"Resumed {domain_label} from {path} (full state)")
+                    else:
+                        logger.warning(
+                            "Checkpoint %s lacks accelerator state (optimizer.pt/bin); "
+                            "skipping resume. Use a step checkpoint (checkpoint-N) for full resume.",
+                            full_path,
+                        )
 
         num_epochs_this_run = num_epochs - first_epoch
         logger.info(f"***** Training DDIB {domain_label} model *****")
@@ -562,6 +570,7 @@ class DDIBTrainer:
                             model_name="unet",
                             extra_state_dicts=extra_sd_ckpt if extra_sd_ckpt else None,
                         )
+                        accelerator.save_state(save_path)
                         save_training_config(cfg, save_path)
                         logger.info(f"Saved {domain_label} state to {save_path}")
                         if cfg.push_to_hub and cfg.hub_model_id:

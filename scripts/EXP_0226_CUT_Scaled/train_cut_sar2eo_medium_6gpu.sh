@@ -26,7 +26,9 @@ NET_G="resnet_9blocks"
 
 EXCLUDE_FILE="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"
 PAIRED_VAL_MANIFEST="datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/paired_val_sar2eo.txt"
+RESOLUTION=256
 USE_AUGMENTED=true
+USE_RANDOM_CROP=true
 USE_HORIZONTAL_FLIP=true
 USE_VERTICAL_FLIP=false
 
@@ -68,7 +70,9 @@ ARGS=(
   --netG "${NET_G}"
   --exclude_file "${EXCLUDE_FILE}"
   --paired_val_manifest "${PAIRED_VAL_MANIFEST}"
+  --resolution "${RESOLUTION}"
   --use_augmented "${USE_AUGMENTED}"
+  --use_random_crop "${USE_RANDOM_CROP}"
   --use_horizontal_flip "${USE_HORIZONTAL_FLIP}"
   --use_vertical_flip "${USE_VERTICAL_FLIP}"
   --train_batch_size "${TRAIN_BATCH_SIZE}"
