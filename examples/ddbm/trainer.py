@@ -808,6 +808,13 @@ class DDBMTrainer:
             shuffle=False,
             num_workers=cfg.dataloader_num_workers,
         ) if val_dataset is not None else None
+        # Disable log_validation on multi-GPU to avoid NCCL barrier deadlock
+        if val_dataloader is not None and accelerator.num_processes > 1:
+            logger.warning(
+                "Disabling log_validation on multi-GPU to avoid NCCL barrier deadlock. "
+                "Run validation separately on a single GPU."
+            )
+            val_dataloader = None
 
         from diffusers.optimization import get_scheduler as get_lr_scheduler
         total_steps = cfg.max_train_steps if cfg.max_train_steps else len(train_dataloader) * cfg.num_epochs
