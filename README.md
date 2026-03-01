@@ -157,9 +157,9 @@ Implementation notes:
 
 <a href="https://openaccess.thecvf.com/content/CVPR2025/html/Hoogeboom_Simpler_Diffusion_1.5_FID_on_ImageNet512_with_Pixel-space_Diffusion_CVPR_2025_paper.html">Simpler Diffusion / SiD2 (CVPR 2025)</a>
 
-<a href="https://arxiv.org/abs/2312.02696">Analyzing and Improving the Training Dynamics of Diffusion Models (EDM2, 2024)</a>
+<a href="http://openaccess.thecvf.com//content/CVPR2024/papers/Karras_Analyzing_and_Improving_the_Training_Dynamics_of_Diffusion_Models_CVPR_2024_paper.pdf">Analyzing and Improving the Training Dynamics of Diffusion Models (EDM2, CVPR 2024)</a>
 
-<a href="https://arxiv.org/abs/2107.00630">Variational Diffusion Models (VDM, 2021)</a>
+<a href="https://proceedings.neurips.cc/paper/2021/hash/b578f2a52a0229873fefc2a4b06377fa-Abstract.html">Variational Diffusion Models (VDM, NeurIPS 2021)</a>
 
 <a href="https://link.springer.com/chapter/10.1007/978-3-030-58545-7_19">Contrastive Unpaired Translation (CUT, ECCV 2020)</a>
 
