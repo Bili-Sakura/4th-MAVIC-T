@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core I2SB trainer for MAVIC-T tasks.
 
 Reference: Liu, Guan-Horng, Arash Vahdat, De-An Huang, Evangelos Theodorou,

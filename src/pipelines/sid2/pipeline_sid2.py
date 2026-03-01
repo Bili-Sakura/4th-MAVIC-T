@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Pipeline for conditional Simpler Diffusion (SiD2) image translation."""
 
 from __future__ import annotations

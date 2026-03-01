@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Task-specific configurations for UniDB baseline training.
 
 UniDB uses a noise-predicting ConditionalUNet with lambda_square, gamma,

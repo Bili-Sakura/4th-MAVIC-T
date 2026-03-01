@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """PyTorch Dataset wrapper around ``MavicTImageToImageDataset`` for CUT.
 
 This module bridges the HuggingFace ``datasets.Dataset`` returned by

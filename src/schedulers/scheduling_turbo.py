@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Scheduler wrapper for Img2Image-Turbo single-step denoising.
 
 Ported from ``vendor/Img2Image-Turbo/src/model.py::make_1step_sched``.

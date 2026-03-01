@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Run all four checkpoints on paired_val manifests and save input, generation, gt.
 
 Output structure: /data/projects/4th-MAVIC-T/temp/{task}/input/, generation/, gt/

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """DINO-based structural similarity loss.
 
 Ported from ``vendor/Img2Image-Turbo/src/my_utils/dino_struct.py``.

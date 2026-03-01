@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Image buffer for training, adapted from the CUT codebase.
 
 This module implements an image buffer that stores previously generated

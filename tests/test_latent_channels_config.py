@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Tests for latent_channels config field across all baselines.
 
 Verifies that each baseline's TaskConfig has the latent_channels field with

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Shared utilities for writing submission readme.txt with detailed descriptions.
 
 Used by all MAVIC-T baseline sample scripts (DBIM, DDBM, BiBBDM, I2SB, DDIB, CUT, Turbo)

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core CUT trainer for MAVIC-T tasks.
 
 Reference: Park, Taesung, Alexei A. Efros, Richard Zhang, and Jun-Yan Zhu.

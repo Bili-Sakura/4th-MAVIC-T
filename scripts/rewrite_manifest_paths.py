@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Rewrite absolute paths in manifest files to use a user-specified dataset root.
 
 Manifest files under datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/

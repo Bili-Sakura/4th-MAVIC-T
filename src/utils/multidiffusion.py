@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """MultiDiffusion-style tiled inference for high-res generation.
 
 Shared utilities for running diffusion models trained at 512px (64x64 latent)

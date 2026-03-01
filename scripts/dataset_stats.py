@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Quick statistics of MACIV-T-2025-Structure-Refined training data.
 Random select 10 pairs per task, report min, max, mean, std for input and output.
 """

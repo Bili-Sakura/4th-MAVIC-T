@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core DBIM trainer for MAVIC-T tasks.
 
 DBIM shares DDBM's training objective and differs mainly in sampling.

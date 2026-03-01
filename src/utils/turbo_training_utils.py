@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Training utilities ported from ``vendor/Img2Image-Turbo/src/my_utils/training_utils.py``.
 
 Contains dataset classes for paired/unpaired image-to-image training and

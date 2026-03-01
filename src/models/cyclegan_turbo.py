@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """CycleGAN-Turbo model built on ``diffusers`` components.
 
 Ported from ``vendor/Img2Image-Turbo/src/cyclegan_turbo.py``.

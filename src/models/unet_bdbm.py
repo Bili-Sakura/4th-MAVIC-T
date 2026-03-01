@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """BDBM-compatible UNet wrappers built on ``diffusers.UNet2DModel``.
 
 This module ports the core UNet contract from ``libs/BDBM`` into the

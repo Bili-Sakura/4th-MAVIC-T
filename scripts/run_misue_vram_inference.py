@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Run inference on misue-vram checkpoint (first 4 test samples).
 
 Matches the validation logic in examples/ddbm/trainer.py log_validation.

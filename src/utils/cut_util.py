@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Simple helper functions adapted from the CUT codebase.
 
 This module contains utility functions for image manipulation, tensor

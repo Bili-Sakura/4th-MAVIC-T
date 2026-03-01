@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Pix2Pix-Turbo model built on ``diffusers`` components.
 
 This module re-implements the core Pix2Pix-Turbo architecture from

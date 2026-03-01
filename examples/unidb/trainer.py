@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core UniDB trainer for MAVIC-T tasks.
 
 UniDB uses a noise-predicting model with x0=GT, mu=LQ (condition).

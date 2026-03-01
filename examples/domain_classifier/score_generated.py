@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Score generated images with a pre-trained domain real/fake classifier.
 
 This script computes the model's soft probability that each image is "real"

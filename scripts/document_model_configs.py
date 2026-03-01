@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Script to document model configurations from all baselines.
 
 This script extracts configuration details by directly parsing config files

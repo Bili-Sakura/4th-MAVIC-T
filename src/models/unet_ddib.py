@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """DDIB-compatible unconditional UNet model built on ``diffusers.UNet2DModel``.
 
 Unlike the DDBM baseline which uses source-conditioned (``concat``) UNets, DDIB

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Dataset utilities for Text2Earth SAR2RGB training.
 
 Supports MAVIC-T paired manifest format (input_path\\ttarget_path) and

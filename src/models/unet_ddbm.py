@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """DDBM-compatible UNet model built on ``diffusers.UNet2DModel``.
 
 The vendor DDBM UNet accepts ``(x, timestep, xT=…)`` where ``xT`` is the

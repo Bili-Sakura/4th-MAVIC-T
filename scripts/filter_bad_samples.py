@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Filter training images that contain bad (black or N/A) patches.
 
 Satellite imagery often contains tiles where the sensor returned no useful data.

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Sample (inference) script for Text2Earth InstructPix2Pix-style SAR2RGB.
 
 Runs a trained checkpoint on the MAVIC-T test set and saves outputs in

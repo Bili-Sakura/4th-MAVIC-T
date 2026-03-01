@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Latent-space inference pipeline for I2SB.
 
 Wraps the I2SB Schrödinger Bridge process with a frozen VAE so that

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: See upstream/paper attribution below and README.md citations.
+
 # Copyright 2023 The SimpleDiffusion Authors and The Hugging Face Team.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #

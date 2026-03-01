@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Task-specific configurations for DBIM baseline training.
 
 DBIM reuses the DDBM bridge training objective while exposing improved

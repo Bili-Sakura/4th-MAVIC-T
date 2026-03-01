@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Compare CFG scales on paired val set and save visual grids.
 
 Each saved image is a single-row grid built with diffusers.make_image_grid:

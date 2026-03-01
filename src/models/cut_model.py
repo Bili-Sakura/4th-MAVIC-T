@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """CUT model components built on native PyTorch modules.
 
 This module provides the three networks required by the CUT (Contrastive

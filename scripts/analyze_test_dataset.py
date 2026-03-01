@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """
 Analyze the MAVIC-T 2025 test dataset statistics.
 Focus on image sizes per subfolder and pixel value ranges.
