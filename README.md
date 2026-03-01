@@ -134,8 +134,22 @@ Implementation notes:
 
 ### Library credits
 
-<a href="https://github.com/huggingface/diffusers">diffusers</a>; <a href="https://github.com/Bili-Sakura/DDBM">DDBM</a>; <a href="https://github.com/thu-ml/DiffusionBridge">DiffusionBridge</a>; <a href="https://github.com/suxuann/ddib">ddib</a>; <a href="https://github.com/kvmduc/BDBM">BDBM</a>; <a href="https://github.com/LaplaceLab/CDTSDE">CDTSDE</a>; <a href="https://github.com/GaParmar/img2img-turbo">img2img-turbo</a>; <a href="https://github.com/taesungp/contrastive-unpaired-translation">CUT</a>; <a href="https://github.com/NVlabs/edm2">EDM2</a>; <a href="https://github.com/google-research/vdm">VDM</a>; <a href="https://github.com/faverogian/simpleDiffusion">simpleDiffusion</a>; <a href="https://github.com/sihyun-yu/REPA">REPA</a>; <a href="https://github.com/WanderRainy/MaRS">MaRS</a>; <a href="https://github.com/wsqmyself/PBVS2025_translation">PBVS2025_translation</a>; <a href="https://github.com/chen-yang-liu/Text2Earth">Text2Earth</a>.
+<a href="https://github.com/huggingface/diffusers">diffusers</a>.
 
 ### Reference papers
 
-<a href="https://openreview.net/forum?id=FKksTayvGo">Denoising Diffusion Bridge Models (DDBM, ICLR 2024)</a>; <a href="https://openreview.net/forum?id=5HLoTvVGDe">Dual Diffusion Implicit Bridges (DDIB, ICLR 2023)</a>; <a href="http://openaccess.thecvf.com/content/CVPR2023/papers/Li_BBDM_Image-to-Image_Translation_With_Brownian_Bridge_Diffusion_Models_CVPR_2023_paper.pdf">BBDM (CVPR 2023)</a>; <a href="https://doi.org/10.1109/TPAMI.2025.3597667">BiBBDM (TPAMI 2025)</a>; <a href="https://arxiv.org/abs/2502.09655">Bidirectional Diffusion Bridge Models (DBIM/UniDB)</a>; <a href="https://openreview.net/forum?id=WH2Cy3eQd0">I2SB (ICML 2023)</a>; <a href="https://openreview.net/forum?id=it0GTdiW9t">CDTSDE (ICLR 2026)</a>; <a href="https://arxiv.org/abs/2301.11093">Simple Diffusion (SiD, 2023)</a>; <a href="https://arxiv.org/abs/2410.19324">Simpler Diffusion / SiD2 (CVPR 2025)</a>; <a href="https://arxiv.org/abs/2312.02696">Analyzing and Improving the Training Dynamics of Diffusion Models (EDM2, 2024)</a>; <a href="https://arxiv.org/abs/2107.00630">Variational Diffusion Models (VDM, 2021)</a>; <a href="https://link.springer.com/chapter/10.1007/978-3-030-58545-7_19">Contrastive Unpaired Translation (CUT, ECCV 2020)</a>; <a href="https://openaccess.thecvf.com/content_iccv_2017/html/Zhu_Unpaired_Image-To-Image_Translation_ICCV_2017_paper.html">CycleGAN (ICCV 2017)</a>; <a href="https://doi.org/10.48550/arXiv.2403.12036">One-Step Image Translation with Text-to-Image Models (img2img-turbo, 2024)</a>; <a href="https://arxiv.org/abs/2410.06940">Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think (REPA, 2024)</a>.
+<a href="https://openreview.net/forum?id=FKksTayvGo">Denoising Diffusion Bridge Models (DDBM, ICLR 2024)</a>;
+<a href="https://openreview.net/forum?id=5HLoTvVGDe">Dual Diffusion Implicit Bridges (DDIB, ICLR 2023)</a>;
+<a href="http://openaccess.thecvf.com/content/CVPR2023/papers/Li_BBDM_Image-to-Image_Translation_With_Brownian_Bridge_Diffusion_Models_CVPR_2023_paper.pdf">BBDM (CVPR 2023)</a>;
+<a href="https://doi.org/10.1109/TPAMI.2025.3597667">BiBBDM (TPAMI 2025)</a>;
+<a href="https://arxiv.org/abs/2502.09655">Bidirectional Diffusion Bridge Models (DBIM/UniDB)</a>;
+<a href="https://openreview.net/forum?id=WH2Cy3eQd0">I2SB (ICML 2023)</a>;
+<a href="https://openreview.net/forum?id=it0GTdiW9t">CDTSDE (ICLR 2026)</a>;
+<a href="https://arxiv.org/abs/2301.11093">Simple Diffusion (SiD, 2023)</a>;
+<a href="https://arxiv.org/abs/2410.19324">Simpler Diffusion / SiD2 (CVPR 2025)</a>;
+<a href="https://arxiv.org/abs/2312.02696">Analyzing and Improving the Training Dynamics of Diffusion Models (EDM2, 2024)</a>;
+<a href="https://arxiv.org/abs/2107.00630">Variational Diffusion Models (VDM, 2021)</a>;
+<a href="https://link.springer.com/chapter/10.1007/978-3-030-58545-7_19">Contrastive Unpaired Translation (CUT, ECCV 2020)</a>;
+<a href="https://openaccess.thecvf.com/content_iccv_2017/html/Zhu_Unpaired_Image-To-Image_Translation_ICCV_2017_paper.html">CycleGAN (ICCV 2017)</a>;
+<a href="https://doi.org/10.48550/arXiv.2403.12036">One-Step Image Translation with Text-to-Image Models (img2img-turbo, 2024)</a>;
+<a href="https://arxiv.org/abs/2410.06940">Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think (REPA, 2024)</a>.
