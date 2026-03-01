@@ -130,99 +130,26 @@ Implementation notes:
 - SID alignment checklist: `docs/sid_alignment_checklist.md`
 - SID2 alignment checklist: `docs/sid2_alignment_checklist.md`
 
-## Citations
+## Credits
 
-```bibtex
-@inproceedings{su2023ddib,
-  title = {Dual Diffusion Implicit Bridges for Image-to-Image Translation},
-  author = {Su, Xuan and Song, Jiaming and Meng, Chenlin and Ermon, Stefano},
-  booktitle = {International Conference on Learning Representations},
-  year = {2023},
-  url = {https://openreview.net/forum?id=5HLoTvVGDe}
-}
+### Library credits
 
-@inproceedings{zhou2024ddbm,
-  title = {Denoising Diffusion Bridge Models},
-  author = {Zhou, Linqi and Lou, Aaron and Khanna, Samar and Ermon, Stefano},
-  booktitle = {International Conference on Learning Representations},
-  year = {2024},
-  url = {https://openreview.net/forum?id=FKksTayvGo}
-}
+<a href="https://github.com/huggingface/diffusers">diffusers</a>.
 
-@inproceedings{li2023bbdm,
-  title = {BBDM: Image-to-Image Translation with Brownian Bridge Diffusion Models},
-  author = {Li, Bo and Xue, Kaitao and Liu, Bin and Lai, Yu-Kun},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
-  year = {2023},
-  pages = {1952--1961},
-  url = {http://openaccess.thecvf.com/content/CVPR2023/papers/Li_BBDM_Image-to-Image_Translation_With_Brownian_Bridge_Diffusion_Models_CVPR_2023_paper.pdf}
-}
+### Reference papers
 
-@article{xue2025bibbdm,
-  title = {BiBBDM: Bidirectional Image Translation With Brownian Bridge Diffusion Models},
-  author = {Xue, Kaitao and Li, Bo and Liu, Ziyi and He, Zhifen and Liu, Bin and Zhang, Congxuan and Lai, Yu-Kun},
-  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
-  year = {2025},
-  volume = {47},
-  number = {11},
-  pages = {10546--10559},
-  doi = {10.1109/TPAMI.2025.3597667}
-}
-
-@article{kieu2025bidirectional,
-  title = {Bidirectional Diffusion Bridge Models},
-  author = {Kieu, Duc and Do, Kien and Nguyen, Toan and Nguyen, Dang and Nguyen, Thin},
-  journal = {arXiv preprint arXiv:2502.09655},
-  year = {2025},
-  url = {https://arxiv.org/abs/2502.09655}
-}
-
-@inproceedings{liu2023i2sb,
-  title = {I2SB: Image-to-Image Schr{\"o}dinger Bridge},
-  author = {Liu, Guan-Horng and Vahdat, Arash and Huang, De-An and Theodorou, Evangelos and Nie, Weili and Anandkumar, Anima},
-  booktitle = {International Conference on Machine Learning},
-  year = {2023},
-  url = {https://openreview.net/forum?id=WH2Cy3eQd0}
-}
-
-@inproceedings{wang2026cdtsde,
-  title = {Adaptive Domain Shift in Diffusion Models for Cross-Modality Image Translation},
-  author = {Wang, Zihao and Chen, Yuzhou and Ren, Shaogang},
-  booktitle = {International Conference on Learning Representations},
-  year = {2026},
-  url = {https://openreview.net/forum?id=it0GTdiW9t}
-}
-
-@inproceedings{hoogeboom2025sid2,
-  title = {Simpler Diffusion (SiD2): 1.5 FID on ImageNet512 with pixel-space diffusion},
-  author = {Hoogeboom, Emiel and Mensink, Thomas and Heek, Jonathan and Lamerigts, Kay and Gao, Ruiqi and Salimans, Tim},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
-  year = {2025},
-  url = {https://arxiv.org/abs/2410.19324}
-}
-
-@inproceedings{park2020cut,
-  title = {Contrastive Learning for Unpaired Image-to-Image Translation},
-  author = {Park, Taesung and Efros, Alexei A. and Zhang, Richard and Zhu, Jun-Yan},
-  booktitle = {European Conference on Computer Vision},
-  year = {2020},
-  pages = {319--345},
-  doi = {10.1007/978-3-030-58545-7_19}
-}
-
-@inproceedings{zhu2017cyclegan,
-  title = {Unpaired Image-to-Image Translation Using Cycle-Consistent Adversarial Networks},
-  author = {Zhu, Jun-Yan and Park, Taesung and Isola, Phillip and Efros, Alexei A.},
-  booktitle = {Proceedings of the IEEE International Conference on Computer Vision},
-  year = {2017},
-  pages = {2223--2232},
-  url = {https://openaccess.thecvf.com/content_iccv_2017/html/Zhu_Unpaired_Image-To-Image_Translation_ICCV_2017_paper.html}
-}
-
-@article{parmar2024onestep,
-  title = {One-Step Image Translation with Text-to-Image Models},
-  author = {Parmar, Gaurav and Park, Taesung and Narasimhan, Srinivasa and Zhu, Jun-Yan},
-  year = {2024},
-  doi = {10.48550/arXiv.2403.12036}
-}
-```
+<a href="https://openreview.net/forum?id=FKksTayvGo">Denoising Diffusion Bridge Models (DDBM, ICLR 2024)</a>;
+<a href="https://openreview.net/forum?id=5HLoTvVGDe">Dual Diffusion Implicit Bridges (DDIB, ICLR 2023)</a>;
+<a href="http://openaccess.thecvf.com/content/CVPR2023/papers/Li_BBDM_Image-to-Image_Translation_With_Brownian_Bridge_Diffusion_Models_CVPR_2023_paper.pdf">BBDM (CVPR 2023)</a>;
+<a href="https://doi.org/10.1109/TPAMI.2025.3597667">BiBBDM (TPAMI 2025)</a>;
+<a href="https://arxiv.org/abs/2502.09655">Bidirectional Diffusion Bridge Models (DBIM/UniDB)</a>;
+<a href="https://openreview.net/forum?id=WH2Cy3eQd0">I2SB (ICML 2023)</a>;
+<a href="https://openreview.net/forum?id=it0GTdiW9t">CDTSDE (ICLR 2026)</a>;
+<a href="https://arxiv.org/abs/2301.11093">Simple Diffusion (SiD, 2023)</a>;
+<a href="https://arxiv.org/abs/2410.19324">Simpler Diffusion / SiD2 (CVPR 2025)</a>;
+<a href="https://arxiv.org/abs/2312.02696">Analyzing and Improving the Training Dynamics of Diffusion Models (EDM2, 2024)</a>;
+<a href="https://arxiv.org/abs/2107.00630">Variational Diffusion Models (VDM, 2021)</a>;
+<a href="https://link.springer.com/chapter/10.1007/978-3-030-58545-7_19">Contrastive Unpaired Translation (CUT, ECCV 2020)</a>;
+<a href="https://openaccess.thecvf.com/content_iccv_2017/html/Zhu_Unpaired_Image-To-Image_Translation_ICCV_2017_paper.html">CycleGAN (ICCV 2017)</a>;
+<a href="https://doi.org/10.48550/arXiv.2403.12036">One-Step Image Translation with Text-to-Image Models (img2img-turbo, 2024)</a>;
+<a href="https://arxiv.org/abs/2410.06940">Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think (REPA, 2024)</a>.
