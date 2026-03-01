@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Custom VAE forward functions for skip-connection-enhanced Img2Image-Turbo.
 
 These functions replace the default ``AutoencoderKL`` encoder/decoder forwards

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core DDIB trainer for MAVIC-T tasks.
 
 DDIB (Dual Diffusion Implicit Bridges, ICLR 2023) translates images between

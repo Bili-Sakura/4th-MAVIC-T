@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Ablation: inference steps 1, 10, 100, 1000 on paired_val set for each task.
 
 For each sample: grid row = [input, ground_truth, pred_1, pred_10, pred_100, pred_1000].

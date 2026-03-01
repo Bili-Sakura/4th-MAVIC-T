@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Learning-rate scheduling for CUT training.
 
 CUT is a feed-forward GAN — it does not use iterative noise scheduling

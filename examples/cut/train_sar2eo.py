@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Train CUT baseline for **sar2eo** (SAR → EO, 1-band 256×256).
 
 Usage::

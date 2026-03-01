@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Pre-compute mean and std for the domain dataset (positive/real images only).
 
 Use these statistics instead of ImageNet for normalization when training

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Train Pix2Pix-Turbo for **sar2rgb** (SAR → RGB).
 
 Usage::

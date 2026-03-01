@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Standalone SiD trainer built on shared DDBM training infrastructure."""
 
 from __future__ import annotations

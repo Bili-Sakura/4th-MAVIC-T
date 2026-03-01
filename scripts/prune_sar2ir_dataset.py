@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Prune sar2ir dataset based on IR quality metrics.
 
 Reads the metrics CSV from ir_quality_metrics.py and filters out low-quality

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Tests for save / load round-trip via ``from_pretrained``.
 
 Each baseline's UNet wrapper now inherits from ``ModelMixin + ConfigMixin``

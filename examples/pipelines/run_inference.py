@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Standalone inference script using self-contained pipelines.
 
 No external project code (src/) required. Uses only diffusers and examples.pipelines.

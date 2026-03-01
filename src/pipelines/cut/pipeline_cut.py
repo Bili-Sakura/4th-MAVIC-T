@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """CUT single-pass inference pipeline.
 
 Provides :class:`CUTPipeline` for running inference with a trained CUT

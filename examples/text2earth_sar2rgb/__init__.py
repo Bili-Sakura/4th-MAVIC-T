@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Text2Earth-based SAR2RGB training examples.
 
 Fine-tune the pre-trained Text2Earth text2image diffusion model for SAR-to-RGB

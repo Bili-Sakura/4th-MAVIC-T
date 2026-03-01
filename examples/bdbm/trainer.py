@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core BDBM trainer for MAVIC-T tasks."""
 
 from __future__ import annotations

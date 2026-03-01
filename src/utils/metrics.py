@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """MAVIC-T official evaluation metrics.
 
 This module implements the three evaluation metrics used by the 4th MAVIC-T

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Quick script to push TensorBoard logs to Hugging Face Hub.
 
 This script pushes TensorBoard log directories from stage1 training runs

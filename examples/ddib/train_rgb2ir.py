@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Train DDIB baseline for **rgb2ir** (RGB → IR, 3-band → 1-band, 1024×1024).
 
 DDIB trains two independent unconditional diffusion models (one per domain)

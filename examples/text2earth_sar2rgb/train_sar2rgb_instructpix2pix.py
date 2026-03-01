@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Train SAR2RGB via InstructPix2Pix-style conditioning on Text2Earth.
 
 Fine-tune the Text2Earth UNet by adding direct image conditioning: concatenate

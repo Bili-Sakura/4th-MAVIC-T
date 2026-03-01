@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """CDTSDE-compatible UNet model built on ``diffusers.UNet2DModel``.
 
 This module adapts the core idea from CDTSDE (adaptive domain-shift field

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Compute IR quality metrics for sar2ir dataset pruning.
 
 Evaluates IR (target) images for:

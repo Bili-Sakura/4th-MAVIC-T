@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Task-specific configurations for I2SB baseline training.
 
 Each task (sar2eo, rgb2ir, sar2ir, sar2rgb) defines its own config with

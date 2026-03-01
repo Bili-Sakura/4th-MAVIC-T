@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Pipeline wrappers for Img2Image-Turbo models.
 
 Follows the ``diffusers``-style pipeline pattern where the pipeline owns the

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """PyTorch Dataset wrapper for DDIB single-domain training.
 
 DDIB trains *unconditional* diffusion models on each domain independently.

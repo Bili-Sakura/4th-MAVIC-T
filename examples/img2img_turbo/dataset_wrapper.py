@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """PyTorch Dataset wrapper for Pix2Pix-Turbo on MAVIC-T data.
 
 This module bridges the HuggingFace ``datasets.Dataset`` returned by

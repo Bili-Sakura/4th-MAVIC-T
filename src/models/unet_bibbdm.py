@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """BiBBDM-compatible UNet model built on ``diffusers.UNet2DModel``.
 
 The BiBBDM UNet accepts ``(x_t, timesteps, context=…)`` where ``x_t`` is the

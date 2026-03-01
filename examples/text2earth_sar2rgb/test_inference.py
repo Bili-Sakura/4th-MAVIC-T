@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Quick test of Text2Earth inference pipeline (base model, no SAR2RGB)."""
 import sys
 from pathlib import Path

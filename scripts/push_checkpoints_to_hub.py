@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Quick script to push checkpoint directories to Hugging Face Hub.
 
 This script pushes accelerator checkpoints (checkpoint-1000) from the four stage1

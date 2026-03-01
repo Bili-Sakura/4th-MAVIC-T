@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: See upstream/paper attribution below and README.md citations.
+
 # Copyright 2024 The UniDB Authors (https://github.com/2769433owo/UniDB-plusplus).
 # Licensed under the Apache License, Version 2.0 (the "License");
 #

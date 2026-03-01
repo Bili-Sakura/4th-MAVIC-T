@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Tests for the I2SB baseline module.
 
 Validates config builders, model forward pass, scheduler operations,

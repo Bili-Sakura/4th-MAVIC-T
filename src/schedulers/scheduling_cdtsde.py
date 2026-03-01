@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Scheduler for CDTSDE (Adaptive Domain Shift Diffusion Bridge)."""
 
 from __future__ import annotations

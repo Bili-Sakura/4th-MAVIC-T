@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Manual MAVIC-T metric evaluation for a trained SID2 checkpoint on paired val data.
 
 Same interface as examples/cut/evaluate_metrics.py. Normalization follows

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """UniDB training examples for MAVIC-T tasks."""
 
 from .config import TaskConfig, sar2eo_config, sar2ir_config, sar2rgb_config, rgb2ir_config

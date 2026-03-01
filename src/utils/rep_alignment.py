@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Representation alignment via pre-trained image encoders.
 
 This module implements representation alignment losses inspired by REPA

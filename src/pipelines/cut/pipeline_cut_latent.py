@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Latent-space inference pipeline for CUT.
 
 Wraps the CUT generator with a frozen VAE so that the generator

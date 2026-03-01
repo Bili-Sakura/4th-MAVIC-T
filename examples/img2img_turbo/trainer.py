@@ -1,3 +1,6 @@
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Core Pix2Pix-Turbo trainer for MAVIC-T tasks.
 
 Reference: Parmar, Gaurav, Taesung Park, Srinivasa Narasimhan, and Jun-Yan Zhu.

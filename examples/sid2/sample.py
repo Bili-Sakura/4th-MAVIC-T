@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) 2026 EarthBridge Team.
+# Credits: Built on open-source libraries and papers acknowledged in README.md citations.
+
 """Sample (inference) script for a trained SID2 model on MAVIC-T tasks.
 
 Outputs are saved under MACIV-T-2025-Submissions/<task>/<model_name>/ following
