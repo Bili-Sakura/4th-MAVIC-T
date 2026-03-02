@@ -97,7 +97,13 @@ class SID2Trainer(SIDTrainer):
 
         max_train_t = float(scheduler.config.num_train_timesteps - 1)
         t_embed = t * max_train_t
-        pred = model(noisy_samples, t_embed, xT=x_T)
+        condition_mode = getattr(self.cfg, "condition_mode", "concat")
+        model_input = (
+            torch.cat([noisy_samples, x_T], dim=1)
+            if condition_mode == "concat" and x_T is not None
+            else noisy_samples
+        )
+        pred = model(model_input, t_embed).sample
 
         alpha_b = _append_dims(alpha_t, x0.ndim)
         sigma_b = _append_dims(sigma_t, x0.ndim)

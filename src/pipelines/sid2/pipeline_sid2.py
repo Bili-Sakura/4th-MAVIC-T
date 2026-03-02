@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 from tqdm.auto import tqdm
 
-from diffusers import DiffusionPipeline
+from diffusers import DiffusionPipeline, UNet2DModel
 from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
@@ -33,7 +33,7 @@ class SID2Pipeline(DiffusionPipeline):
 
     model_cpu_offload_seq = "unet"
 
-    def __init__(self, unet: torch.nn.Module, scheduler: SiD2Scheduler):
+    def __init__(self, unet: UNet2DModel, scheduler: SiD2Scheduler):
         super().__init__()
         self.register_modules(unet=unet, scheduler=scheduler)
 
@@ -92,6 +92,9 @@ class SID2Pipeline(DiffusionPipeline):
         source = self.prepare_inputs(source_image, device, dtype)
         batch_size = source.shape[0]
         target_channels = int(getattr(self.unet.config, "out_channels", source.shape[1]))
+        # Determine if the model was built with concat conditioning by checking
+        # whether in_channels exceeds out_channels.
+        use_conditioning = self.unet.config.in_channels > target_channels
         use_cfg = abs(float(cfg_scale) - 1.0) > 1e-6
         null_condition = torch.zeros_like(source) if use_cfg else None
         nfe_per_denoise = 2 if use_cfg else 1
@@ -128,17 +131,20 @@ class SID2Pipeline(DiffusionPipeline):
                 cond_input = torch.cat([source, null_condition], dim=0).to(
                     device=model_device, dtype=model_dtype
                 )
-                model_output_batched = self.unet(model_input, timestep_input, xT=cond_input)
+                if use_conditioning:
+                    model_input = torch.cat([model_input, cond_input], dim=1)
+                model_output_batched = self.unet(model_input, timestep_input).sample
                 model_output_cond, model_output_uncond = model_output_batched.chunk(2, dim=0)
                 model_output = model_output_uncond + cfg_scale * (
                     model_output_cond - model_output_uncond
                 )
             else:
-                model_output = self.unet(
-                    xt.to(device=model_device, dtype=model_dtype),
-                    t_batch,
-                    xT=source.to(device=model_device, dtype=model_dtype),
-                )
+                xt_dev = xt.to(device=model_device, dtype=model_dtype)
+                if use_conditioning:
+                    xt_dev = torch.cat(
+                        [xt_dev, source.to(device=model_device, dtype=model_dtype)], dim=1
+                    )
+                model_output = self.unet(xt_dev, t_batch).sample
             model_output = model_output.to(device=xt.device, dtype=xt.dtype)
             nfe_count += nfe_per_denoise
 

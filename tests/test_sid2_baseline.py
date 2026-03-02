@@ -13,6 +13,7 @@ from examples.sid2.config import (
     sar2rgb_config,
 )
 from examples.sid2.trainer import SID2Trainer
+from diffusers import UNet2DModel
 from src.models.unet_sid import SiDUNet, create_sid_model
 from src.pipelines.sid2 import SID2Pipeline, SID2PipelineOutput
 from src.schedulers import SiD2Scheduler, SiD2SchedulerOutput
@@ -53,7 +54,10 @@ class TestModelAndScheduler:
             attention_resolutions="",
             channel_mult="1",
         )
-        assert isinstance(model, SiDUNet)
+        # create_sid_model returns a native diffusers UNet2DModel.
+        # SiDUNet is an alias for UNet2DModel for backward compatibility.
+        assert isinstance(model, UNet2DModel)
+        assert SiDUNet is UNet2DModel
 
     def test_scheduler_step_shape(self):
         sched = SiD2Scheduler(image_d=32, interpolated_noise_d_low=2.0, interpolated_noise_d_high=32.0)

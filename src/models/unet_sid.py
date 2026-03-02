@@ -1,16 +1,18 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""Standalone Simple Diffusion (SiD) UNet."""
+"""Simple Diffusion (SiD) model using the native diffusers ``UNet2DModel``.
+
+The concat-conditioning contract (``model(cat([x, xT], dim=1), t)``) is
+handled by callers (trainer / pipeline) so that the model itself is a plain
+``UNet2DModel`` with no custom wrapper.
+"""
 
 from __future__ import annotations
 
 from typing import Optional, Tuple, Union
 
-import torch
-import torch.nn as nn
-from diffusers import ModelMixin, UNet2DModel
-from diffusers.configuration_utils import ConfigMixin, register_to_config
+from diffusers import UNet2DModel
 
 from .unet_ddbm import (
     _build_block_types,
@@ -19,74 +21,8 @@ from .unet_ddbm import (
     _parse_layers_per_block,
 )
 
-
-class SiDUNet(ModelMixin, ConfigMixin):
-    """Simple Diffusion UNet using ``UNet2DModel`` with concat conditioning."""
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        out_channels: Optional[int] = None,
-        condition_channels: Optional[int] = None,
-        model_channels: int = 128,
-        num_res_blocks: Union[int, Tuple[int, ...]] = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-        attention_head_dim: Optional[int] = 64,
-    ) -> None:
-        super().__init__()
-        if out_channels is None:
-            out_channels = in_channels
-        if condition_channels is None:
-            condition_channels = in_channels
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.condition_channels = condition_channels
-        self.condition_mode = condition_mode
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = (
-            in_channels + condition_channels if condition_mode == "concat" else in_channels
-        )
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        layers_per_block = _parse_layers_per_block(
-            num_res_blocks,
-            num_levels=len(channel_mult),
-            allow_variable=True,
-        )
-
-        unet_kwargs: dict = dict(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=out_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=layers_per_block,
-            dropout=dropout,
-            mid_block_type="UNetMidBlock2D",
-        )
-        if attention_head_dim is not None:
-            unet_kwargs["attention_head_dim"] = attention_head_dim
-        self.unet = UNet2DModel(**unet_kwargs)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        xT: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        if self.condition_mode == "concat" and xT is not None:
-            x = torch.cat([x, xT], dim=1)
-        return self.unet(x, timestep).sample
+# Backward-compatibility alias: SiDUNet is the native diffusers UNet2DModel.
+SiDUNet = UNet2DModel
 
 
 def create_sid_model(
@@ -101,8 +37,47 @@ def create_sid_model(
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
     attention_head_dim: Optional[int] = 64,
-) -> nn.Module:
-    """Factory for standalone SID UNet."""
+) -> UNet2DModel:
+    """Create a native diffusers ``UNet2DModel`` for SiD conditional translation.
+
+    When ``condition_mode='concat'`` (default) the returned model expects the
+    noisy sample and the condition image to be pre-concatenated along the
+    channel axis before being passed to the model::
+
+        model_input = torch.cat([noisy_sample, condition], dim=1)
+        pred = model(model_input, timestep).sample
+
+    Parameters
+    ----------
+    image_size : int
+        Spatial resolution (height == width).
+    in_channels : int
+        Number of channels of the *target* (noisy sample) image.
+    out_channels : int or None
+        Output channels. Defaults to ``in_channels``.
+    condition_channels : int or None
+        Channels of the condition image. Defaults to ``in_channels``.
+    num_channels : int
+        Base channel count of the UNet.
+    num_res_blocks : int, str, or tuple of int
+        Residual blocks per resolution level.
+    attention_resolutions : str
+        Comma-separated spatial resolutions at which attention is applied.
+    dropout : float
+        Dropout probability.
+    condition_mode : str or None
+        ``'concat'`` to include condition channels in the model's input
+        (default), or ``None`` for an unconditional model.
+    channel_mult : str
+        Comma-separated per-level channel multipliers.
+    attention_head_dim : int or None
+        Dimension per attention head.
+    """
+    if out_channels is None:
+        out_channels = in_channels
+    if condition_channels is None:
+        condition_channels = in_channels
+
     attn_indices, cm_tuple = _parse_create_model_args(
         image_size, attention_resolutions, channel_mult
     )
@@ -112,16 +87,24 @@ def create_sid_model(
         num_levels=len(cm_effective),
         allow_variable=True,
     )
-    return SiDUNet(
-        image_size=image_size,
-        in_channels=in_channels,
-        out_channels=out_channels,
-        condition_channels=condition_channels,
-        model_channels=num_channels,
-        num_res_blocks=parsed_num_res_blocks,
-        attention_resolutions=attn_indices,
-        dropout=dropout,
-        condition_mode=condition_mode,
-        channel_mult=cm_tuple,
-        attention_head_dim=attention_head_dim,
+
+    unet_in_channels = (
+        in_channels + condition_channels if condition_mode == "concat" else in_channels
     )
+    block_out_channels = tuple(num_channels * m for m in cm_effective)
+    down_block_types, up_block_types = _build_block_types(cm_effective, attn_indices)
+
+    unet_kwargs: dict = dict(
+        sample_size=image_size,
+        in_channels=unet_in_channels,
+        out_channels=out_channels,
+        block_out_channels=block_out_channels,
+        down_block_types=down_block_types,
+        up_block_types=up_block_types,
+        layers_per_block=parsed_num_res_blocks,
+        dropout=dropout,
+        mid_block_type="UNetMidBlock2D",
+    )
+    if attention_head_dim is not None:
+        unet_kwargs["attention_head_dim"] = attention_head_dim
+    return UNet2DModel(**unet_kwargs)
