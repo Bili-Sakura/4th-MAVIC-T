@@ -1,7 +1,7 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""DDBM-compatible UNet model built on ``diffusers.UNet2DModel``.
+"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel`` and PixNerd.
 
 The vendor DDBM UNet accepts ``(x, timestep, xT=…)`` where ``xT`` is the
 source/condition image.  With ``condition_mode='concat'`` the model
@@ -13,11 +13,12 @@ the Hugging Face *diffusers* library.  A thin wrapper class
 the underlying ``UNet2DModel``, so the rest of the training / sampling code
 can call ``model(x, t, xT=source)`` just like the vendor code.
 
-Supported UNet types (via ``unet_type`` in :func:`create_model`):
+Supported backbone types (via ``unet_type`` in :func:`create_model`):
 - ``adm``: ADM-style diffusers UNet2DModel (default).
 - ``edm``: EDM/DDPM++ style using UNet2DModel with Fourier time embedding.
 - ``edm2``: DISABLED. See :class:`EDM2UNet` docstring for the incompatibility issue.
 - ``vdm``: Variational Diffusion Model with logSNR time normalization.
+- ``pixnerd``: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder).
 """
 
 from __future__ import annotations
@@ -39,8 +40,9 @@ UNET_TYPE_ADM = "adm"
 UNET_TYPE_EDM = "edm"
 UNET_TYPE_EDM2 = "edm2"
 UNET_TYPE_VDM = "vdm"
+UNET_TYPE_PIXNERD = "pixnerd"
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM)
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD)
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -72,6 +74,16 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
         UNET_TYPE_VDM: {
             "source": "diffusers.UNet2DModel + logSNR normalization",
             "description": "VDM-style UNet with logSNR (gamma) time normalization.",
+            "implemented": True,
+        },
+        UNET_TYPE_PIXNERD: {
+            "source": "PixNerd DiT + NerfBlock (pure PyTorch)",
+            "description": (
+                "PixNerd pixel-space DiT with neural field decoder blocks. "
+                "Uses self-attention for patch-level reasoning and hypernetwork "
+                "MLP (NerfBlock) for per-pixel refinement. Backbone only — the "
+                "original PixNerd flow-matching scheduler is NOT used."
+            ),
             "implemented": True,
         },
     }
@@ -566,6 +578,7 @@ _UNET_CLASS_MAP: Dict[str, type] = {
     UNET_TYPE_ADM: DDBMUNet,
     UNET_TYPE_EDM: EDMUNet,
     UNET_TYPE_VDM: VDMUNet,
+    # PixNerd is handled separately in create_model (different param set)
 }
 
 
@@ -582,7 +595,7 @@ def create_model(
     attention_head_dim: Optional[int] = 64,
     **kwargs: Any,
 ) -> Union[DDBMUNet, EDMUNet, VDMUNet]:
-    """Factory for DDBM-compatible UNet models.
+    """Factory for DDBM-compatible backbone models.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
     into the tuples that the wrapper classes expect.
@@ -590,7 +603,8 @@ def create_model(
     Parameters
     ----------
     unet_type : str
-        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``.
+        Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
+        ``pixnerd``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
     if unet_type == UNET_TYPE_EDM2:
@@ -601,6 +615,23 @@ def create_model(
     if unet_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
             f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+        )
+
+    # PixNerd uses a completely different parameter set from UNet backbones.
+    if unet_type == UNET_TYPE_PIXNERD:
+        from .pixnerd_backbone import PixNerdBackbone
+        return PixNerdBackbone(
+            image_size=image_size,
+            in_channels=in_channels,
+            hidden_size=kwargs.get("pixnerd_hidden_size", 1152),
+            hidden_size_x=kwargs.get("pixnerd_hidden_size_x", 64),
+            nerf_mlp_ratio=kwargs.get("pixnerd_nerf_mlp_ratio", 4),
+            num_blocks=kwargs.get("pixnerd_num_blocks", 18),
+            num_cond_blocks=kwargs.get("pixnerd_num_cond_blocks", 4),
+            patch_size=kwargs.get("pixnerd_patch_size", 2),
+            num_groups=kwargs.get("pixnerd_num_groups", 12),
+            condition_mode=condition_mode,
+            dropout=dropout,
         )
 
     attn_indices, cm_tuple = _parse_create_model_args(
