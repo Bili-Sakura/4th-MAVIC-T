@@ -168,3 +168,5 @@ Implementation notes:
 <a href="https://doi.org/10.48550/arXiv.2403.12036">One-Step Image Translation with Text-to-Image Models (img2img-turbo, 2024)</a>
 
 <a href="https://arxiv.org/abs/2410.06940">Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think (REPA, ICLR 2025)</a>
+
+<a href="https://openaccess.thecvf.com/content/CVPR2025/html/Xiao_Deterministic_Image-to-Image_Translation_via_Denoising_Brownian_Bridge_Models_with_Dual_CVPR_2025_paper.html">Deterministic Image-to-Image Translation via Denoising Brownian Bridge Models with Dual Approximators (DAB, CVPR 2025)</a>
