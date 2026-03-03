@@ -1,17 +1,24 @@
-%% Preamble for PBVS 2026 MAVIC-T Challenge Contribution Template
-%% Add additional packages and custom commands here.
+%% Preamble for PBVS 2026 MAVIC-T Challenge Contribution (Techreport)
 
+\usepackage{float}
+\WarningFilter{caption}{Unused}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\usepackage{booktabs}
 \usepackage{multirow}
+\usepackage[most]{tcolorbox}
+\usepackage{xcolor}
+
+% tcolorbox colors
+\definecolor{mainquestionbg}{RGB}{255, 245, 245}
+\definecolor{mainquestionframe}{RGB}{200, 80, 80}
 \usepackage{subcaption}
 \usepackage{enumitem}
+\usepackage{bm}
+\usepackage{booktabs}
 
 %%
-%% Inline annotations; for predefined colors, refer to "dvipsnames" in the xcolor package:
-%% https://tinyurl.com/overleaf-colors
+%% Inline annotations
 %%
 \newcommand{\red}[1]{{\color{red}#1}}
 \newcommand{\todo}[1]{{\color{red}#1}}
@@ -23,8 +30,7 @@
 % \renewcommand{\todo}[1]{#1}
 
 %%
-%% work harder in optimizing text layout. Typically shrinks text by 1/6 of page, enable
-%% it at the very end of the writing process, when you are just above the page limit
+%% work harder in optimizing text layout
 %%
 % \usepackage{microtype}
 

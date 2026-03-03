@@ -1,0 +1,4 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \textbf{EarthBridge}, a hybrid framework for the 4th MAVIC-T challenge. By leveraging Diffusion Bridge Implicit Models (DBIM) for three tasks and Contrastive Unpaired Translation (CUT) for SAR$\rightarrow$IR, our solution achieves competitive performance across all four translation tracks. Key insights from our experiments include: (i) the diffusion bridge directly constrains the trajectory between source and target, avoiding the cold-start problem of standard diffusion; (ii) training at half resolution and inferring at full resolution provides an effective resolution-scaling strategy; (iii) DBIM's deterministic ODE sampler enables significant speed-up over stochastic DDBM; and (iv) CUT can outperform diffusion bridges when modality gaps are very large. Future work will explore latent-space bridges, multi-scale refinement, and adaptive domain-shift mechanisms for further improvement.
