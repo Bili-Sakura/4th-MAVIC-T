@@ -46,8 +46,8 @@ Without this, paths are inferred from the script location (works when run from t
 | :--- | :--- |
 | **`datasets/`** | `BiliSakura/MACIV-T-2025-Structure-Refined`: `manifests/`, `{task}/train/{input,target}/`, `val/{task}/input/`, `test/{task}/`. See `docs/dataset.md`. |
 | **`models/`** | Pre-trained model weights. |
-| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_cdtsde`, `unet_ddib`, `unet_unidb`, `cut_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
-| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, sid, sid2, cdtsde, cut, img2img_turbo, domain_classifier). |
+| **`src/models/`** | Model implementations: `unet_ddbm`, `unet_dbim`, `unet_bibbdm`, `unet_bdbm`, `unet_i2sb`, `unet_cdtsde`, `unet_ddib`, `unet_unidb`, `cut_model`, `stegogan_model`, `pix2pix_turbo`, `cyclegan_turbo`. |
+| **`examples/`** | Trainer and sample scripts per method (ddib, ddbm, dbim, bibbdm, bdbm, i2sb, sid, sid2, cdtsde, cut, stegogan, img2img_turbo, domain_classifier). |
 | **`scripts/`** | Training launchers, dataset preparation, manifest rewriting, and utilities. |
 | **`ckpt/`** | Checkpoints and SwanLab logs from training runs. |
 
@@ -170,3 +170,5 @@ Implementation notes:
 <a href="https://arxiv.org/abs/2410.06940">Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think (REPA, ICLR 2025)</a>
 
 <a href="https://openaccess.thecvf.com/content/CVPR2025/html/Xiao_Deterministic_Image-to-Image_Translation_via_Denoising_Brownian_Bridge_Models_with_Dual_CVPR_2025_paper.html">Deterministic Image-to-Image Translation via Denoising Brownian Bridge Models with Dual Approximators (DAB, CVPR 2025)</a>
+
+<a href="https://openaccess.thecvf.com/content/CVPR2024/papers/Wu_StegoGAN_Leveraging_Steganography_for_Non-Bijective_Image-to-Image_Translation_CVPR_2024_paper.pdf">StegoGAN: Leveraging Steganography for Non-Bijective Image-to-Image Translation (CVPR 2024)</a>

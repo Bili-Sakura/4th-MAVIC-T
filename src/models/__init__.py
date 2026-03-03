@@ -59,6 +59,15 @@ from .cut_model import (
     create_discriminator,
     create_patch_sample_mlp,
 )
+from .stegogan_model import (
+    StegoGANGeneratorA,
+    StegoGANGeneratorB,
+    StegoGANDiscriminator,
+    StegoGANLoss,
+    create_generator_a as create_stegogan_generator_a,
+    create_generator_b as create_stegogan_generator_b,
+    create_discriminator as create_stegogan_discriminator,
+)
 from .pix2pix_turbo import Pix2PixTurbo
 from .cyclegan_turbo import (
     CycleGANTurbo,
@@ -94,6 +103,10 @@ __all__ = [
     "CUTGenerator", "PatchGANDiscriminator", "PatchSampleMLP",
     "GANLoss", "PatchNCELoss",
     "create_generator", "create_discriminator", "create_patch_sample_mlp",
+    "StegoGANGeneratorA", "StegoGANGeneratorB", "StegoGANDiscriminator",
+    "StegoGANLoss",
+    "create_stegogan_generator_a", "create_stegogan_generator_b",
+    "create_stegogan_discriminator",
     "Pix2PixTurbo",
     "CycleGANTurbo", "VAE_encode", "VAE_decode",
     "initialize_unet", "initialize_vae",
