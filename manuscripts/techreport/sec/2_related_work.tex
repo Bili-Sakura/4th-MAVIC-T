@@ -1,0 +1,11 @@
+\section{Related Work}
+\label{sec:related_work}
+
+\paragraph{General Image-to-Image Translation.}
+Image-to-image translation has been extensively studied in computer vision. Foundational works include Pix2Pix for paired conditional translation~\cite{isolaImageToImageTranslationConditional2017} and CycleGAN for unpaired translation~\cite{zhuUnpairedImageToImageTranslation2017}. Subsequent advances include contrastive learning for unpaired translation~\cite{parkContrastiveLearningUnpaired2020} and one-step translation with text-to-image models~\cite{parmarOneStepImageTranslation2024}.
+
+\paragraph{Diffusion Bridge Models.}
+Unlike standard diffusion models that generate from noise, diffusion bridge models learn a stochastic process that directly connects source and target distributions. Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024} define a variance-preserving bridge between data distributions. Related formulations include BBDM~\cite{Li_2023_CVPR}, BiBBDM~\cite{xueBiBBDMBidirectionalImage2025}, I$^2$SB~\cite{liuI2SBImagetoImageSchrodinger2023}, and Diffusion Bridge Implicit Models~\cite{zhengDiffusionBridgeImplicit2025}, which enable efficient deterministic sampling.
+
+\paragraph{Cross-Modality Remote Sensing (RS) Translation.}
+GAN-based approaches~\cite{wangSARtoOpticalImageTranslation2022,huGanbasedSAROptical2022} established early baselines for SAR-to-optical translation. Diffusion models have since advanced the state of the art~\cite{qinConditionalDiffusionModel2024,qinEfficientEndtoEndDiffusion2025}, and adaptive domain-shift mechanisms~\cite{wangAdaptiveDomainShift2026a} further improve robustness across large distribution gaps.

@@ -1,0 +1,52 @@
+\section{Method}
+\label{sec:method}
+
+\subsection{Problem Formulation}
+Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ be the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ be the target domain. Given spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$, the goal is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$. The four MAVIC-T tasks are: SAR$\rightarrow$EO ($1{\rightarrow}1$ ch, $256{\times}256$), SAR$\rightarrow$RGB ($1{\rightarrow}3$, $1024{\times}1024$), SAR$\rightarrow$IR ($1{\rightarrow}1$, $1024{\times}1024$), and RGB$\rightarrow$IR ($3{\rightarrow}1$, $1024{\times}1024$).
+
+\subsection{Method 1: Diffusion Bridge Implicit Models (DBIM)}
+\label{sec:dbim}
+
+\paragraph{Stochastic Bridges.}
+Given a base diffusion process $dx_t = f(x_t,t)dt + g(t)dw_t$, the bridge conditioned to reach target $x_0 = \bm{y}$ starting from source $x_T = \bm{x}$ is:
+\begin{align}
+    dx_t &= f(x_t,t)dt + g(t)dw_t + g(t)^2 \nabla_{x_t} \log p(x_0{=}\bm{y} \mid x_t)\,dt.
+\end{align}
+Under a variance-preserving (VP) schedule, intermediate states are:
+\begin{equation}
+    z_t = a_t \bm{x} + b_t \bm{y} + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
+\end{equation}
+where $\bm{x}$ is the source image, $\bm{y}$ is the target image, and $a_t, b_t, \sigma_t$ are schedule coefficients~\cite{zhouDenoisingDiffusionBridge2024}.
+
+\paragraph{Non-Markovian Generalization.}
+We extend the Markovian bridge to a family of non-Markovian processes parametrized by variance $\rho \in \mathbb{R}^{N-1}$. The reverse update rule is:
+\begin{equation}
+    z_{t_n} = a_{t_n} \bm{x} + b_{t_n} \hat{z}_0 + \sqrt{c_{t_n}^2 - \rho_n^2}\,\hat{\epsilon} + \rho_n \epsilon,
+\end{equation}
+where $\hat{z}_0 = D_\theta(z_{t_{n+1}}, t_{n+1}, \bm{x})$ is the UNet denoiser prediction. Setting $\rho_n = 0$ gives the deterministic DBIM~\cite{zhengDiffusionBridgeImplicit2025}, analogous to an Euler discretization of a probability-flow ODE over the bridge.
+
+\paragraph{Booting Noise.}
+Since $c_{t_N} = 0$ leads to a singularity at initialization, we force the first step to be stochastic by setting $\rho_{N-1} = c_{t_{N-1}}$, injecting Gaussian booting noise $\epsilon_{\text{boot}}$ that encodes the one-to-many mapping ambiguity.
+
+\paragraph{Architecture.}
+Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that receives the channel-wise concatenation $[z_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). The architecture overview is shown in \cref{fig:method_overview}.
+
+\begin{figure}[h]
+    \centering
+    \fbox{\rule{0pt}{2in} \rule{0.95\columnwidth}{0pt}}
+    \caption{Architecture placeholder: EarthBridge DBIM pipeline. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by a UNet denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
+    \label{fig:method_overview}
+\end{figure}
+
+\paragraph{Training Objective.}
+The model is trained with Karras-weighted bridge loss:
+\begin{equation}
+    \mathcal{L} = \mathbb{E}_{(\bm{x},\bm{y}),\,t,\,\epsilon}\bigl[\,w(t) \cdot \|D_\theta(z_t, t, \bm{x}) - \bm{y}\|_2^2\bigr],
+    \label{eq:loss}
+\end{equation}
+where $w(t)$ follows Karras bridge weighting~\cite{karras2022elucidating} and $t$ is sampled from a Karras inverse-$\rho$ distribution.
+
+\subsection{Method 2: Contrastive Unpaired Translation (CUT)}
+\label{sec:cut}
+
+For the SAR$\rightarrow$IR task, we employ CUT~\cite{parkContrastiveLearningUnpaired2020} as our final method. CUT uses patch-based contrastive learning to maintain structural correspondence between source and generated target, enabling effective translation even without pixel-aligned pairs. We use the \emph{huge} tier (256 ResNet filters, 4-layer PatchGAN) to handle the $1024{\times}1024$ resolution.

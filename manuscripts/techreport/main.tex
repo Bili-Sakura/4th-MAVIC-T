@@ -1,0 +1,56 @@
+% PBVS 2026 MAVIC-T Challenge Contribution (Techreport)
+% Based on CVPR 2026 Author Guidelines: https://cvpr.thecvf.com/Conferences/2026/AuthorGuidelines
+% Workshop: Perception Beyond the Visible Spectrum (PBVS) @ CVPR 2026
+
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+%%%%%%%%% PAPER TYPE  - PLEASE UPDATE FOR FINAL VERSION
+% \usepackage{cvpr}              % To produce the CAMERA-READY version
+\usepackage[review]{cvpr}      % To produce the REVIEW version
+% \usepackage[pagenumbers]{cvpr} % To force page numbers, e.g. for an arXiv version
+
+% Import additional packages in the preamble file, before hyperref
+\input{preamble}
+
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+
+%%%%%%%%% PAPER ID  - PLEASE UPDATE
+\def\paperID{*****} % *** Enter the Paper ID here
+\def\confName{CVPR}
+\def\confYear{2026}
+
+%%%%%%%%% TITLE
+\title{EarthBridge: A Solution for the 4th Multi-modal Aerial View Image Challenge -- Translation Track}
+
+%%%%%%%%% AUTHORS
+\author{Zhenyuan Chen$^\dagger$\\
+Zhejiang University\\
+{\tt\small bili\_sakura@zju.edu.cn}
+\and
+Yuanshen Guan$^\dagger$\\
+University of Science and Technology of China\\
+{\tt\small guanys@mail.ustc.edu.cn}
+\and
+Feng Zhang\\
+Zhejiang University\\
+{\tt\small zfcarnation@zju.edu.cn}
+}
+
+\begin{document}
+\maketitle
+
+\input{sec/0_abstract}
+
+\input{sec/1_intro}
+\input{sec/3_method}
+\input{sec/4_experiments}
+\input{sec/5_conclusion}
+
+{
+    \setlength{\parskip}{0pt}
+    \bibliographystyle{ieeenat_fullname}
+    \bibliography{main}
+}
+
+\end{document}
