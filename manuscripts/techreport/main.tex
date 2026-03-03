@@ -1,0 +1,56 @@
+% PBVS 2026 MAVIC-T Challenge Contribution Template
+% Based on CVPR 2026 Author Guidelines: https://cvpr.thecvf.com/Conferences/2026/AuthorGuidelines
+% Workshop: Perception Beyond the Visible Spectrum (PBVS) @ CVPR 2026
+
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+%%%%%%%%% PAPER TYPE  - PLEASE UPDATE FOR FINAL VERSION
+% \usepackage{cvpr}              % To produce the CAMERA-READY version
+\usepackage[review]{cvpr}      % To produce the REVIEW version
+% \usepackage[pagenumbers]{cvpr} % To force page numbers, e.g. for an arXiv version
+
+% Import additional packages in the preamble file, before hyperref
+\input{preamble}
+
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+
+%%%%%%%%% PAPER ID  - PLEASE UPDATE
+\def\paperID{*****} % *** Enter the Paper ID here
+\def\confName{CVPR}
+\def\confYear{2026}
+
+%%%%%%%%% TITLE - PLEASE UPDATE
+\title{[Team Name]: Solution Description for\\
+the 4th Multi-Modal Aerial View Image Challenge -- Translation Track (MAVIC-T)}
+
+%%%%%%%%% AUTHORS - PLEASE UPDATE
+\author{First Author\\
+Institution\\
+{\tt\small email@institution.edu}
+\and
+Second Author\\
+Institution\\
+{\tt\small email@institution.edu}
+}
+
+\begin{document}
+\maketitle
+
+\input{sec/0_abstract}
+
+\input{sec/1_intro}
+\input{sec/2_method}
+\input{sec/3_experiments}
+\input{sec/4_conclusion}
+
+{
+    \small
+    \bibliographystyle{ieeenat_fullname}
+    \bibliography{main}
+}
+
+% Supplementary material (optional)
+% \input{sec/X_suppl}
+
+\end{document}
