@@ -17,3 +17,4 @@ from .scheduling_vdm import VDMScheduler, VDMSchedulerOutput
 from .scheduling_sid import SiDScheduler, SiDSchedulerOutput
 from .scheduling_sid2 import SiD2Scheduler, SiD2SchedulerOutput
 from .scheduling_unidb import UniDBScheduler, UniDBSchedulerOutput
+from .scheduling_dab import DABScheduler, DABSchedulerOutput

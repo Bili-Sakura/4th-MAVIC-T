@@ -13,5 +13,6 @@ from .cdtsde import CDTSDEPipeline, CDTSDEPipelineOutput, CDTSDELatentPipeline, 
 from .cut import CUTPipeline, CUTPipelineOutput, CUTLatentPipeline, CUTLatentPipelineOutput
 from .turbo import Pix2PixTurboPipeline, CycleGANTurboPipeline, TurboPipelineOutput
 from .unidb import UniDBPipeline, UniDBPipelineOutput
+from .dab import DABPipeline, DABPipelineOutput, DABLatentPipeline, DABLatentPipelineOutput
 from .sid import SIDPipeline, SIDPipelineOutput
 from .sid2 import SID2Pipeline, SID2PipelineOutput
