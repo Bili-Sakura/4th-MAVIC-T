@@ -60,7 +60,7 @@ def _resolve_path(path: str | Path) -> Path:
     if root_path.is_file():
         return root_path
     return p  # return as-is for clearer error messages
-from src.models.cut_model import (
+from src.models.gan.cut_model import (
     create_generator,
     create_discriminator,
     create_patch_sample_mlp,

@@ -17,7 +17,7 @@ from PIL import Image
 from diffusers import DiffusionPipeline
 from diffusers.utils import BaseOutput
 
-from src.models.stegogan_model import StegoGANGeneratorA
+from src.models.gan.stegogan_model import StegoGANGeneratorA
 
 
 @dataclass

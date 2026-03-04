@@ -6,7 +6,7 @@
 New code should import directly from :mod:`src.models`.
 """
 
-from src.models.stegogan_model import (  # noqa: F401
+from src.models.gan.stegogan_model import (  # noqa: F401
     StegoGANGeneratorA,
     StegoGANGeneratorB,
     StegoGANDiscriminator,

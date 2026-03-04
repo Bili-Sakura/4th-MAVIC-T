@@ -23,7 +23,7 @@ from PIL import Image
 from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
-from src.models.cut_model import CUTGenerator
+from src.models.gan.cut_model import CUTGenerator
 
 
 @dataclass

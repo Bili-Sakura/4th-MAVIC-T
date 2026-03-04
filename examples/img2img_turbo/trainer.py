@@ -50,7 +50,7 @@ from pathlib import Path
 from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_manifest
 from .config import TaskConfig
 from .dataset_wrapper import MavicTTurboDataset
-from src.models.pix2pix_turbo import Pix2PixTurbo
+from src.models.turbo.pix2pix_turbo import Pix2PixTurbo
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:

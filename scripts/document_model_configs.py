@@ -205,7 +205,7 @@ def estimate_unet_parameters(config, is_conditional=True):
 def _try_exact_cut_params(config):
     """Attempt to count exact CUT parameters by instantiation."""
     try:
-        from src.models.cut_model import CUTGenerator, PatchGANDiscriminator
+        from src.models.gan.cut_model import CUTGenerator, PatchGANDiscriminator
         g = CUTGenerator(
             input_nc=int(config.source_channels),
             output_nc=int(config.target_channels),
