@@ -41,7 +41,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTStegoGANDataset  # noqa: E402
-from src.models.stegogan_model import StegoGANGeneratorA, create_generator_a  # noqa: E402
+from src.models.gan.stegogan_model import StegoGANGeneratorA, create_generator_a  # noqa: E402
 from src.pipelines.stegogan import StegoGANPipeline  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,

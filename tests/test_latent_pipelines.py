@@ -302,7 +302,7 @@ class TestCUTLatentPipeline:
         assert issubclass(CUTLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.cut_model import CUTGenerator
+        from src.models.gan.cut_model import CUTGenerator
         from src.pipelines.cut import CUTLatentPipeline
 
         generator = CUTGenerator(input_nc=_MIN_CHANNELS, output_nc=_MIN_CHANNELS, ngf=32, n_blocks=2)

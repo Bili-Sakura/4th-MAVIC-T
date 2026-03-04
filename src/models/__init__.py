@@ -61,7 +61,7 @@ from .dit import (
     PixelDiTBackbone,
     SiTBackbone,
 )
-from .cut_model import (
+from .gan import (
     CUTGenerator,
     PatchGANDiscriminator,
     PatchSampleMLP,
@@ -70,18 +70,16 @@ from .cut_model import (
     create_generator,
     create_discriminator,
     create_patch_sample_mlp,
-)
-from .stegogan_model import (
     StegoGANGeneratorA,
     StegoGANGeneratorB,
     StegoGANDiscriminator,
     StegoGANLoss,
-    create_generator_a as create_stegogan_generator_a,
-    create_generator_b as create_stegogan_generator_b,
-    create_discriminator as create_stegogan_discriminator,
+    create_stegogan_discriminator,
 )
-from .pix2pix_turbo import Pix2PixTurbo
-from .cyclegan_turbo import (
+from .gan import create_generator_a as create_stegogan_generator_a
+from .gan import create_generator_b as create_stegogan_generator_b
+from .turbo import (
+    Pix2PixTurbo,
     CycleGANTurbo,
     VAE_encode,
     VAE_decode,

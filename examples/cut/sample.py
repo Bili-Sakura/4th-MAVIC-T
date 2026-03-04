@@ -56,7 +56,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTCUTDataset  # noqa: E402
-from src.models.cut_model import CUTGenerator, create_generator  # noqa: E402
+from src.models.gan.cut_model import CUTGenerator, create_generator  # noqa: E402
 from src.pipelines.cut import CUTPipeline  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,

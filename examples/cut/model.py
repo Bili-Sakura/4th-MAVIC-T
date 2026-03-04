@@ -6,7 +6,7 @@
 New code should import directly from :mod:`src.models`.
 """
 
-from src.models.cut_model import (  # noqa: F401
+from src.models.gan.cut_model import (  # noqa: F401
     CUTGenerator,
     PatchGANDiscriminator,
     PatchSampleMLP,

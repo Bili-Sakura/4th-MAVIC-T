@@ -6,7 +6,7 @@
 import pytest
 import torch
 
-from src.models.stegogan_model import (
+from src.models.gan.stegogan_model import (
     StegoGANGeneratorA,
     StegoGANGeneratorB,
     StegoGANDiscriminator,

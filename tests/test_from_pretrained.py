@@ -266,7 +266,7 @@ class TestDDIBFromPretrained:
 
 class TestCUTFromPretrained:
     def test_round_trip(self):
-        from src.models.cut_model import CUTGenerator
+        from src.models.gan.cut_model import CUTGenerator
 
         model = CUTGenerator(input_nc=1, output_nc=1, ngf=32, n_blocks=2)
 
@@ -415,7 +415,7 @@ class TestPipelineFromPretrained:
         assert pipe.scheduler is not None
 
     def test_cut_pipeline_from_pretrained(self):
-        from src.models.cut_model import CUTGenerator
+        from src.models.gan.cut_model import CUTGenerator
         from src.pipelines.cut import CUTPipeline
 
         model = CUTGenerator(input_nc=1, output_nc=1, ngf=32, n_blocks=2)

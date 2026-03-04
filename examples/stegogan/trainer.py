@@ -43,7 +43,7 @@ from .dataset_wrapper import MavicTStegoGANDataset
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-from src.models.stegogan_model import (
+from src.models.gan.stegogan_model import (
     create_generator_a,
     create_generator_b,
     create_discriminator,

@@ -48,7 +48,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTTurboDataset  # noqa: E402
-from src.models.pix2pix_turbo import Pix2PixTurbo  # noqa: E402
+from src.models.turbo.pix2pix_turbo import Pix2PixTurbo  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,
     build_detailed_description,

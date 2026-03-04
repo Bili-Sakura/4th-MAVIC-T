@@ -73,7 +73,7 @@ def main():
     cfg = load_config(model_path, args.task)
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
-    from src.models.pix2pix_turbo import Pix2PixTurbo
+    from src.models.turbo.pix2pix_turbo import Pix2PixTurbo
 
     logger.info("Loading Pix2Pix-Turbo from %s", model_path)
     model = Pix2PixTurbo(
