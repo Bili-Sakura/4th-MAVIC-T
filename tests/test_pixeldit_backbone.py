@@ -19,8 +19,9 @@ from src.models.dit.pixeldit_backbone import PixelDiTBackbone
 from src.models.unet.unet_ddbm import (
     create_model,
     get_unet_type_config,
-    SUPPORTED_UNET_TYPES,
-    UNET_TYPE_PIXELDIT,
+    SUPPORTED_DIT_TYPES,
+    SUPPORTED_BACKBONE_TYPES,
+    DIT_TYPE_PIXELDIT,
 )
 
 
@@ -60,13 +61,14 @@ class TestImports:
         assert PixelDiTBackbone is not None
 
     def test_unet_type_constant(self):
-        assert UNET_TYPE_PIXELDIT == "pixeldit"
+        assert DIT_TYPE_PIXELDIT == "pixeldit"
 
     def test_in_supported_types(self):
-        assert UNET_TYPE_PIXELDIT in SUPPORTED_UNET_TYPES
+        assert DIT_TYPE_PIXELDIT in SUPPORTED_DIT_TYPES
+        assert DIT_TYPE_PIXELDIT in SUPPORTED_BACKBONE_TYPES
 
     def test_get_unet_type_config(self):
-        cfg = get_unet_type_config(UNET_TYPE_PIXELDIT)
+        cfg = get_unet_type_config(DIT_TYPE_PIXELDIT)
         assert cfg["implemented"] is True
         assert "PixelDiT" in cfg["description"]
 
