@@ -16,8 +16,10 @@ from .unet_ddbm import (
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
     UNET_TYPE_PIXNERD,
+    UNET_TYPE_PIXELDIT,
 )
 from .pixnerd_backbone import PixNerdBackbone
+from .pixeldit_backbone import PixelDiTBackbone
 from .unet_sid import SiDUNet, create_sid_model
 from .unet_dbim import (
     DBIMUNet,
@@ -80,6 +82,7 @@ from .cyclegan_turbo import (
 __all__ = [
     "DDBMUNet", "EDMUNet", "EDM2UNet", "VDMUNet",
     "PixNerdBackbone",
+    "PixelDiTBackbone",
     "create_ddbm_model",
     "SiDUNet", "create_sid_model",
     "get_unet_type_config",
@@ -89,6 +92,7 @@ __all__ = [
     "UNET_TYPE_EDM2",
     "UNET_TYPE_VDM",
     "UNET_TYPE_PIXNERD",
+    "UNET_TYPE_PIXELDIT",
     "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet",
     "create_dbim_model",
     "BiBBDMUNet", "EDMBiBBDMUNet", "EDM2BiBBDMUNet", "VDMBiBBDMUNet",

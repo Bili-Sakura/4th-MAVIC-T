@@ -1,7 +1,7 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel`` and PixNerd.
+"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, and PixelDiT.
 
 The vendor DDBM UNet accepts ``(x, timestep, xT=…)`` where ``xT`` is the
 source/condition image.  With ``condition_mode='concat'`` the model
@@ -19,6 +19,7 @@ Supported backbone types (via ``unet_type`` in :func:`create_model`):
 - ``edm2``: DISABLED. See :class:`EDM2UNet` docstring for the incompatibility issue.
 - ``vdm``: Variational Diffusion Model with logSNR time normalization.
 - ``pixnerd``: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder).
+- ``pixeldit``: PixelDiT dual-level DiT (patch-level semantics + pixel-level texture detail).
 """
 
 from __future__ import annotations
@@ -41,8 +42,9 @@ UNET_TYPE_EDM = "edm"
 UNET_TYPE_EDM2 = "edm2"
 UNET_TYPE_VDM = "vdm"
 UNET_TYPE_PIXNERD = "pixnerd"
+UNET_TYPE_PIXELDIT = "pixeldit"
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD)
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD, UNET_TYPE_PIXELDIT)
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -83,6 +85,16 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
                 "Uses self-attention for patch-level reasoning and hypernetwork "
                 "MLP (NerfBlock) for per-pixel refinement. Backbone only — the "
                 "original PixNerd flow-matching scheduler is NOT used."
+            ),
+            "implemented": True,
+        },
+        UNET_TYPE_PIXELDIT: {
+            "source": "PixelDiT dual-level DiT (pure PyTorch)",
+            "description": (
+                "PixelDiT pixel-space dual-level DiT with patch-level semantic "
+                "blocks and pixel-level transformer blocks using pixel-wise AdaLN "
+                "and token compaction. Backbone only — the original PixelDiT "
+                "flow-matching scheduler is NOT used."
             ),
             "implemented": True,
         },
@@ -604,7 +616,7 @@ def create_model(
     ----------
     unet_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
-        ``pixnerd``.
+        ``pixnerd``, ``pixeldit``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
     if unet_type == UNET_TYPE_EDM2:
@@ -630,6 +642,24 @@ def create_model(
             num_cond_blocks=kwargs.get("pixnerd_num_cond_blocks", 4),
             patch_size=kwargs.get("pixnerd_patch_size", 2),
             num_groups=kwargs.get("pixnerd_num_groups", 12),
+            condition_mode=condition_mode,
+            dropout=dropout,
+        )
+
+    # PixelDiT uses a completely different parameter set from UNet backbones.
+    if unet_type == UNET_TYPE_PIXELDIT:
+        from .pixeldit_backbone import PixelDiTBackbone
+        return PixelDiTBackbone(
+            image_size=image_size,
+            in_channels=in_channels,
+            hidden_size=kwargs.get("pixeldit_hidden_size", 1152),
+            pixel_dim=kwargs.get("pixeldit_pixel_dim", 16),
+            patch_depth=kwargs.get("pixeldit_patch_depth", 26),
+            pixel_depth=kwargs.get("pixeldit_pixel_depth", 4),
+            num_heads=kwargs.get("pixeldit_num_heads", 16),
+            pixel_num_heads=kwargs.get("pixeldit_pixel_num_heads", 16),
+            patch_size=kwargs.get("pixeldit_patch_size", 16),
+            mlp_ratio=kwargs.get("pixeldit_mlp_ratio", 4.0),
             condition_mode=condition_mode,
             dropout=dropout,
         )
