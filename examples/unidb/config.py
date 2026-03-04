@@ -42,6 +42,8 @@ class TaskConfig:
     # ---- model (UniDB ConditionalUNet) ----
     nf: int = 64
     depth: int = 4
+    enable_xformers: bool = False  # use xformers memory-efficient attention
+    enable_flash_attention_2: bool = False  # use Flash Attention 2 via PyTorch SDPA
 
     # ---- scheduler (UniDB SDE) ----
     lambda_square: float = 30.0

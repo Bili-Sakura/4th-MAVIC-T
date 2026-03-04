@@ -46,6 +46,8 @@ class TaskConfig:
     condition_mode: str = "concat"
     channel_mult: str = ""  # auto-detected from resolution when empty
     attention_head_dim: Optional[int] = 64  # ADM-style; stabilizes training
+    enable_xformers: bool = False  # use xformers memory-efficient attention
+    enable_flash_attention_2: bool = False  # use Flash Attention 2 via PyTorch SDPA
 
     # ---- scheduler ----
     pred_mode: str = "vp"

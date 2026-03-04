@@ -44,6 +44,8 @@ class TaskConfig:
     dropout: float = 0.0
     learn_sigma: bool = False
     channel_mult: str = ""  # auto-detected from resolution when empty
+    enable_xformers: bool = False  # use xformers memory-efficient attention
+    enable_flash_attention_2: bool = False  # use Flash Attention 2 via PyTorch SDPA
 
     # ---- diffusion ----
     diffusion_steps: int = 1000

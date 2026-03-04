@@ -54,6 +54,7 @@ from src.utils.training_utils import (  # noqa: E402
     checkpoint_dir_sort_key,
     checkpoint_has_accelerator_state,
     create_optimizer,
+    enable_efficient_attention,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
@@ -744,6 +745,13 @@ class DDIBTrainer:
             in_channels=cfg.source_channels,
             image_size=latent_image_size if latent_image_size is not None else cfg.resolution,
         )
+        # Efficient attention (xformers / Flash Attention 2)
+        enable_efficient_attention(
+            source_model,
+            enable_xformers=cfg.enable_xformers,
+            enable_flash_attention_2=cfg.enable_flash_attention_2,
+            _logger=logger,
+        )
         self._train_single_domain(
             "source", source_model, scheduler, source_dataset, accelerator,
             rep_alignment_module=rep_alignment_module,
@@ -757,6 +765,13 @@ class DDIBTrainer:
         target_model = self.build_model(
             in_channels=cfg.target_channels,
             image_size=latent_image_size if latent_image_size is not None else cfg.resolution,
+        )
+        # Efficient attention (xformers / Flash Attention 2)
+        enable_efficient_attention(
+            target_model,
+            enable_xformers=cfg.enable_xformers,
+            enable_flash_attention_2=cfg.enable_flash_attention_2,
+            _logger=logger,
         )
         self._train_single_domain(
             "target", target_model, scheduler, target_dataset, accelerator,

@@ -42,6 +42,7 @@ from src.utils.training_utils import (
     checkpoint_dir_sort_key,
     checkpoint_has_accelerator_state,
     create_optimizer,
+    enable_efficient_attention,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
     save_training_config,
@@ -397,6 +398,14 @@ class UniDBTrainer:
 
         model = self.build_model()
         scheduler = self.build_scheduler()
+
+        # Efficient attention (xformers / Flash Attention 2)
+        enable_efficient_attention(
+            model,
+            enable_xformers=cfg.enable_xformers,
+            enable_flash_attention_2=cfg.enable_flash_attention_2,
+            _logger=logger,
+        )
 
         ema_model = None
         if cfg.use_ema:

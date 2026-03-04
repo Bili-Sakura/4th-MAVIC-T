@@ -62,6 +62,7 @@ from src.utils.training_utils import (  # noqa: E402
     build_accelerate_tracker_init_kwargs,
     checkpoint_dir_sort_key,
     create_optimizer,
+    enable_efficient_attention,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
@@ -445,6 +446,14 @@ class Pix2PixTurboTrainer:
                      f"(lora_unet={cfg.lora_rank_unet}, lora_vae={cfg.lora_rank_vae})")
         model = self.build_model()
         model.set_train()
+
+        # Efficient attention (xformers / Flash Attention 2)
+        enable_efficient_attention(
+            model,
+            enable_xformers=cfg.enable_xformers,
+            enable_flash_attention_2=cfg.enable_flash_attention_2,
+            _logger=logger,
+        )
 
         if cfg.gradient_checkpointing:
             model.unet.enable_gradient_checkpointing()

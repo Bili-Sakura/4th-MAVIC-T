@@ -357,6 +357,74 @@ def _load_muon_optimizers():
 
 
 # ---------------------------------------------------------------------------
+# Efficient attention (xformers / Flash Attention 2)
+# ---------------------------------------------------------------------------
+
+def enable_efficient_attention(
+    model: torch.nn.Module,
+    *,
+    enable_xformers: bool = False,
+    enable_flash_attention_2: bool = False,
+    _logger: Optional[logging.Logger] = None,
+) -> None:
+    """Enable memory-efficient or Flash Attention 2 on a diffusers-style model.
+
+    Works with wrapper models that expose a ``.unet`` attribute (e.g.
+    :class:`DDBMUNet`, :class:`BiBBDMUNet`) as well as bare
+    ``UNet2DModel`` / ``UNet2DConditionModel`` instances.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model (or model wrapper) to configure.
+    enable_xformers : bool
+        If *True*, call ``enable_xformers_memory_efficient_attention()``
+        (requires the ``xformers`` package).
+    enable_flash_attention_2 : bool
+        If *True*, set the ``AttnProcessor2_0`` attention processor which
+        leverages ``torch.nn.functional.scaled_dot_product_attention`` and
+        automatically selects Flash Attention 2 when available.
+    _logger : logging.Logger, optional
+        Logger for status messages.  Falls back to the module logger.
+    """
+    log = _logger or logger
+    # Resolve inner UNet for wrapper models (DDBMUNet, BiBBDMUNet, …)
+    target = getattr(model, "unet", model)
+
+    if enable_xformers:
+        fn = getattr(target, "enable_xformers_memory_efficient_attention", None)
+        if fn is not None:
+            try:
+                fn()
+                log.info("xformers memory-efficient attention enabled.")
+            except (ImportError, ModuleNotFoundError, RuntimeError) as exc:
+                log.warning("Could not enable xformers: %s", exc)
+        else:
+            log.warning(
+                "Model %s does not support enable_xformers_memory_efficient_attention; skipping.",
+                type(target).__name__,
+            )
+
+    if enable_flash_attention_2:
+        try:
+            from diffusers.models.attention_processor import AttnProcessor2_0
+            set_fn = getattr(target, "set_attn_processor", None)
+            if set_fn is not None:
+                set_fn(AttnProcessor2_0())
+                log.info(
+                    "Flash Attention 2 enabled (AttnProcessor2_0 / "
+                    "torch.nn.functional.scaled_dot_product_attention)."
+                )
+            else:
+                log.warning(
+                    "Model %s does not support set_attn_processor; skipping Flash Attention 2.",
+                    type(target).__name__,
+                )
+        except (ImportError, ModuleNotFoundError, RuntimeError) as exc:
+            log.warning("Could not enable Flash Attention 2: %s", exc)
+
+
+# ---------------------------------------------------------------------------
 # Optimizer factory
 # ---------------------------------------------------------------------------
 
