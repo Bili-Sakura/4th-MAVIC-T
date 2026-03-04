@@ -3,9 +3,9 @@
 
 """DiT (Diffusion Transformer) backbone models for MAVIC-T baselines."""
 
-from .pixnerd_backbone import PixNerdBackbone
-from .pixeldit_backbone import PixelDiTBackbone
-from .sit_backbone import SiTBackbone
+from .pixnerd import PixNerdBackbone
+from .pixeldit import PixelDiTBackbone
+from .sit import SiTBackbone
 
 __all__ = [
     "PixNerdBackbone",
