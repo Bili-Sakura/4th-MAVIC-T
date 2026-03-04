@@ -3,7 +3,7 @@
 
 """UniDB model factory."""
 
-from src.models.unet.unet_unidb import UniDBConditionalUNet
+from src.models import UniDBConditionalUNet
 
 
 def create_model(

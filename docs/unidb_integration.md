@@ -30,7 +30,7 @@ UniDB pretrained checkpoints are available from [Google Drive](https://drive.goo
 
 ```python
 from src.pipelines.unidb import UniDBPipeline, UniDBPipelineOutput
-from src.models.unet.unet_unidb import UniDBConditionalUNet
+from src.models import UniDBConditionalUNet
 from src.schedulers import UniDBScheduler
 
 # Load checkpoint (adapt path if needed)

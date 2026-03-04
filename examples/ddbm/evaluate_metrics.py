@@ -102,7 +102,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.ddbm import DDBMPipeline
-    from src.models.unet.unet_ddbm import DDBMUNet
+    from src.models import DDBMUNet
 
     logger.info("Loading DDBM pipeline from %s", checkpoint_dir)
     pipeline = DDBMPipeline.from_pretrained(str(checkpoint_dir))

@@ -18,7 +18,7 @@ from diffusers.image_processor import VaeImageProcessor
 from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
-from src.models.unet.unet_cdtsde import CDTSDEUNet
+from src.models import CDTSDEUNet
 from src.schedulers.scheduling_cdtsde import CDTSDEScheduler
 from src.utils.multidiffusion import (
     DEFAULT_LATENT_WINDOW_SIZE,

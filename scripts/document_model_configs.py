@@ -115,7 +115,7 @@ def _try_exact_unet_params(config, is_conditional=True):
     available.
     """
     try:
-        from src.models.unet.unet_ddbm import create_model
+        from src.models import create_model
         m = create_model(
             image_size=int(config.resolution),
             in_channels=int(config.model_channels),

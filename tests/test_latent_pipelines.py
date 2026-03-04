@@ -59,7 +59,7 @@ class TestDDBMLatentPipeline:
         assert issubclass(DDBMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_ddbm import DDBMUNet
+        from src.models import DDBMUNet
         from src.schedulers import DDBMScheduler
         from src.pipelines.ddbm import DDBMLatentPipeline
 
@@ -120,7 +120,7 @@ class TestDBIMLatentPipeline:
         assert issubclass(DBIMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_dbim import DBIMUNet
+        from src.models import DBIMUNet
         from src.schedulers import DBIMScheduler
         from src.pipelines.dbim import DBIMLatentPipeline
 
@@ -153,7 +153,7 @@ class TestCDTSDELatentPipeline:
         assert issubclass(CDTSDELatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_cdtsde import CDTSDEUNet
+        from src.models import CDTSDEUNet
         from src.schedulers import CDTSDEScheduler
         from src.pipelines.cdtsde import CDTSDELatentPipeline
 
@@ -179,7 +179,7 @@ class TestBiBBDMLatentPipeline:
         assert issubclass(BiBBDMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_bibbdm import BiBBDMUNet
+        from src.models import BiBBDMUNet
         from src.schedulers import BiBBDMScheduler
         from src.pipelines.bibbdm import BiBBDMLatentPipeline
 
@@ -206,7 +206,7 @@ class TestBDBMLatentPipeline:
         assert issubclass(BDBMLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_bdbm import BDBMUNet
+        from src.models import BDBMUNet
         from src.schedulers import BDBMScheduler
         from src.pipelines.bdbm import BDBMLatentPipeline
 
@@ -241,7 +241,7 @@ class TestI2SBLatentPipeline:
         assert issubclass(I2SBLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_i2sb import I2SBUNet
+        from src.models import I2SBUNet
         from src.schedulers import I2SBScheduler
         from src.pipelines.i2sb import I2SBLatentPipeline
 
@@ -268,7 +268,7 @@ class TestDDIBLatentPipeline:
         assert issubclass(DDIBLatentPipeline, DiffusionPipeline)
 
     def test_construction(self):
-        from src.models.unet.unet_ddib import DDIBUNet
+        from src.models import DDIBUNet
         from src.schedulers import DDIBScheduler
         from src.pipelines.ddib import DDIBLatentPipeline
 

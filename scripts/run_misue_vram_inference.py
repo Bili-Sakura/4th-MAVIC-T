@@ -32,7 +32,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 import yaml
 from src.pipelines.ddbm import DDBMPipeline, DDBMLatentPipeline
 from src.schedulers.scheduling_ddbm import DDBMScheduler
-from src.models.unet.unet_ddbm import create_model
+from src.models import create_model
 from examples.ddbm.dataset_wrapper import MavicTDDBMDataset
 
 

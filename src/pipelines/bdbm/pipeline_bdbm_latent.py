@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
-from src.models.unet.unet_bdbm import BDBMUNet
+from src.models import UNet2DWrapper as BDBMUNet
 from src.schedulers.scheduling_bdbm import BDBMScheduler
 
 

@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
-from src.models.unet.unet_dab import DABUNet
+from src.models import UNet2DWrapper as DABUNet
 from src.schedulers.scheduling_dab import DABScheduler
 
 

@@ -15,8 +15,8 @@ Covers:
 import torch
 import pytest
 
-from src.models.dit.pixnerd_backbone import PixNerdBackbone
-from src.models.unet.unet_ddbm import (
+from src.models.dit.pixnerd import PixNerdBackbone
+from src.models import (
     create_model,
     get_unet_type_config,
     SUPPORTED_DIT_TYPES,

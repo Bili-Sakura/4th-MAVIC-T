@@ -13,7 +13,8 @@ from examples.sid2.config import (
     sar2rgb_config,
 )
 from examples.sid2.trainer import SID2Trainer
-from src.models.unet.unet_sid import SiDUNet, create_sid_model
+from src.models import SiDUNet
+from examples.sid2.model import create_sid_model
 from src.pipelines.sid2 import SID2Pipeline, SID2PipelineOutput
 from src.schedulers import SiD2Scheduler, SiD2SchedulerOutput
 

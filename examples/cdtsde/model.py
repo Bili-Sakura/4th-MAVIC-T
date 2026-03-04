@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from src.models.unet.unet_cdtsde import CDTSDEUNet
+from src.models import CDTSDEUNet
 from src.models.unet.unet_2d import _parse_create_model_args
 
 

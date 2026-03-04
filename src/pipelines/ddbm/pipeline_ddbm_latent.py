@@ -22,7 +22,7 @@ from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from src.schedulers.scheduling_ddbm import DDBMScheduler
-from src.models.unet.unet_ddbm import DDBMUNet
+from src.models import UNet2DWrapper as DDBMUNet
 from src.utils.multidiffusion import (
     DEFAULT_LATENT_WINDOW_SIZE,
     get_views,

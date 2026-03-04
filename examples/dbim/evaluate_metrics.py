@@ -139,7 +139,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.dbim import DBIMPipeline
-    from src.models.unet.unet_dbim import DBIMUNet
+    from src.models import DBIMUNet
 
     logger.info("Loading DBIM pipeline from %s", checkpoint_dir)
     pipeline = DBIMPipeline.from_pretrained(str(checkpoint_dir))
