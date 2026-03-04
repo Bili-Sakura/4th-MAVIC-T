@@ -41,16 +41,19 @@
 [submodule "libs/simpleDiffusion"]
 	path = libs/simpleDiffusion
 	url = https://github.com/faverogian/simpleDiffusion
+
 [submodule "libs/DiffusionBridge"]
 	path = libs/DiffusionBridge
 	url = https://github.com/thu-ml/DiffusionBridge.git
+
 [submodule "libs/BDBM"]
 	path = libs/BDBM
 	url = https://github.com/kvmduc/BDBM.git
+
 [submodule "libs/CDTSDE"]
 	path = libs/CDTSDE
 	url = https://github.com/LaplaceLab/CDTSDE
 
-[submodule "libs/Text2Earth"]	
+[submodule "libs/Text2Earth"]
 	path = libs/Text2Earth
 	url = https://github.com/chen-yang-liu/Text2Earth
