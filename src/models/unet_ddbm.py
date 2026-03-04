@@ -2,6 +2,7 @@
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
 """DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, and PixelDiT.
+"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, and SiT.
 
 The vendor DDBM UNet accepts ``(x, timestep, xT=…)`` where ``xT`` is the
 source/condition image.  With ``condition_mode='concat'`` the model
@@ -20,6 +21,7 @@ Supported backbone types (via ``unet_type`` in :func:`create_model`):
 - ``vdm``: Variational Diffusion Model with logSNR time normalization.
 - ``pixnerd``: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder).
 - ``pixeldit``: PixelDiT dual-level DiT (patch-level semantics + pixel-level texture detail).
+- ``sit``: SiT (Scalable Interpolant Transformer) DiT blocks (pure PyTorch).
 """
 
 from __future__ import annotations
@@ -34,7 +36,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
 # ---------------------------------------------------------------------------
-# UNet type registry and config placeholders
+# Backbone type registry and config placeholders
 # ---------------------------------------------------------------------------
 
 UNET_TYPE_ADM = "adm"
@@ -45,6 +47,14 @@ UNET_TYPE_PIXNERD = "pixnerd"
 UNET_TYPE_PIXELDIT = "pixeldit"
 
 SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD, UNET_TYPE_PIXELDIT)
+UNET_TYPE_SIT = "sit"
+
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD, UNET_TYPE_SIT)
+DIT_TYPE_PIXNERD = "pixnerd"
+# Backward-compat alias: PixNerd is a DiT backbone, not a UNet.
+UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
+
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, DIT_TYPE_PIXNERD)
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -78,7 +88,7 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             "description": "VDM-style UNet with logSNR (gamma) time normalization.",
             "implemented": True,
         },
-        UNET_TYPE_PIXNERD: {
+        DIT_TYPE_PIXNERD: {
             "source": "PixNerd DiT + NerfBlock (pure PyTorch)",
             "description": (
                 "PixNerd pixel-space DiT with neural field decoder blocks. "
@@ -95,6 +105,14 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
                 "blocks and pixel-level transformer blocks using pixel-wise AdaLN "
                 "and token compaction. Backbone only — the original PixelDiT "
                 "flow-matching scheduler is NOT used."
+        UNET_TYPE_SIT: {
+            "source": "SiT DiT blocks (pure PyTorch)",
+            "description": (
+                "SiT (Scalable Interpolant Transformer) backbone with adaLN-Zero "
+                "conditioning, multi-head self-attention, and sin-cos 2-D positional "
+                "embeddings. Adapted from Ma et al. (2024) for image-to-image "
+                "diffusion bridges. Class-label conditioning removed; source image "
+                "concatenated along channels in concat mode."
             ),
             "implemented": True,
         },
@@ -590,7 +608,7 @@ _UNET_CLASS_MAP: Dict[str, type] = {
     UNET_TYPE_ADM: DDBMUNet,
     UNET_TYPE_EDM: EDMUNet,
     UNET_TYPE_VDM: VDMUNet,
-    # PixNerd is handled separately in create_model (different param set)
+    # PixNerd and SiT are handled separately in create_model (different param sets)
 }
 
 
@@ -617,6 +635,7 @@ def create_model(
     unet_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
         ``pixnerd``, ``pixeldit``.
+        ``pixnerd``, ``sit``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
     if unet_type == UNET_TYPE_EDM2:
@@ -630,7 +649,7 @@ def create_model(
         )
 
     # PixNerd uses a completely different parameter set from UNet backbones.
-    if unet_type == UNET_TYPE_PIXNERD:
+    if unet_type == DIT_TYPE_PIXNERD:
         from .pixnerd_backbone import PixNerdBackbone
         return PixNerdBackbone(
             image_size=image_size,
@@ -660,6 +679,17 @@ def create_model(
             pixel_num_heads=kwargs.get("pixeldit_pixel_num_heads", 16),
             patch_size=kwargs.get("pixeldit_patch_size", 16),
             mlp_ratio=kwargs.get("pixeldit_mlp_ratio", 4.0),
+    # SiT uses a completely different parameter set from UNet backbones.
+    if unet_type == UNET_TYPE_SIT:
+        from .sit_backbone import SiTBackbone
+        return SiTBackbone(
+            image_size=image_size,
+            patch_size=kwargs.get("sit_patch_size", 2),
+            in_channels=in_channels,
+            hidden_size=kwargs.get("sit_hidden_size", 1152),
+            depth=kwargs.get("sit_depth", 28),
+            num_heads=kwargs.get("sit_num_heads", 16),
+            mlp_ratio=kwargs.get("sit_mlp_ratio", 4.0),
             condition_mode=condition_mode,
             dropout=dropout,
         )
