@@ -18,7 +18,7 @@ from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.utils import BaseOutput
 
-from src.models.unet_dbim import DBIMUNet
+from src.models.unet.unet_dbim import DBIMUNet
 from src.schedulers.scheduling_dbim import DBIMScheduler
 from src.utils.multidiffusion import DEFAULT_LATENT_WINDOW_SIZE
 from .pipeline_dbim import DBIMSamplingMixin

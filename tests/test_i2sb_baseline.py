@@ -17,7 +17,7 @@ from examples.i2sb.config import (
     sar2ir_config,
     sar2rgb_config,
 )
-from src.models.unet_i2sb import I2SBUNet, create_model
+from src.models.unet.unet_i2sb import I2SBUNet, create_model
 from src.schedulers import I2SBScheduler, I2SBSchedulerOutput
 from src.pipelines.i2sb import I2SBPipeline, I2SBPipelineOutput
 

@@ -38,7 +38,7 @@ def _assert_state_dicts_equal(sd1, sd2):
 
 class TestDDBMFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_ddbm import DDBMUNet
+        from src.models.unet.unet_ddbm import DDBMUNet
         from src.schedulers import DDBMScheduler
 
         model = DDBMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
@@ -56,7 +56,7 @@ class TestDDBMFromPretrained:
         assert loaded_sched.config["sigma_min"] == 0.002
 
     def test_pipeline_construction(self):
-        from src.models.unet_ddbm import DDBMUNet
+        from src.models.unet.unet_ddbm import DDBMUNet
         from src.schedulers import DDBMScheduler
         from src.pipelines.ddbm import DDBMPipeline
 
@@ -80,7 +80,7 @@ class TestDDBMFromPretrained:
 
 class TestDBIMFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_dbim import DBIMUNet
+        from src.models.unet.unet_dbim import DBIMUNet
         from src.schedulers import DBIMScheduler
 
         model = DBIMUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
@@ -98,7 +98,7 @@ class TestDBIMFromPretrained:
         assert loaded_sched.config["sigma_min"] == 0.002
 
     def test_pipeline_construction(self):
-        from src.models.unet_dbim import DBIMUNet
+        from src.models.unet.unet_dbim import DBIMUNet
         from src.schedulers import DBIMScheduler
         from src.pipelines.dbim import DBIMPipeline
 
@@ -122,7 +122,7 @@ class TestDBIMFromPretrained:
 
 class TestCDTSDEFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.models.unet.unet_cdtsde import CDTSDEUNet
         from src.schedulers import CDTSDEScheduler
 
         model = CDTSDEUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
@@ -140,7 +140,7 @@ class TestCDTSDEFromPretrained:
         assert loaded_sched.config["num_train_timesteps"] == 100
 
     def test_pipeline_construction(self):
-        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.models.unet.unet_cdtsde import CDTSDEUNet
         from src.schedulers import CDTSDEScheduler
         from src.pipelines.cdtsde import CDTSDEPipeline
 
@@ -164,7 +164,7 @@ class TestCDTSDEFromPretrained:
 
 class TestBiBBDMFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_bibbdm import BiBBDMUNet
+        from src.models.unet.unet_bibbdm import BiBBDMUNet
         from src.schedulers import BiBBDMScheduler
 
         model = BiBBDMUNet(image_size=32, in_channels=1, out_channels=2, model_channels=_MIN_CHANNELS)
@@ -188,7 +188,7 @@ class TestBiBBDMFromPretrained:
 
 class TestBDBMFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_bdbm import BDBMUNet
+        from src.models.unet.unet_bdbm import BDBMUNet
         from src.schedulers import BDBMScheduler
 
         model = BDBMUNet(
@@ -218,7 +218,7 @@ class TestBDBMFromPretrained:
 
 class TestI2SBFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_i2sb import I2SBUNet
+        from src.models.unet.unet_i2sb import I2SBUNet
         from src.schedulers import I2SBScheduler
 
         model = I2SBUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS)
@@ -242,7 +242,7 @@ class TestI2SBFromPretrained:
 
 class TestDDIBFromPretrained:
     def test_round_trip(self):
-        from src.models.unet_ddib import DDIBUNet
+        from src.models.unet.unet_ddib import DDIBUNet
         from src.schedulers import DDIBScheduler
 
         model = DDIBUNet(image_size=32, in_channels=1, model_channels=_MIN_CHANNELS, learn_sigma=False)
@@ -295,7 +295,7 @@ class TestPipelineFromPretrained:
     """Verify that ``Pipeline.from_pretrained(path)`` works for all baselines."""
 
     def test_ddbm_pipeline_from_pretrained(self):
-        from src.models.unet_ddbm import DDBMUNet
+        from src.models.unet.unet_ddbm import DDBMUNet
         from src.schedulers import DDBMScheduler
         from src.pipelines.ddbm import DDBMPipeline
 
@@ -314,7 +314,7 @@ class TestPipelineFromPretrained:
         _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
 
     def test_dbim_pipeline_from_pretrained(self):
-        from src.models.unet_dbim import DBIMUNet
+        from src.models.unet.unet_dbim import DBIMUNet
         from src.schedulers import DBIMScheduler
         from src.pipelines.dbim import DBIMPipeline
 
@@ -336,7 +336,7 @@ class TestPipelineFromPretrained:
         _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
 
     def test_cdtsde_pipeline_from_pretrained(self):
-        from src.models.unet_cdtsde import CDTSDEUNet
+        from src.models.unet.unet_cdtsde import CDTSDEUNet
         from src.schedulers import CDTSDEScheduler
         from src.pipelines.cdtsde import CDTSDEPipeline
 
@@ -355,7 +355,7 @@ class TestPipelineFromPretrained:
         _assert_state_dicts_equal(model.state_dict(), pipe.unet.state_dict())
 
     def test_bibbdm_pipeline_from_pretrained(self):
-        from src.models.unet_bibbdm import BiBBDMUNet
+        from src.models.unet.unet_bibbdm import BiBBDMUNet
         from src.schedulers import BiBBDMScheduler
         from src.pipelines.bibbdm import BiBBDMPipeline
 
@@ -373,7 +373,7 @@ class TestPipelineFromPretrained:
         assert pipe.scheduler is not None
 
     def test_bdbm_pipeline_from_pretrained(self):
-        from src.models.unet_bdbm import BDBMUNet
+        from src.models.unet.unet_bdbm import BDBMUNet
         from src.schedulers import BDBMScheduler
         from src.pipelines.bdbm import BDBMPipeline
 
@@ -397,7 +397,7 @@ class TestPipelineFromPretrained:
         assert pipe.scheduler is not None
 
     def test_i2sb_pipeline_from_pretrained(self):
-        from src.models.unet_i2sb import I2SBUNet
+        from src.models.unet.unet_i2sb import I2SBUNet
         from src.schedulers import I2SBScheduler
         from src.pipelines.i2sb import I2SBPipeline
 
@@ -431,7 +431,7 @@ class TestPipelineFromPretrained:
         _assert_state_dicts_equal(model.state_dict(), pipe.generator.state_dict())
 
     def test_ddib_pipeline_from_pretrained(self):
-        from src.models.unet_ddib import DDIBUNet
+        from src.models.unet.unet_ddib import DDIBUNet
         from src.schedulers import DDIBScheduler
         from src.pipelines.ddib import DDIBPipeline
 

@@ -20,7 +20,7 @@ from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from src.schedulers.scheduling_i2sb import I2SBScheduler
-from src.models.unet_i2sb import I2SBUNet
+from src.models.unet.unet_i2sb import I2SBUNet
 
 
 @dataclass

@@ -12,7 +12,7 @@ from examples.cdtsde.config import (
     sar2ir_config,
     sar2rgb_config,
 )
-from src.models.unet_cdtsde import CDTSDEUNet, create_model
+from src.models.unet.unet_cdtsde import CDTSDEUNet, create_model
 from src.schedulers import CDTSDEScheduler, CDTSDESchedulerOutput
 from src.pipelines.cdtsde import CDTSDEPipeline, CDTSDEPipelineOutput
 

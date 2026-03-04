@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from accelerate.logging import get_logger
 
-from src.models.unet_cdtsde import create_model as create_cdtsde_model
+from src.models.unet.unet_cdtsde import create_model as create_cdtsde_model
 from src.schedulers import CDTSDEScheduler
 
 from examples.ddbm.trainer import DDBMTrainer

@@ -20,7 +20,7 @@ from diffusers.utils import BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from src.schedulers.scheduling_ddbm import DDBMScheduler
-from src.models.unet_ddbm import DDBMUNet
+from src.models.unet.unet_ddbm import DDBMUNet
 
 
 @dataclass

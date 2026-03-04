@@ -15,11 +15,12 @@ Covers:
 import torch
 import pytest
 
-from src.models.pixnerd_backbone import PixNerdBackbone
-from src.models.unet_ddbm import (
+from src.models.dit.pixnerd_backbone import PixNerdBackbone
+from src.models.unet.unet_ddbm import (
     create_model,
     get_unet_type_config,
-    SUPPORTED_UNET_TYPES,
+    SUPPORTED_DIT_TYPES,
+    SUPPORTED_BACKBONE_TYPES,
     DIT_TYPE_PIXNERD,
     UNET_TYPE_PIXNERD,
 )
@@ -66,7 +67,8 @@ class TestImports:
         assert UNET_TYPE_PIXNERD == DIT_TYPE_PIXNERD
 
     def test_in_supported_types(self):
-        assert DIT_TYPE_PIXNERD in SUPPORTED_UNET_TYPES
+        assert DIT_TYPE_PIXNERD in SUPPORTED_DIT_TYPES
+        assert DIT_TYPE_PIXNERD in SUPPORTED_BACKBONE_TYPES
 
     def test_get_unet_type_config(self):
         cfg = get_unet_type_config(DIT_TYPE_PIXNERD)

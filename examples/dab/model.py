@@ -3,6 +3,6 @@
 
 """Backward-compatibility shim for DAB model imports."""
 
-from src.models.unet_dab import DABUNet, create_model  # noqa: F401
+from src.models.unet.unet_dab import DABUNet, create_model  # noqa: F401
 
 __all__ = ["DABUNet", "create_model"]

@@ -28,7 +28,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from examples.dbim.config import rgb2ir_config, sar2eo_config, sar2ir_config, sar2rgb_config
 from examples.ddbm.dataset_wrapper import PairedValDataset
 from examples.eval_common import resolve_manifest
-from src.models.unet_dbim import DBIMUNet
+from src.models.unet.unet_dbim import DBIMUNet
 from src.pipelines.dbim import DBIMPipeline
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO)

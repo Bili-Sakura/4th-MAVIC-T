@@ -88,7 +88,7 @@ def main():
     cfg = load_config(checkpoint_dir, args.task)
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
-    from src.models.unet_sid import SiDUNet
+    from src.models.unet.unet_sid import SiDUNet
     from src.pipelines.sid import SIDPipeline
     from src.schedulers import SiDScheduler
 

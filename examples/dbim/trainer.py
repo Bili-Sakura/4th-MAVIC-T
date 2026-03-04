@@ -14,7 +14,7 @@ from pathlib import Path
 
 from accelerate.logging import get_logger
 
-from src.models.unet_dbim import create_dbim_model
+from src.models.unet.unet_dbim import create_dbim_model
 from src.schedulers import DBIMScheduler
 
 from examples.ddbm.trainer import DDBMTrainer
