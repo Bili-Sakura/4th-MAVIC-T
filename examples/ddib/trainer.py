@@ -45,7 +45,7 @@ from src.schedulers import DDIBScheduler
 from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_manifest
 from .config import TaskConfig
 from .dataset_wrapper import MavicTDDIBDataset
-from src.models.unet.unet_ddib import create_model
+from examples.ddib.model import create_model
 
 from src.utils.metrics import MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402

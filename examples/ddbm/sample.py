@@ -78,7 +78,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
-from src.models.unet.unet_ddbm import DDBMUNet, create_model  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as DDBMUNet, create_model  # noqa: E402
 from src.utils.paths import path_from_root  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,

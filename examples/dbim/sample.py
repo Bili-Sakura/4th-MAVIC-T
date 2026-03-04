@@ -27,7 +27,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.models.unet.unet_dbim import DBIMUNet  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as DBIMUNet  # noqa: E402
 from src.pipelines.dbim import DBIMPipeline  # noqa: E402
 from src.schedulers import DBIMScheduler  # noqa: E402
 

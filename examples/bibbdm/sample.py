@@ -60,7 +60,8 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTBiBBDMDataset  # noqa: E402
-from src.models.unet.unet_bibbdm import BiBBDMUNet, create_model  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as BiBBDMUNet  # noqa: E402
+from examples.bibbdm.model import create_model  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,
     build_detailed_description,

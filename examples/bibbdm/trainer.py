@@ -39,7 +39,7 @@ from src.schedulers import BiBBDMScheduler
 from .config import TaskConfig
 from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_manifest
 from .dataset_wrapper import MavicTBiBBDMDataset
-from src.models.unet.unet_bibbdm import create_model
+from examples.bibbdm.model import create_model
 
 from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
