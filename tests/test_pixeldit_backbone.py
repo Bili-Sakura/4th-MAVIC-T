@@ -15,8 +15,8 @@ Covers:
 import torch
 import pytest
 
-from src.models.pixeldit_backbone import PixelDiTBackbone
-from src.models.unet_ddbm import (
+from src.models.dit.pixeldit_backbone import PixelDiTBackbone
+from src.models.unet.unet_ddbm import (
     create_model,
     get_unet_type_config,
     SUPPORTED_UNET_TYPES,

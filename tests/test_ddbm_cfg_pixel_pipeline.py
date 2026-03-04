@@ -5,7 +5,7 @@
 
 import torch
 
-from src.models.unet_ddbm import DDBMUNet, create_model
+from src.models.unet.unet_ddbm import DDBMUNet, create_model
 from src.schedulers import DDBMScheduler
 from src.pipelines.ddbm import DDBMPipeline, DDBMPipelineOutput
 

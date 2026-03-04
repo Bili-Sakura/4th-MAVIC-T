@@ -5,7 +5,7 @@
 
 import torch
 
-from src.models.unet_dbim import DBIMUNet, create_dbim_model
+from src.models.unet.unet_dbim import DBIMUNet, create_dbim_model
 from src.schedulers import DBIMScheduler
 from src.pipelines.dbim import DBIMPipeline, DBIMPipelineOutput
 

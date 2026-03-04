@@ -6,7 +6,7 @@
 import pytest
 import torch
 
-from src.models.unet_bdbm import BDBMUNet, create_model
+from src.models.unet.unet_bdbm import BDBMUNet, create_model
 from src.pipelines.bdbm import BDBMPipeline, BDBMPipelineOutput
 from src.schedulers import BDBMScheduler, BDBMSchedulerOutput
 

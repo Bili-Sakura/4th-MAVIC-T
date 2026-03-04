@@ -19,7 +19,7 @@ import torch
 
 from src.schedulers import BiBBDMScheduler, BiBBDMSchedulerOutput
 from src.pipelines.bibbdm import BiBBDMPipeline, BiBBDMPipelineOutput
-from src.models.unet_bibbdm import BiBBDMUNet, create_model
+from src.models.unet.unet_bibbdm import BiBBDMUNet, create_model
 from examples.bibbdm.config import (
     TaskConfig,
     sar2eo_config,
@@ -28,7 +28,7 @@ from examples.bibbdm.config import (
     sar2rgb_config,
 )
 from src.schedulers.scheduling_bibbdm import _extract
-from src.models.unet_bibbdm import _out_channels_for_objective
+from src.models.unet.unet_bibbdm import _out_channels_for_objective
 
 
 # ---------------------------------------------------------------------------
