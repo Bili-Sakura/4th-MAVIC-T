@@ -20,7 +20,6 @@ from src.models.unet.unet_ddbm import (
     create_model,
     get_unet_type_config,
     SUPPORTED_BACKBONE_TYPES,
-    DIT_TYPE_PIXELDIT,
     UNET_TYPE_PIXELDIT,
 )
 
