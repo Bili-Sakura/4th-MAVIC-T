@@ -3,7 +3,10 @@
 
 """Backward-compatibility shim for DBIM model imports."""
 
-from src.models.unet.unet_dbim import DBIMUNet, create_dbim_model  # noqa: F401
+from src.models.unet.unet_2d import (  # noqa: F401
+    UNet2DWrapper as DBIMUNet,
+    create_model as create_dbim_model,
+)
 
 create_model = create_dbim_model
 

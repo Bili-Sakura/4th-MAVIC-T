@@ -6,6 +6,10 @@
 New code should import directly from :mod:`src.models`.
 """
 
-from src.models.unet.unet_ddbm import DDBMUNet, create_model, _channel_mult_for_resolution  # noqa: F401
+from src.models.unet.unet_2d import (  # noqa: F401
+    UNet2DWrapper as DDBMUNet,
+    create_model,
+    _channel_mult_for_resolution,
+)
 
 __all__ = ["DDBMUNet", "create_model", "_channel_mult_for_resolution"]
