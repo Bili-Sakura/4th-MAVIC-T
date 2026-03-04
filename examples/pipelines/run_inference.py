@@ -60,7 +60,7 @@ def load_ddbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = Tr
 def load_dbim_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
     """Load DBIM pipeline from checkpoint."""
     from src.pipelines.dbim import DBIMPipeline
-    from src.models.unet_dbim import DBIMUNet
+    from src.models.unet.unet_dbim import DBIMUNet
     from src.schedulers import DBIMScheduler
 
     ckpt = Path(checkpoint)
@@ -116,7 +116,7 @@ def load_bibbdm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = 
 def load_bdbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
     """Load BDBM pipeline from checkpoint."""
     from src.pipelines.bdbm import BDBMPipeline
-    from src.models.unet_bdbm import BDBMUNet
+    from src.models.unet.unet_bdbm import BDBMUNet
     from src.schedulers import BDBMScheduler
 
     ckpt = Path(checkpoint)
@@ -130,7 +130,7 @@ def load_bdbm_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = Tr
 def load_cdtsde_pipeline(checkpoint: str, device: str = "cuda", use_ema: bool = True):
     """Load CDTSDE pipeline from checkpoint."""
     from src.pipelines.cdtsde import CDTSDEPipeline
-    from src.models.unet_cdtsde import CDTSDEUNet
+    from src.models.unet.unet_cdtsde import CDTSDEUNet
     from src.schedulers import CDTSDEScheduler
 
     ckpt = Path(checkpoint)

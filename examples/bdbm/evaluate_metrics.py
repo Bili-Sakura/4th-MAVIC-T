@@ -100,7 +100,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.bdbm import BDBMPipeline
-    from src.models.unet_bdbm import BDBMUNet
+    from src.models.unet.unet_bdbm import BDBMUNet
 
     logger.info("Loading BDBM pipeline from %s", checkpoint_dir)
     pipeline = BDBMPipeline.from_pretrained(str(checkpoint_dir))

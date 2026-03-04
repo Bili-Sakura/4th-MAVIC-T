@@ -27,7 +27,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.models.unet_sid import SiDUNet  # noqa: E402
+from src.models.unet.unet_sid import SiDUNet  # noqa: E402
 from src.pipelines.sid import SIDPipeline  # noqa: E402
 from src.schedulers import SiDScheduler  # noqa: E402
 

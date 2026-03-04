@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from src.schedulers import SiDScheduler
 from src.utils.metrics import MetricCalculator
 from src.utils.training_utils import multiscale_weighted_mse
-from src.models.unet_sid import create_sid_model
+from src.models.unet.unet_sid import create_sid_model
 
 from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest
 from examples.ddbm.trainer import DDBMTrainer
