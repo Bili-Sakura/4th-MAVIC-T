@@ -20,7 +20,7 @@ def test_version_string():
 
 def test_public_submodules_importable():
     """The four public sub-packages are importable when torch is available."""
-    torch = pytest.importorskip("torch")
+    pytest.importorskip("torch")
     import src.models
     import src.pipelines
     import src.schedulers
