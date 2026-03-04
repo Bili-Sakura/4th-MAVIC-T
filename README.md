@@ -1,6 +1,6 @@
 # 4th-MAVIC-T
 
-[![PyPI version](https://img.shields.io/pypi/v/pytorch-image-translation-model.svg)](https://pypi.org/project/pytorch-image-translation-model/0.1.0/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![SAR2EO](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2eo/overview) [![SAR2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2ir/overview) [![RGB2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/rgb2ir/overview) [![SAR2RGB](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2rgb/overview)
+[![PyPI version](https://img.shields.io/pypi/v/pytorch-image-translation-model.svg)](https://pypi.org/project/pytorch-image-translation-model) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![SAR2EO](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2eo/overview) [![SAR2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2ir/overview) [![RGB2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/rgb2ir/overview) [![SAR2RGB](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2rgb/overview)
 
 ## Installation
 
