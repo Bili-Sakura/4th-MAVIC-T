@@ -15,6 +15,7 @@ from .unet_ddbm import (
     UNET_TYPE_EDM,
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
+    DIT_TYPE_PIXNERD,
     UNET_TYPE_PIXNERD,
 )
 from .pixnerd_backbone import PixNerdBackbone
@@ -88,6 +89,7 @@ __all__ = [
     "UNET_TYPE_EDM",
     "UNET_TYPE_EDM2",
     "UNET_TYPE_VDM",
+    "DIT_TYPE_PIXNERD",
     "UNET_TYPE_PIXNERD",
     "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet",
     "create_dbim_model",
