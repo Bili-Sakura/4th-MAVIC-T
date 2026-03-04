@@ -98,7 +98,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.unidb import UniDBPipeline
-    from src.models.unet_unidb import UniDBConditionalUNet
+    from src.models.unet.unet_unidb import UniDBConditionalUNet
 
     logger.info("Loading UniDB pipeline from %s", checkpoint_dir)
     pipeline = UniDBPipeline.from_pretrained(str(checkpoint_dir))

@@ -6,7 +6,7 @@
 import pytest
 import torch
 
-from src.models.unet_dab import DABUNet, create_model
+from src.models.unet.unet_dab import DABUNet, create_model
 from src.pipelines.dab import DABPipeline, DABPipelineOutput
 from src.schedulers import DABScheduler, DABSchedulerOutput
 

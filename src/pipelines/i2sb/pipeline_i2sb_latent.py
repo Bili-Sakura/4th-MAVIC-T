@@ -25,7 +25,7 @@ from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_i2sb import I2SBScheduler
-from src.models.unet_i2sb import I2SBUNet
+from src.models.unet.unet_i2sb import I2SBUNet
 from src.utils.multidiffusion import (
     DEFAULT_LATENT_WINDOW_SIZE,
     get_views,
