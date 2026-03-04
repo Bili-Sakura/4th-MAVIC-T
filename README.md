@@ -1,8 +1,29 @@
 # 4th-MAVIC-T
 
-[![SAR2EO](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2eo/overview) [![SAR2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2ir/overview) [![RGB2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/rgb2ir/overview) [![SAR2RGB](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2rgb/overview)
+[![PyPI version](https://img.shields.io/pypi/v/pytorch-image-translation-model.svg)](https://pypi.org/project/pytorch-image-translation-model/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![SAR2EO](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2eo/overview) [![SAR2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2ir/overview) [![RGB2IR](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/rgb2ir/overview) [![SAR2RGB](https://raw.githubusercontent.com/SwanHubX/assets/main/badge1.svg)](https://swanlab.cn/@EarthBridge/sar2rgb/overview)
 
 ## Installation
+
+### Install from PyPI
+
+```bash
+# Core library only
+pip install pytorch-image-translation-model
+
+# With training extras (accelerate, peft, datasets, tensorboard, swanlab)
+pip install pytorch-image-translation-model[training]
+
+# With metrics extras (torchmetrics, lpips, torch-fidelity, scipy)
+pip install pytorch-image-translation-model[metrics]
+
+# Everything
+pip install pytorch-image-translation-model[all]
+```
+
+> **Note:** PyTorch is listed as a dependency but you may want to install a specific CUDA build first.
+> See [PyTorch — Get Started](https://pytorch.org/get-started/previous-versions/) for details.
+
+### Install from source (development)
 
 1. Install from `requirements.txt` (recommended)
 
@@ -24,6 +45,12 @@ pip install swanlab
 ```bash
 conda env create -f environment.yaml
 conda activate rsgen
+```
+
+3. Editable install (for contributors)
+
+```bash
+pip install -e ".[dev]"
 ```
 
 ### Path configuration (optional)

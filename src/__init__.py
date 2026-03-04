@@ -12,3 +12,5 @@ Organised in a ``diffusers``-compatible layout:
 
 Training examples live under the top-level ``examples/`` directory.
 """
+
+__version__ = "0.1.0"

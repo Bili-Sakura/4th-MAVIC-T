@@ -2,6 +2,36 @@
 
 > Take our previous results as a quick start point, see [staled-experiments](./staled-roadmaps-experiments/experiment_observations.md) and [staled-roadmap](./staled-roadmaps-experiments/roadmap.md).
 
+## Packaging roadmap
+
+The project is published on [PyPI](https://pypi.org/project/pytorch-image-translation-model/) as `pytorch-image-translation-model`.
+
+### Version scheme
+
+We follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
+
+| Version bump | When                                                                 |
+|:-------------|:---------------------------------------------------------------------|
+| **MAJOR** (X.0.0) | Backward-incompatible API changes (e.g. renamed public classes, changed function signatures). |
+| **MINOR** (0.X.0) | New features, baselines, or schedulers added in a backward-compatible way. |
+| **PATCH** (0.0.X) | Bug fixes, documentation improvements, or dependency updates only.     |
+
+### Release checklist
+
+1. Update `__version__` in `src/__init__.py`.
+2. Add an entry to `CHANGELOG.md` under the new version header.
+3. Commit with message `release: vX.Y.Z`.
+4. Create a GitHub release with tag `vX.Y.Z`. The `publish.yml` workflow will build and push to PyPI automatically.
+
+### Planned releases
+
+| Version | Milestone | Status |
+|:--------|:----------|:-------|
+| **0.1.0** | Initial PyPI release — core models, schedulers, pipelines, and utilities. | ✅ Released |
+| **0.2.0** | Stabilise public API; add `from_pretrained` hub integration for all pipelines. | 🔲 Planned |
+| **0.3.0** | Add CLI entry-points for training and inference. | 🔲 Planned |
+| **1.0.0** | First stable release — frozen public API, comprehensive docs and tutorials. | 🔲 Planned |
+
 ## Pre-trained models (default paths)
 
 | Model       | Default path                          | Used by                                      |
