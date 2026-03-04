@@ -46,6 +46,8 @@ class TaskConfig:
     pretrained_model_name_or_path: str = "stabilityai/sd-turbo"
     lora_rank_unet: int = 8
     lora_rank_vae: int = 4
+    enable_xformers: bool = False  # use xformers memory-efficient attention
+    enable_flash_attention_2: bool = False  # use Flash Attention 2 via PyTorch SDPA
 
     # ---- training ----
     output_dir: str = "./outputs/img2img_turbo"

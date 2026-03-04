@@ -42,6 +42,8 @@ class TaskConfig:
     dropout: float = 0.0
     condition_mode: str = "concat"
     channel_mult: str = ""  # auto-detected from resolution when empty
+    enable_xformers: bool = False  # use xformers memory-efficient attention
+    enable_flash_attention_2: bool = False  # use Flash Attention 2 via PyTorch SDPA
 
     # ---- scheduler (I2SB-specific) ----
     interval: int = 1000    # number of diffusion timesteps

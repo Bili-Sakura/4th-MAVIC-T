@@ -5,6 +5,7 @@
 
 from .training_utils import (
     create_optimizer,
+    enable_efficient_attention,
     save_checkpoint_diffusers,
     save_training_config,
     push_checkpoint_to_hub,

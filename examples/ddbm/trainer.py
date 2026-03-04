@@ -45,6 +45,7 @@ from src.utils.training_utils import (  # noqa: E402
     checkpoint_dir_sort_key,
     checkpoint_has_accelerator_state,
     create_optimizer,
+    enable_efficient_attention,
     lambda_repa_cosine,
     normalize_accelerate_log_with,
     save_checkpoint_diffusers,
@@ -755,6 +756,14 @@ class DDBMTrainer:
         logger.info(f"[{cfg.task_name}] Creating model  (channels={model_in_ch}, res={model_image_size})")
         model = self.build_model(image_size=model_image_size)
         scheduler = self.build_scheduler()
+
+        # Efficient attention (xformers / Flash Attention 2)
+        enable_efficient_attention(
+            model,
+            enable_xformers=cfg.enable_xformers,
+            enable_flash_attention_2=cfg.enable_flash_attention_2,
+            _logger=logger,
+        )
 
         # Representation alignment (REPA)
         # NOTE: REPA encodes the *target* (ground-truth) image, not the source.
