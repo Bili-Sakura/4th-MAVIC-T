@@ -20,6 +20,7 @@ from src.models.unet_ddbm import (
     create_model,
     get_unet_type_config,
     SUPPORTED_UNET_TYPES,
+    DIT_TYPE_PIXNERD,
     UNET_TYPE_PIXNERD,
 )
 
@@ -58,14 +59,17 @@ class TestImports:
     def test_pixnerd_backbone_class(self):
         assert PixNerdBackbone is not None
 
-    def test_unet_type_constant(self):
-        assert UNET_TYPE_PIXNERD == "pixnerd"
+    def test_dit_type_constant(self):
+        assert DIT_TYPE_PIXNERD == "pixnerd"
+
+    def test_backward_compat_unet_alias(self):
+        assert UNET_TYPE_PIXNERD == DIT_TYPE_PIXNERD
 
     def test_in_supported_types(self):
-        assert UNET_TYPE_PIXNERD in SUPPORTED_UNET_TYPES
+        assert DIT_TYPE_PIXNERD in SUPPORTED_UNET_TYPES
 
     def test_get_unet_type_config(self):
-        cfg = get_unet_type_config(UNET_TYPE_PIXNERD)
+        cfg = get_unet_type_config(DIT_TYPE_PIXNERD)
         assert cfg["implemented"] is True
         assert "PixNerd" in cfg["description"]
 

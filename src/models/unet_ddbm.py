@@ -33,16 +33,18 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
 # ---------------------------------------------------------------------------
-# UNet type registry and config placeholders
+# Backbone type registry and config placeholders
 # ---------------------------------------------------------------------------
 
 UNET_TYPE_ADM = "adm"
 UNET_TYPE_EDM = "edm"
 UNET_TYPE_EDM2 = "edm2"
 UNET_TYPE_VDM = "vdm"
-UNET_TYPE_PIXNERD = "pixnerd"
+DIT_TYPE_PIXNERD = "pixnerd"
+# Backward-compat alias: PixNerd is a DiT backbone, not a UNet.
+UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD)
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, DIT_TYPE_PIXNERD)
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -76,7 +78,7 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             "description": "VDM-style UNet with logSNR (gamma) time normalization.",
             "implemented": True,
         },
-        UNET_TYPE_PIXNERD: {
+        DIT_TYPE_PIXNERD: {
             "source": "PixNerd DiT + NerfBlock (pure PyTorch)",
             "description": (
                 "PixNerd pixel-space DiT with neural field decoder blocks. "
@@ -618,7 +620,7 @@ def create_model(
         )
 
     # PixNerd uses a completely different parameter set from UNet backbones.
-    if unet_type == UNET_TYPE_PIXNERD:
+    if unet_type == DIT_TYPE_PIXNERD:
         from .pixnerd_backbone import PixNerdBackbone
         return PixNerdBackbone(
             image_size=image_size,
