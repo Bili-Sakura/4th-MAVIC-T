@@ -38,7 +38,7 @@ We present our DBIM approach which generalizes the diffusion bridge framework wi
 \end{figure*}
 
 \paragraph{Non-Markovian Diffusion Bridges.}
-In contrast to the continuous-time Markovian bridge processes in DDBM, we consider a family of non-Markovian diffusion bridges defined over a sequence of discretized timesteps $0 = t_0 < t_1 < \dots < t_N = T$, controlled by a variance parameter $\rho \in \mathbb{R}^{N-1}$. The joint probability distribution $q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x})$ is factorized through a chain of conditional distributions:
+In contrast to the continuous-time Markovian bridge processes in DDBM, we consider a family of non-Markovian diffusion bridges defined over a sequence of discretized timesteps $0 = t_0 < t_1 < \dots < t_N = T$, controlled by a variance parameter $\rho \in \mathbb{R}^{N-1}$. The UNet denoiser is trained to predict the bridge marginals governed by the schedule-dependent coefficients $(a_t, b_t, c_t)$, where the source image $\bm{x}$ is supplied to the network via channel concatenation. This concatenation is strictly an architectural mechanism to inject the mandatory endpoint parameter $\bm{x}$ into the SDE formulation, not an ad-hoc conditioning trick akin to standard image-to-image models. The joint probability distribution $q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x})$ is factorized through a chain of conditional distributions:
 \begin{equation}
     q^{(\rho)}(\bm{z}_{t_{0:N-1}} \mid \bm{x}) = q_0(\bm{z}_{t_0}) \prod_{n=1}^{N-1} q^{(\rho)}(\bm{z}_{t_n} \mid \bm{z}_0, \bm{z}_{t_{n+1}}, \bm{x}),
     \label{eq:joint_dist}
