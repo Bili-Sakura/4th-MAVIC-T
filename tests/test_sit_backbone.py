@@ -7,7 +7,7 @@ Covers:
 * Module imports and public API
 * SiTBackbone initialization and configuration
 * Forward pass shapes (concat and unconditional modes)
-* Factory integration (create_model with unet_type='sit')
+* Factory integration (create_model with backbone_type='sit')
 * Config save/load round-trip (ModelMixin / ConfigMixin)
 * Gradient flow
 """
@@ -15,10 +15,10 @@ Covers:
 import torch
 import pytest
 
-from src.models.dit.sit_backbone import SiTBackbone
-from src.models.unet.unet_ddbm import (
+from src.models.dit.sit import SiTBackbone
+from src.models import (
     create_model,
-    get_unet_type_config,
+    get_backbone_config,
     SUPPORTED_DIT_TYPES,
     SUPPORTED_BACKBONE_TYPES,
     DIT_TYPE_SIT,
@@ -57,15 +57,15 @@ class TestImports:
     def test_sit_backbone_class(self):
         assert SiTBackbone is not None
 
-    def test_unet_type_constant(self):
+    def test_dit_type_constant(self):
         assert DIT_TYPE_SIT == "sit"
 
     def test_in_supported_types(self):
         assert DIT_TYPE_SIT in SUPPORTED_DIT_TYPES
         assert DIT_TYPE_SIT in SUPPORTED_BACKBONE_TYPES
 
-    def test_get_unet_type_config(self):
-        cfg = get_unet_type_config(DIT_TYPE_SIT)
+    def test_get_backbone_config(self):
+        cfg = get_backbone_config(DIT_TYPE_SIT)
         assert cfg["implemented"] is True
         assert "SiT" in cfg["description"]
 
@@ -199,7 +199,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="sit",
+            backbone_type="sit",
             condition_mode="concat",
             sit_hidden_size=192,
             sit_depth=4,
@@ -212,7 +212,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="sit",
+            backbone_type="sit",
             condition_mode="concat",
             sit_hidden_size=192,
             sit_depth=4,
@@ -230,7 +230,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="sit",
+            backbone_type="sit",
         )
         assert isinstance(model, SiTBackbone)
 

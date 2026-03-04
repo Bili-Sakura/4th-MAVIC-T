@@ -99,7 +99,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.i2sb import I2SBPipeline
-    from src.models.unet.unet_i2sb import I2SBUNet
+    from src.models import I2SBUNet
 
     logger.info("Loading I2SB pipeline from %s", checkpoint_dir)
     pipeline = I2SBPipeline.from_pretrained(str(checkpoint_dir))

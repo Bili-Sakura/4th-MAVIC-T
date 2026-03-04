@@ -106,7 +106,7 @@ def run_dbim_inference(
     batch_size: int = 2,
 ) -> None:
     """Run DBIM pipeline on paired val manifest."""
-    from src.models.unet.unet_dbim import DBIMUNet
+    from src.models import DBIMUNet
     from src.pipelines.dbim import DBIMPipeline
     from src.schedulers import DBIMScheduler
     import yaml

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from accelerate.logging import get_logger
 
-from src.models.unet.unet_dbim import create_dbim_model
+from src.models.unet.unet_2d import create_model as create_dbim_model
 from src.schedulers import DBIMScheduler
 
 from examples.ddbm.trainer import DDBMTrainer
@@ -143,7 +143,7 @@ class DBIMTrainer(DDBMTrainer):
             in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
-            unet_type=self.cfg.unet_type,
+            backbone_type=self.cfg.backbone_type,
             attention_resolutions=self.cfg.attention_resolutions,
             dropout=self.cfg.dropout,
             condition_mode=self.cfg.condition_mode,

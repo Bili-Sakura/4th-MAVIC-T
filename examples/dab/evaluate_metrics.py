@@ -99,7 +99,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.dab import DABPipeline
-    from src.models.unet.unet_dab import DABUNet
+    from src.models import DABUNet
 
     logger.info("Loading DAB pipeline from %s", checkpoint_dir)
     pipeline = DABPipeline.from_pretrained(str(checkpoint_dir))

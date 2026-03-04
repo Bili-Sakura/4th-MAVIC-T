@@ -100,7 +100,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.bibbdm import BiBBDMPipeline
-    from src.models.unet.unet_bibbdm import BiBBDMUNet
+    from src.models import BiBBDMUNet
 
     logger.info("Loading BiBBDM pipeline from %s", checkpoint_dir)
     pipeline = BiBBDMPipeline.from_pretrained(str(checkpoint_dir))

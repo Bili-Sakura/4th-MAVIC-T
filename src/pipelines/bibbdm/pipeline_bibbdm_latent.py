@@ -20,7 +20,7 @@ from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_bibbdm import BiBBDMScheduler
-from src.models.unet.unet_bibbdm import BiBBDMUNet
+from src.models import UNet2DWrapper as BiBBDMUNet
 from src.utils.multidiffusion import (
     DEFAULT_LATENT_WINDOW_SIZE,
     get_views,

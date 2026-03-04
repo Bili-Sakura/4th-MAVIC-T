@@ -11,7 +11,7 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.models.unet.unet_dbim import create_dbim_model
+from src.models import create_dbim_model
 
 
 def count_model(num_channels, num_res_blocks, attention_resolutions, channel_mult):
@@ -20,7 +20,7 @@ def count_model(num_channels, num_res_blocks, attention_resolutions, channel_mul
         in_channels=1,
         num_channels=num_channels,
         num_res_blocks=num_res_blocks,
-        unet_type="adm",
+        backbone_type="adm",
         attention_resolutions=attention_resolutions,
         dropout=0.0,
         condition_mode="concat",

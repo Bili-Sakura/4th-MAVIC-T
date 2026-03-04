@@ -65,7 +65,8 @@ from .config import (  # noqa: E402
     sar2ir_config,
     sar2rgb_config,
 )
-from src.models.unet.unet_ddib import DDIBUNet, create_model  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as DDIBUNet  # noqa: E402
+from examples.ddib.model import create_model  # noqa: E402
 
 # Reuse the DDBM dataset wrapper for loading paired data (source side only)
 from examples.ddbm.dataset_wrapper import MavicTDDBMDataset  # noqa: E402

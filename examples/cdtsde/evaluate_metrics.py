@@ -100,7 +100,7 @@ def main():
     resolution = args.resolution or getattr(cfg, "validation_resolution", None) or cfg.resolution
 
     from src.pipelines.cdtsde import CDTSDEPipeline
-    from src.models.unet.unet_cdtsde import CDTSDEUNet
+    from src.models import CDTSDEUNet
 
     logger.info("Loading CDTSDE pipeline from %s", checkpoint_dir)
     pipeline = CDTSDEPipeline.from_pretrained(str(checkpoint_dir))

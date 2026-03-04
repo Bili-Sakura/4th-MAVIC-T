@@ -60,7 +60,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTI2SBDataset  # noqa: E402
-from src.models.unet.unet_i2sb import I2SBUNet, create_model  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as I2SBUNet, create_model  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,
     build_detailed_description,
@@ -196,7 +196,7 @@ def _load_pipeline(
             dropout=0.0,
             condition_mode=cfg.condition_mode,
             channel_mult=cfg.channel_mult,
-            unet_type=getattr(cfg, "unet_type", "adm"),
+            backbone_type=getattr(cfg, "backbone_type", "adm"),
         )
         if str(path).endswith(".safetensors"):
             from safetensors.torch import load_file

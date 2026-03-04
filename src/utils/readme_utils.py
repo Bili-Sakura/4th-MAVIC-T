@@ -25,7 +25,7 @@ _TRAIN_KEYS = [
     "prodigy_d0", "use_ema", "ema_decay", "mixed_precision", "seed",
 ]
 _MODEL_KEYS = [
-    "unet_type", "num_channels", "num_res_blocks", "attention_resolutions",
+    "backbone_type", "num_channels", "num_res_blocks", "attention_resolutions",
     "dropout", "condition_mode", "channel_mult", "attention_head_dim",
 ]
 _SCHED_KEYS = [

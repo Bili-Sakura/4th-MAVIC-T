@@ -46,7 +46,7 @@
 # BiBBDM uses Brownian Bridge; I2SB uses Schrödinger Bridge — but the
 # UNet backbone is identical.
 #
-# **unet_type** (adm, edm, edm2, vdm) is configurable per-baseline
+# **backbone_type** (adm, edm, edm2, vdm) is configurable per-baseline
 # (e.g. in ddbm/config.py). For adm/edm/vdm, parameter counts are the same
 # given identical channel_mult / attention / num_res_blocks.
 #
@@ -54,7 +54,7 @@
 #   medium (256px) ~74M   large (512px) ~291M   huge (1024px) ~416M
 #
 # ---------------------------------------------------------------------------
-# UNet type options (unet_type)
+# UNet type options (backbone_type)
 # ---------------------------------------------------------------------------
 # | Type   | Time embedding     | Forward logic
 # |--------|--------------------|------------------------------------------------
@@ -66,7 +66,7 @@
 # EDM2 accepts sigma_data (default 0.5).  VDM accepts gamma_min, gamma_max.
 # ---------------------------------------------------------------------------
 # Recommendation: for direct 1024px pixel-space SID modeling, use the
-# standalone ``examples/sid`` / ``examples/sid2`` baseline instead of setting ``unet_type`` in
+# standalone ``examples/sid`` / ``examples/sid2`` baseline instead of setting ``backbone_type`` in
 # bridge baselines.
 #
 # SID exact parameter counts (standalone examples/sid, src/models/unet_sid.py):
@@ -512,7 +512,7 @@ img2img_turbo:
 # source image along the channel axis (condition_mode='concat').
 #
 # The backbone is implemented in src/models/sit_backbone.py.
-# Use via unet_type='sit' in create_model(), with sit_ prefixed kwargs.
+# Use via backbone_type='sit' in create_model(), with sit_ prefixed kwargs.
 #
 # Original SiT sizing follows Table 1 of the paper:
 #   S: depth=12, hidden_size=384,  num_heads=6
@@ -643,7 +643,7 @@ sit:
       notes: >
         256×256.  Use SiT-S (fast, ~39 M) or SiT-B (better quality, ~142 M).
         Pass sit_hidden_size / sit_depth / sit_num_heads / sit_patch_size
-        as kwargs to create_model(unet_type='sit', ...).
+        as kwargs to create_model(backbone_type='sit', ...).
 
     rgb2ir:
       source_channels: 3
@@ -735,7 +735,7 @@ sit:
 #   model = create_model(
 #       image_size=256,
 #       in_channels=1,
-#       unet_type="sit",
+#       backbone_type="sit",
 #       condition_mode="concat",
 #       sit_hidden_size=768,
 #       sit_depth=12,

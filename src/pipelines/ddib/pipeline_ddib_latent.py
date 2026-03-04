@@ -19,7 +19,7 @@ from diffusers import AutoencoderKL, DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_ddib import DDIBScheduler
-from src.models.unet.unet_ddib import DDIBUNet
+from src.models import UNet2DWrapper as DDIBUNet
 from src.utils.multidiffusion import (
     DEFAULT_LATENT_WINDOW_SIZE,
     get_views,

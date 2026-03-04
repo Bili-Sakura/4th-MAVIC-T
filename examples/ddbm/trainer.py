@@ -36,7 +36,7 @@ from datetime import timedelta
 from src.schedulers import DDBMScheduler
 from .config import TaskConfig
 from .dataset_wrapper import MavicTDDBMDataset, PairedValDataset, resolve_paired_val_manifest
-from src.models.unet.unet_ddbm import create_model
+from src.models.unet.unet_2d import create_model
 
 from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
@@ -323,7 +323,7 @@ class DDBMTrainer:
             in_channels=in_ch,
             num_channels=self.cfg.num_channels,
             num_res_blocks=self.cfg.num_res_blocks,
-            unet_type=self.cfg.unet_type,
+            backbone_type=self.cfg.backbone_type,
             attention_resolutions=self.cfg.attention_resolutions,
             dropout=self.cfg.dropout,
             condition_mode=self.cfg.condition_mode,

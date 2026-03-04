@@ -7,7 +7,7 @@ Covers:
 * Module imports and public API
 * PixelDiTBackbone initialization and configuration
 * Forward pass shapes (concat and unconditional modes)
-* Factory integration (create_model with unet_type='pixeldit')
+* Factory integration (create_model with backbone_type='pixeldit')
 * Config save/load round-trip (ModelMixin / ConfigMixin)
 * Gradient flow
 """
@@ -15,10 +15,10 @@ Covers:
 import torch
 import pytest
 
-from src.models.dit.pixeldit_backbone import PixelDiTBackbone
-from src.models.unet.unet_ddbm import (
+from src.models.dit.pixeldit import PixelDiTBackbone
+from src.models import (
     create_model,
-    get_unet_type_config,
+    get_backbone_config,
     SUPPORTED_DIT_TYPES,
     SUPPORTED_BACKBONE_TYPES,
     DIT_TYPE_PIXELDIT,
@@ -60,15 +60,15 @@ class TestImports:
     def test_pixeldit_backbone_class(self):
         assert PixelDiTBackbone is not None
 
-    def test_unet_type_constant(self):
+    def test_dit_type_constant(self):
         assert DIT_TYPE_PIXELDIT == "pixeldit"
 
     def test_in_supported_types(self):
         assert DIT_TYPE_PIXELDIT in SUPPORTED_DIT_TYPES
         assert DIT_TYPE_PIXELDIT in SUPPORTED_BACKBONE_TYPES
 
-    def test_get_unet_type_config(self):
-        cfg = get_unet_type_config(DIT_TYPE_PIXELDIT)
+    def test_get_backbone_config(self):
+        cfg = get_backbone_config(DIT_TYPE_PIXELDIT)
         assert cfg["implemented"] is True
         assert "PixelDiT" in cfg["description"]
 
@@ -180,7 +180,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="pixeldit",
+            backbone_type="pixeldit",
             condition_mode="concat",
             pixeldit_hidden_size=64,
             pixeldit_pixel_dim=8,
@@ -197,7 +197,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="pixeldit",
+            backbone_type="pixeldit",
             condition_mode="concat",
             pixeldit_hidden_size=64,
             pixeldit_pixel_dim=8,
@@ -219,7 +219,7 @@ class TestFactory:
         model = create_model(
             image_size=256,
             in_channels=3,
-            unet_type="pixeldit",
+            backbone_type="pixeldit",
         )
         assert isinstance(model, PixelDiTBackbone)
 

@@ -1,26 +1,29 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, PixelDiT, and SiT.
+"""Generic backbone models for diffusion bridge methods.
 
-The vendor DDBM UNet accepts ``(x, timestep, xT=...)`` where ``xT`` is the
-source/condition image.  With ``condition_mode='concat'`` the model
-internally concatenates ``x`` and ``xT`` along the channel axis.
+Following the `diffusers <https://github.com/huggingface/diffusers>`_ philosophy,
+this module provides **method-agnostic** backbone architectures.  Method-specific
+model creation and initialization (e.g. for DDBM, BiBBDM, I2SB, DDIB, etc.) is
+handled by factory helpers in each method's own ``examples/<method>/model.py``
+file, **not** here.
 
-This module replicates that contract using a standard ``UNet2DModel`` from
-the Hugging Face *diffusers* library.  A thin wrapper class
-:class:`DDBMUNet` concatenates source and noisy sample before forwarding to
-the underlying ``UNet2DModel``, so the rest of the training / sampling code
-can call ``model(x, t, xT=source)`` just like the vendor code.
+Both UNet and DiT are usable backbones for diffusion bridge (and other) baseline
+methods.  They are **not** hybridized — each has its own type constants.
 
-Supported backbone types (via ``unet_type`` in :func:`create_model`):
-- ``adm``: ADM-style diffusers UNet2DModel (default).
-- ``edm``: EDM/DDPM++ style using UNet2DModel with Fourier time embedding.
-- ``edm2``: DISABLED. See :class:`EDM2UNet` docstring for the incompatibility issue.
-- ``vdm``: Variational Diffusion Model with logSNR time normalization.
-- ``pixnerd``: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder).
-- ``pixeldit``: PixelDiT dual-level DiT (patch-level semantics + pixel-level texture detail).
-- ``sit``: SiT (Scalable Interpolant Transformer) DiT blocks (pure PyTorch).
+Backbone types supported via ``backbone_type`` in :func:`create_model`:
+
+UNet backbones (wrapping ``diffusers.UNet2DModel``):
+- ``adm`` (:class:`UNet2DWrapper`) — ADM-style UNet with sinusoidal time embedding.
+- ``edm`` (:class:`EDMUNet2D`) — EDM/DDPM++ style with Fourier time embedding.
+- ``edm2`` (:class:`EDM2UNet2D`) — DISABLED, see docstring below.
+- ``vdm`` (:class:`VDMUNet2D`) — VDM with logSNR time normalization.
+
+DiT backbones (dispatched to ``src.models.dit``):
+- ``pixnerd`` — PixNerd DiT + NerfBlock.
+- ``pixeldit`` — PixelDiT dual-level DiT.
+- ``sit`` — SiT (Scalable Interpolant Transformer).
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
 # ---------------------------------------------------------------------------
-# Backbone type registry and config placeholders
+# Backbone type registry
 # ---------------------------------------------------------------------------
 
 # UNet backbone types
@@ -56,14 +59,9 @@ SUPPORTED_DIT_TYPES = (DIT_TYPE_PIXNERD, DIT_TYPE_PIXELDIT, DIT_TYPE_SIT)
 # Combined backbone types for validation
 SUPPORTED_BACKBONE_TYPES = SUPPORTED_UNET_TYPES + SUPPORTED_DIT_TYPES
 
-# Backward-compat aliases: DiT backbones were previously registered as UNET_TYPE_*.
-UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
-UNET_TYPE_PIXELDIT = DIT_TYPE_PIXELDIT
-UNET_TYPE_SIT = DIT_TYPE_SIT
 
-
-def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
-    """Return a config hint dict for the given UNet type.
+def get_backbone_config(backbone_type: str) -> Dict[str, Any]:
+    """Return a config hint dict for the given backbone type.
 
     Used for documentation and validation.
     """
@@ -125,20 +123,32 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             "implemented": True,
         },
     }
-    if unet_type not in configs:
+    if backbone_type not in configs:
         raise ValueError(
-            f"Unknown unet_type '{unet_type}'. Supported: {tuple(configs.keys())}"
+            f"Unknown backbone_type '{backbone_type}'. Supported: {tuple(configs.keys())}"
         )
-    return configs[unet_type].copy()
+    return configs[backbone_type].copy()
 
 
-def _raise_unet_placeholder(baseline: str, unet_type: str) -> None:
-    """Raise ValueError for unknown unet_type in a given baseline."""
+# Backward-compat alias
+get_unet_type_config = get_backbone_config
+
+
+def _raise_backbone_placeholder(baseline: str, backbone_type: str) -> None:
+    """Raise ValueError for unknown backbone_type in a given baseline."""
     raise ValueError(
-        f"Unknown unet_type '{unet_type}' for {baseline}. "
+        f"Unknown backbone_type '{backbone_type}' for {baseline}. "
         f"Supported: {SUPPORTED_BACKBONE_TYPES}"
     )
 
+
+# Backward-compat alias
+_raise_unet_placeholder = _raise_backbone_placeholder
+
+
+# ---------------------------------------------------------------------------
+# Shared utility functions
+# ---------------------------------------------------------------------------
 
 def _build_block_types(
     channel_mult: Tuple[int, ...],
@@ -212,373 +222,6 @@ def _parse_layers_per_block(
     return values
 
 
-class DDBMUNet(ModelMixin, ConfigMixin):
-    """Wrapper around ``UNet2DModel`` that accepts the DDBM calling convention.
-
-    Inherits from :class:`~diffusers.ModelMixin` and
-    :class:`~diffusers.ConfigMixin` so that instances can be persisted and
-    restored with ``save_pretrained`` / ``from_pretrained``.
-
-    Parameters
-    ----------
-    image_size : int
-        Spatial resolution (height == width).
-    in_channels : int
-        Number of channels of the *target* image (and of the noisy sample).
-        When ``condition_mode='concat'``, the underlying UNet receives
-        ``2 * in_channels`` input channels.
-    model_channels : int
-        Base channel count of the UNet.
-    num_res_blocks : int
-        Residual blocks per resolution level.
-    attention_resolutions : tuple of int
-        Down-block indices where attention is applied (0-indexed).
-    dropout : float
-        Dropout probability.
-    condition_mode : str or None
-        ``'concat'`` to concatenate source image along channels, or ``None``
-        for unconditional mode.
-    channel_mult : tuple of int or None
-        Per-level channel multipliers. Auto-detected if ``None``.
-    attention_head_dim : int or None
-        Dimension per attention head. 64 stabilizes training (ADM-style).
-        If None, diffusers default is used.
-    """
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        model_channels: int = 128,
-        num_res_blocks: int = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-        attention_head_dim: Optional[int] = 64,
-    ) -> None:
-        super().__init__()
-        self.in_channels = in_channels
-        self.condition_mode = condition_mode
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        unet_kwargs: dict = dict(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=in_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
-            dropout=dropout,
-        )
-        if attention_head_dim is not None:
-            unet_kwargs["attention_head_dim"] = attention_head_dim
-
-        self.unet = UNet2DModel(**unet_kwargs)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        xT: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        """Forward pass matching vendor DDBM UNet calling convention.
-
-        Parameters
-        ----------
-        x : Tensor  (B, C, H, W)
-            Pre-conditioned noisy sample (``c_in * noisy``).
-        timestep : Tensor  (B,)
-            Rescaled log-sigma timestep.
-        xT : Tensor or None  (B, C, H, W)
-            Source/condition image.
-
-        Returns
-        -------
-        Tensor  (B, C, H, W)
-            Raw model output (before ``c_out / c_skip`` application).
-        """
-        if self.condition_mode == "concat" and xT is not None:
-            x = torch.cat([x, xT], dim=1)
-        return self.unet(x, timestep).sample
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
-        """Load UNet; if ema_unet has no config.json, load config from unet and weights from ema_unet."""
-        path = Path(pretrained_model_name_or_path)
-        subfolder = kwargs.get("subfolder", "unet")
-        if subfolder == "ema_unet" and not (path / "ema_unet" / "config.json").exists():
-            # Some step checkpoints only keep config in `unet/` and weights in
-            # `ema_unet/`. Build from `unet/config.json` explicitly and then load
-            # EMA safetensors to avoid diffusers looking for missing default files.
-            config = cls.load_config(path / "unet")
-            unet = cls.from_config(config)
-            ema_path = path / "ema_unet" / "diffusion_pytorch_model.safetensors"
-            if ema_path.exists():
-                from safetensors.torch import load_file
-                state = load_file(str(ema_path))
-                unet.load_state_dict(state, strict=True)
-            else:
-                raise FileNotFoundError(f"EMA weights not found at: {ema_path}")
-            torch_dtype = kwargs.get("torch_dtype")
-            if torch_dtype is not None:
-                unet = unet.to(dtype=torch_dtype)
-            return unet
-        return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-
-
-# ---------------------------------------------------------------------------
-# EDM UNet – Fourier time embedding (replaces libs/DDBM SongUNet)
-# ---------------------------------------------------------------------------
-
-
-class EDMUNet(ModelMixin, ConfigMixin):
-    """EDM/DDPM++ style UNet using ``UNet2DModel`` with Fourier time embedding.
-
-    Ported from ``libs/DDBM/ddbm/models/edm_unet.SongUNet``. The original
-    SongUNet uses random Fourier features for time conditioning; this version
-    uses the native ``time_embedding_type='fourier'`` in diffusers.
-
-    Parameters are identical to :class:`DDBMUNet`.
-    """
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        model_channels: int = 128,
-        num_res_blocks: int = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-        attention_head_dim: Optional[int] = 64,
-    ) -> None:
-        super().__init__()
-        self.in_channels = in_channels
-        self.condition_mode = condition_mode
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        unet_kwargs: dict = dict(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=in_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
-            dropout=dropout,
-            time_embedding_type="fourier",
-        )
-        if attention_head_dim is not None:
-            unet_kwargs["attention_head_dim"] = attention_head_dim
-
-        self.unet = UNet2DModel(**unet_kwargs)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        xT: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        if self.condition_mode == "concat" and xT is not None:
-            x = torch.cat([x, xT], dim=1)
-        return self.unet(x, timestep).sample
-
-
-# ---------------------------------------------------------------------------
-# EDM2 UNet – Fourier embedding + magnitude-preserving preconditioning
-# ---------------------------------------------------------------------------
-#
-# DISABLED: EDM2 is incompatible with the DDBM/BiBBDM pipeline denoise contract.
-# The pipeline (e.g. pipeline_ddbm.py) passes:
-#   - Input: c_in * x_t (bridge-preconditioned)
-#   - Timestep: rescaled_t = 1000 * 0.25 * log(sigma)
-#   - Output: expects raw F(x); pipeline applies denoised = c_out * F + c_skip * x_t
-# EDM2 instead expects raw x, sigma as timestep, and returns denoised directly with
-# its own c_skip/c_out. Using EDM2 with the current pipeline causes double preconditioning
-# and wrong timestep encoding. Use adm or edm backbones instead.
-
-
-class EDM2UNet(ModelMixin, ConfigMixin):
-    """EDM2 magnitude-preserving UNet with preconditioning wrapper.
-
-    DISABLED: Incompatible with DDBM/BiBBDM pipelines (see module-level annotation above).
-    Use ``adm`` or ``edm`` backbones instead.
-
-    Ported from ``libs/edm2/training/networks_edm2.Precond``. The underlying
-    UNet uses Fourier time embedding via ``UNet2DModel``. The forward pass
-    applies EDM2 preconditioning (``c_skip``, ``c_out``, ``c_in``,
-    ``c_noise``) following Equation 7 of Karras et al. (2024).
-
-    Parameters
-    ----------
-    sigma_data : float
-        Expected standard deviation of the training data (default 0.5).
-    """
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        model_channels: int = 128,
-        num_res_blocks: int = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-        sigma_data: float = 0.5,
-    ) -> None:
-        super().__init__()
-        self.in_channels = in_channels
-        self.condition_mode = condition_mode
-        self.sigma_data = sigma_data
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        self.unet = UNet2DModel(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=in_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
-            dropout=dropout,
-            time_embedding_type="fourier",
-        )
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        xT: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        """Forward with EDM2 preconditioning.
-
-        ``timestep`` is interpreted as sigma (noise level). The model applies:
-        ``D(x; sigma) = c_skip * x + c_out * F(c_in * x; c_noise)``
-        where ``c_noise = ln(sigma) / 4``.
-        """
-        sigma = timestep.float().reshape(-1, 1, 1, 1)
-        sd2 = self.sigma_data ** 2
-
-        c_skip = sd2 / (sigma ** 2 + sd2)
-        c_out = sigma * self.sigma_data / (sigma ** 2 + sd2).sqrt()
-        c_in = 1.0 / (sd2 + sigma ** 2).sqrt()
-        c_noise = sigma.flatten().log() / 4.0
-
-        x_precond = c_in * x
-        if self.condition_mode == "concat" and xT is not None:
-            x_precond = torch.cat([x_precond, xT], dim=1)
-
-        F_x = self.unet(x_precond, c_noise).sample
-        return c_skip * x + c_out * F_x
-
-
-# ---------------------------------------------------------------------------
-# VDM UNet – logSNR (gamma) time normalization
-# ---------------------------------------------------------------------------
-
-
-class VDMUNet(ModelMixin, ConfigMixin):
-    """Variational Diffusion Model UNet with logSNR time normalization.
-
-    Ported from ``libs/vdm/model_vdm.ScoreUNet`` (Jax/Flax). The VDM score
-    model receives ``gamma = logSNR(t)`` as its time input; this wrapper
-    normalizes gamma to ``[0, 1]`` before passing it to the underlying
-    ``UNet2DModel``.
-
-    Parameters
-    ----------
-    gamma_min : float
-        Minimum logSNR value (default -13.3).
-    gamma_max : float
-        Maximum logSNR value (default 5.0).
-    """
-
-    @register_to_config
-    def __init__(
-        self,
-        image_size: int = 256,
-        in_channels: int = 3,
-        model_channels: int = 128,
-        num_res_blocks: int = 2,
-        attention_resolutions: Tuple[int, ...] = (1,),
-        dropout: float = 0.0,
-        condition_mode: Optional[str] = "concat",
-        channel_mult: Optional[Tuple[int, ...]] = None,
-        attention_head_dim: Optional[int] = 64,
-        gamma_min: float = -13.3,
-        gamma_max: float = 5.0,
-    ) -> None:
-        super().__init__()
-        self.in_channels = in_channels
-        self.condition_mode = condition_mode
-        self.gamma_min = gamma_min
-        self.gamma_max = gamma_max
-
-        if channel_mult is None:
-            channel_mult = _channel_mult_for_resolution(image_size)
-
-        unet_in_channels = in_channels * 2 if condition_mode == "concat" else in_channels
-        block_out_channels = tuple(model_channels * m for m in channel_mult)
-        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
-
-        unet_kwargs: dict = dict(
-            sample_size=image_size,
-            in_channels=unet_in_channels,
-            out_channels=in_channels,
-            block_out_channels=block_out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            layers_per_block=num_res_blocks,
-            dropout=dropout,
-        )
-        if attention_head_dim is not None:
-            unet_kwargs["attention_head_dim"] = attention_head_dim
-
-        self.unet = UNet2DModel(**unet_kwargs)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        xT: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        """Forward with logSNR normalization.
-
-        ``timestep`` is interpreted as logSNR (gamma). It is normalized to
-        ``[0, 1]`` via ``t = (gamma - gamma_min) / (gamma_max - gamma_min)``
-        before being passed to the UNet.
-        """
-        t_normalized = (timestep.float() - self.gamma_min) / (self.gamma_max - self.gamma_min)
-        if self.condition_mode == "concat" and xT is not None:
-            x = torch.cat([x, xT], dim=1)
-        return self.unet(x, t_normalized).sample
-
-
 def _parse_create_model_args(
     image_size: int,
     attention_resolutions: Union[str, Tuple[int, ...]],
@@ -612,11 +255,467 @@ def _parse_create_model_args(
     return attn_indices, cm_tuple
 
 
+# ---------------------------------------------------------------------------
+# UNet2DWrapper — generic ADM-style UNet backbone
+# ---------------------------------------------------------------------------
+
+
+class UNet2DWrapper(ModelMixin, ConfigMixin):
+    """Generic wrapper around ``UNet2DModel`` with optional channel-concat conditioning.
+
+    This is the base backbone class for all bridge-based diffusion methods.
+    Following the diffusers philosophy, it is **method-agnostic**: the same
+    class is used by DDBM, DBIM, BiBBDM, I2SB, DDIB, SiD, BDBM, DAB, etc.
+
+    Conditioning is handled via channel concatenation (when
+    ``condition_mode='concat'`` or ``'dual'``).  Unconditional mode is
+    supported by setting ``condition_mode=None``.
+
+    Parameters
+    ----------
+    image_size : int
+        Spatial resolution (height == width).
+    in_channels : int
+        Number of channels of the *target* image (and of the noisy sample).
+    out_channels : int or None
+        Number of output channels.  ``None`` defaults to ``in_channels``.
+        For dual-learning objectives set to ``2 * in_channels``.
+    model_channels : int
+        Base channel count of the UNet.
+    num_res_blocks : int or tuple of int
+        Residual blocks per resolution level.
+    attention_resolutions : tuple of int
+        Down-block indices where attention is applied (0-indexed).
+    dropout : float
+        Dropout probability.
+    condition_mode : str or None
+        ``'concat'`` to concatenate condition along channels,
+        ``'dual'`` for dual-endpoint conditioning (2× condition channels),
+        or ``None`` for unconditional mode.
+    channel_mult : tuple of int or None
+        Per-level channel multipliers.  Auto-detected if ``None``.
+    attention_head_dim : int or None
+        Dimension per attention head. 64 stabilizes training (ADM-style).
+    conditioning_channels : int or None
+        Explicit conditioning channel count. If ``None``, derived from
+        ``condition_mode`` and ``in_channels``.
+    learn_sigma : bool
+        If ``True``, doubles the output channels for variance prediction.
+    mid_block_type : str or None
+        Override diffusers mid-block type (e.g. ``'UNetMidBlock2D'``).
+    """
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        out_channels: Optional[int] = None,
+        model_channels: int = 128,
+        num_res_blocks: Union[int, Tuple[int, ...]] = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
+        conditioning_channels: Optional[int] = None,
+        learn_sigma: bool = False,
+        mid_block_type: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        # Resolve output channels
+        if out_channels is None:
+            out_channels = in_channels * 2 if learn_sigma else in_channels
+        self.out_channels = out_channels
+        self.learn_sigma = learn_sigma
+
+        # Resolve conditioning channels
+        if conditioning_channels is None:
+            if condition_mode == "concat":
+                conditioning_channels = in_channels
+            elif condition_mode == "dual":
+                conditioning_channels = 2 * in_channels
+            else:
+                conditioning_channels = 0
+        self.conditioning_channels = conditioning_channels
+
+        unet_in_channels = in_channels + conditioning_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        layers_per_block = _parse_layers_per_block(
+            num_res_blocks,
+            num_levels=len(channel_mult),
+            allow_variable=True,
+        )
+
+        unet_kwargs: dict = dict(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=out_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=layers_per_block,
+            dropout=dropout,
+        )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+        if mid_block_type is not None:
+            unet_kwargs["mid_block_type"] = mid_block_type
+
+        self.unet = UNet2DModel(**unet_kwargs)
+
+    def forward(
+        self,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        condition: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        """Forward pass with optional channel-concat conditioning.
+
+        Parameters
+        ----------
+        sample : Tensor  (B, C, H, W)
+            Noisy sample (pre-conditioned if the scheduler requires it).
+        timestep : Tensor  (B,)
+            Timestep or rescaled time signal.
+        condition : Tensor or None  (B, C_cond, H, W)
+            Conditioning signal.  Concatenated along channels when
+            ``condition_mode`` is ``'concat'`` or ``'dual'``.
+            For backward compatibility, also accepted as keyword args
+            ``xT``, ``cond``, or ``context``.
+
+        Returns
+        -------
+        Tensor  (B, out_channels, H, W)
+        """
+        # Backward-compat: accept legacy keyword arg names
+        if condition is None:
+            for key in ('xT', 'cond', 'context'):
+                if key in kwargs:
+                    condition = kwargs[key]
+                    break
+
+        if self.condition_mode in ("concat", "dual") and condition is not None:
+            sample = torch.cat([sample, condition], dim=1)
+
+        return self.unet(sample, timestep).sample
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        """Load UNet; if ema_unet has no config.json, load config from unet and weights from ema_unet."""
+        path = Path(pretrained_model_name_or_path)
+        subfolder = kwargs.get("subfolder", "unet")
+        if subfolder == "ema_unet" and not (path / "ema_unet" / "config.json").exists():
+            config = cls.load_config(path / "unet")
+            unet = cls.from_config(config)
+            ema_path = path / "ema_unet" / "diffusion_pytorch_model.safetensors"
+            if ema_path.exists():
+                from safetensors.torch import load_file
+                state = load_file(str(ema_path))
+                unet.load_state_dict(state, strict=True)
+            else:
+                raise FileNotFoundError(f"EMA weights not found at: {ema_path}")
+            torch_dtype = kwargs.get("torch_dtype")
+            if torch_dtype is not None:
+                unet = unet.to(dtype=torch_dtype)
+            return unet
+        return super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# EDMUNet2D — Fourier time embedding variant
+# ---------------------------------------------------------------------------
+
+
+class EDMUNet2D(ModelMixin, ConfigMixin):
+    """EDM/DDPM++ style UNet using ``UNet2DModel`` with Fourier time embedding.
+
+    Parameters are identical to :class:`UNet2DWrapper` (except no
+    ``learn_sigma`` / ``mid_block_type``).
+    """
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        out_channels: Optional[int] = None,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
+        conditioning_channels: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        if out_channels is None:
+            out_channels = in_channels
+        self.out_channels = out_channels
+
+        if conditioning_channels is None:
+            if condition_mode == "concat":
+                conditioning_channels = in_channels
+            elif condition_mode == "dual":
+                conditioning_channels = 2 * in_channels
+            else:
+                conditioning_channels = 0
+        self.conditioning_channels = conditioning_channels
+
+        unet_in_channels = in_channels + conditioning_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        unet_kwargs: dict = dict(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=out_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+            time_embedding_type="fourier",
+        )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
+
+    def forward(
+        self,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        condition: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        if condition is None:
+            for key in ('xT', 'cond', 'context'):
+                if key in kwargs:
+                    condition = kwargs[key]
+                    break
+        if self.condition_mode in ("concat", "dual") and condition is not None:
+            sample = torch.cat([sample, condition], dim=1)
+        return self.unet(sample, timestep).sample
+
+
+# ---------------------------------------------------------------------------
+# EDM2UNet2D — Fourier + preconditioning (DISABLED)
+# ---------------------------------------------------------------------------
+
+
+class EDM2UNet2D(ModelMixin, ConfigMixin):
+    """EDM2 magnitude-preserving UNet with preconditioning wrapper.
+
+    DISABLED: Incompatible with DDBM/BiBBDM pipelines (see module-level annotation).
+    Use ``adm`` or ``edm`` backbones instead.
+
+    Parameters
+    ----------
+    sigma_data : float
+        Expected standard deviation of the training data (default 0.5).
+    """
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        out_channels: Optional[int] = None,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        sigma_data: float = 0.5,
+        conditioning_channels: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+        self.sigma_data = sigma_data
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        if out_channels is None:
+            out_channels = in_channels
+        self.out_channels = out_channels
+
+        if conditioning_channels is None:
+            if condition_mode == "concat":
+                conditioning_channels = in_channels
+            elif condition_mode == "dual":
+                conditioning_channels = 2 * in_channels
+            else:
+                conditioning_channels = 0
+        self.conditioning_channels = conditioning_channels
+
+        unet_in_channels = in_channels + conditioning_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        self.unet = UNet2DModel(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=out_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+            time_embedding_type="fourier",
+        )
+
+    def forward(
+        self,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        condition: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        """Forward with EDM2 preconditioning."""
+        if condition is None:
+            for key in ('xT', 'cond', 'context'):
+                if key in kwargs:
+                    condition = kwargs[key]
+                    break
+
+        sigma = timestep.float().reshape(-1, 1, 1, 1)
+        sd2 = self.sigma_data ** 2
+
+        c_skip = sd2 / (sigma ** 2 + sd2)
+        c_out = sigma * self.sigma_data / (sigma ** 2 + sd2).sqrt()
+        c_in = 1.0 / (sd2 + sigma ** 2).sqrt()
+        c_noise = sigma.flatten().log() / 4.0
+
+        x_precond = c_in * sample
+        if self.condition_mode in ("concat", "dual") and condition is not None:
+            x_precond = torch.cat([x_precond, condition], dim=1)
+
+        F_x = self.unet(x_precond, c_noise).sample
+        return c_skip * sample + c_out * F_x
+
+
+# ---------------------------------------------------------------------------
+# VDMUNet2D — logSNR normalization
+# ---------------------------------------------------------------------------
+
+
+class VDMUNet2D(ModelMixin, ConfigMixin):
+    """Variational Diffusion Model UNet with logSNR time normalization.
+
+    Parameters
+    ----------
+    gamma_min : float
+        Minimum logSNR value (default -13.3).
+    gamma_max : float
+        Maximum logSNR value (default 5.0).
+    """
+
+    @register_to_config
+    def __init__(
+        self,
+        image_size: int = 256,
+        in_channels: int = 3,
+        out_channels: Optional[int] = None,
+        model_channels: int = 128,
+        num_res_blocks: int = 2,
+        attention_resolutions: Tuple[int, ...] = (1,),
+        dropout: float = 0.0,
+        condition_mode: Optional[str] = "concat",
+        channel_mult: Optional[Tuple[int, ...]] = None,
+        attention_head_dim: Optional[int] = 64,
+        gamma_min: float = -13.3,
+        gamma_max: float = 5.0,
+        conditioning_channels: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.condition_mode = condition_mode
+        self.gamma_min = gamma_min
+        self.gamma_max = gamma_max
+
+        if channel_mult is None:
+            channel_mult = _channel_mult_for_resolution(image_size)
+
+        if out_channels is None:
+            out_channels = in_channels
+        self.out_channels = out_channels
+
+        if conditioning_channels is None:
+            if condition_mode == "concat":
+                conditioning_channels = in_channels
+            elif condition_mode == "dual":
+                conditioning_channels = 2 * in_channels
+            else:
+                conditioning_channels = 0
+        self.conditioning_channels = conditioning_channels
+
+        unet_in_channels = in_channels + conditioning_channels
+        block_out_channels = tuple(model_channels * m for m in channel_mult)
+        down_block_types, up_block_types = _build_block_types(channel_mult, attention_resolutions)
+
+        unet_kwargs: dict = dict(
+            sample_size=image_size,
+            in_channels=unet_in_channels,
+            out_channels=out_channels,
+            block_out_channels=block_out_channels,
+            down_block_types=down_block_types,
+            up_block_types=up_block_types,
+            layers_per_block=num_res_blocks,
+            dropout=dropout,
+        )
+        if attention_head_dim is not None:
+            unet_kwargs["attention_head_dim"] = attention_head_dim
+
+        self.unet = UNet2DModel(**unet_kwargs)
+
+    def forward(
+        self,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        condition: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        """Forward with logSNR normalization."""
+        if condition is None:
+            for key in ('xT', 'cond', 'context'):
+                if key in kwargs:
+                    condition = kwargs[key]
+                    break
+
+        t_normalized = (timestep.float() - self.gamma_min) / (self.gamma_max - self.gamma_min)
+        if self.condition_mode in ("concat", "dual") and condition is not None:
+            sample = torch.cat([sample, condition], dim=1)
+        return self.unet(sample, t_normalized).sample
+
+
+# ---------------------------------------------------------------------------
+# Generic backbone factory
+# ---------------------------------------------------------------------------
+
 _UNET_CLASS_MAP: Dict[str, type] = {
-    UNET_TYPE_ADM: DDBMUNet,
-    UNET_TYPE_EDM: EDMUNet,
-    UNET_TYPE_VDM: VDMUNet,
-    # PixNerd and SiT are handled separately in create_model (different param sets)
+    UNET_TYPE_ADM: UNet2DWrapper,
+    UNET_TYPE_EDM: EDMUNet2D,
+    UNET_TYPE_VDM: VDMUNet2D,
 }
 
 
@@ -629,36 +728,39 @@ def create_model(
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
-    unet_type: str = UNET_TYPE_ADM,
+    backbone_type: str = UNET_TYPE_ADM,
     attention_head_dim: Optional[int] = 64,
     **kwargs: Any,
-) -> Union[DDBMUNet, EDMUNet, VDMUNet]:
-    """Factory for DDBM-compatible backbone models.
+) -> nn.Module:
+    """Factory for generic backbone models.
 
     Parses string-based arguments (``attention_resolutions``, ``channel_mult``)
     into the tuples that the wrapper classes expect.
 
     Parameters
     ----------
-    unet_type : str
+    backbone_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
-        ``pixnerd``, ``pixeldit``.
-        ``pixnerd``, ``sit``.
+        ``pixnerd``, ``pixeldit``, ``sit``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
-    if unet_type == UNET_TYPE_EDM2:
-        cfg = get_unet_type_config(UNET_TYPE_EDM2)
+    # Backward compat: accept old kwarg name ``unet_type``
+    if "unet_type" in kwargs:
+        backbone_type = kwargs.pop("unet_type")
+
+    if backbone_type == UNET_TYPE_EDM2:
+        cfg = get_backbone_config(UNET_TYPE_EDM2)
         raise ValueError(
-            f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
+            f"backbone_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
         )
-    if unet_type not in SUPPORTED_BACKBONE_TYPES:
+    if backbone_type not in SUPPORTED_BACKBONE_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_BACKBONE_TYPES}"
+            f"backbone_type '{backbone_type}' not supported. Use one of: {SUPPORTED_BACKBONE_TYPES}"
         )
 
     # PixNerd uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_PIXNERD:
-        from ..dit.pixnerd_backbone import PixNerdBackbone
+    if backbone_type == DIT_TYPE_PIXNERD:
+        from ..dit.pixnerd import PixNerdBackbone
         return PixNerdBackbone(
             image_size=image_size,
             in_channels=in_channels,
@@ -674,8 +776,8 @@ def create_model(
         )
 
     # PixelDiT uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_PIXELDIT:
-        from ..dit.pixeldit_backbone import PixelDiTBackbone
+    if backbone_type == DIT_TYPE_PIXELDIT:
+        from ..dit.pixeldit import PixelDiTBackbone
         return PixelDiTBackbone(
             image_size=image_size,
             in_channels=in_channels,
@@ -692,8 +794,8 @@ def create_model(
         )
 
     # SiT uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_SIT:
-        from ..dit.sit_backbone import SiTBackbone
+    if backbone_type == DIT_TYPE_SIT:
+        from ..dit.sit import SiTBackbone
         return SiTBackbone(
             image_size=image_size,
             patch_size=kwargs.get("sit_patch_size", 2),
@@ -717,7 +819,7 @@ def create_model(
         allow_variable=False,
     )
 
-    common_kwargs = dict(
+    common_kwargs: dict = dict(
         image_size=image_size,
         in_channels=in_channels,
         model_channels=num_channels,
@@ -729,10 +831,15 @@ def create_model(
         attention_head_dim=attention_head_dim,
     )
 
-    cls = _UNET_CLASS_MAP[unet_type]
+    # Pass through optional params from kwargs
+    for opt_key in ('out_channels', 'conditioning_channels', 'learn_sigma', 'mid_block_type'):
+        if opt_key in kwargs:
+            common_kwargs[opt_key] = kwargs[opt_key]
+
+    cls = _UNET_CLASS_MAP[backbone_type]
 
     # VDM accepts extra init parameters via kwargs
-    if unet_type == UNET_TYPE_VDM:
+    if backbone_type == UNET_TYPE_VDM:
         if "gamma_min" in kwargs:
             common_kwargs["gamma_min"] = kwargs["gamma_min"]
         if "gamma_max" in kwargs:

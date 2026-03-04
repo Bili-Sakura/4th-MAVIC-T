@@ -38,7 +38,7 @@ from src.schedulers import I2SBScheduler
 from .config import TaskConfig
 from examples.ddbm.dataset_wrapper import PairedValDataset, resolve_paired_val_manifest
 from .dataset_wrapper import MavicTI2SBDataset
-from src.models.unet.unet_i2sb import create_model
+from src.models.unet.unet_2d import create_model
 
 from src.utils.metrics import MavicCriterion, MetricCalculator  # noqa: E402
 from src.utils.training_utils import (  # noqa: E402
@@ -189,7 +189,7 @@ class I2SBTrainer:
             dropout=self.cfg.dropout,
             condition_mode=self.cfg.condition_mode,
             channel_mult=self.cfg.channel_mult,
-            unet_type=self.cfg.unet_type,
+            backbone_type=self.cfg.backbone_type,
         )
 
     def build_scheduler(self):

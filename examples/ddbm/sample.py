@@ -78,7 +78,7 @@ from .config import (  # noqa: E402
     sar2rgb_config,
 )
 from .dataset_wrapper import MavicTDDBMDataset  # noqa: E402
-from src.models.unet.unet_ddbm import DDBMUNet, create_model  # noqa: E402
+from src.models.unet.unet_2d import UNet2DWrapper as DDBMUNet, create_model  # noqa: E402
 from src.utils.paths import path_from_root  # noqa: E402
 from src.utils.readme_utils import (  # noqa: E402
     load_checkpoint_config,
@@ -244,7 +244,7 @@ def _load_pipeline(
             in_channels=cfg.model_channels,
             num_channels=cfg.num_channels,
             num_res_blocks=cfg.num_res_blocks,
-            unet_type=cfg.unet_type,
+            backbone_type=cfg.backbone_type,
             attention_resolutions=cfg.attention_resolutions,
             dropout=0.0,
             condition_mode=cfg.condition_mode,

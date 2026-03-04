@@ -21,60 +21,11 @@ import torch.nn as nn
 from diffusers import ModelMixin, UNet2DModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-
-def _build_block_types(
-    channel_mult: Tuple[int, ...],
-    attention_resolutions: Tuple[int, ...],
-) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
-    """Build down/up block type tuples from channel multipliers."""
-    down_block_types = []
-    for i in range(len(channel_mult)):
-        down_block_types.append("AttnDownBlock2D" if i in attention_resolutions else "DownBlock2D")
-
-    up_block_types = []
-    for i in range(len(channel_mult)):
-        rev_i = len(channel_mult) - 1 - i
-        up_block_types.append("AttnUpBlock2D" if rev_i in attention_resolutions else "UpBlock2D")
-
-    return tuple(down_block_types), tuple(up_block_types)
-
-
-def _channel_mult_for_resolution(resolution: int) -> Tuple[int, ...]:
-    """Return default channel multipliers by resolution."""
-    return {
-        512: (1, 1, 2, 2, 4, 4),
-        256: (1, 1, 2, 2, 4, 4),
-        128: (1, 1, 2, 3, 4),
-        64: (1, 2, 3, 4),
-        32: (1, 2, 3, 4),
-    }.get(resolution, (1, 2, 3, 4))
-
-
-def _parse_create_model_args(
-    image_size: int,
-    attention_resolutions: Union[str, Tuple[int, ...]],
-    channel_mult: Union[str, Tuple[int, ...], None],
-) -> Tuple[Tuple[int, ...], Optional[Tuple[int, ...]]]:
-    """Parse string-based config fields to tuples."""
-    cm_tuple: Optional[Tuple[int, ...]] = None
-    if channel_mult and isinstance(channel_mult, str) and channel_mult != "":
-        cm_tuple = tuple(int(c) for c in channel_mult.split(","))
-    elif isinstance(channel_mult, tuple) and channel_mult:
-        cm_tuple = channel_mult
-
-    attn_indices: Tuple[int, ...] = ()
-    if attention_resolutions:
-        if isinstance(attention_resolutions, str):
-            attn_res_list = [int(r) for r in attention_resolutions.split(",")]
-        else:
-            attn_res_list = list(attention_resolutions)
-
-        cm = cm_tuple if cm_tuple else _channel_mult_for_resolution(image_size)
-        attn_indices = tuple(
-            i for i in range(len(cm)) if image_size // (2 ** i) in attn_res_list
-        )
-
-    return attn_indices, cm_tuple
+from .unet_2d import (
+    _build_block_types,
+    _channel_mult_for_resolution,
+    _parse_create_model_args,
+)
 
 
 class _LambdaField(nn.Module):

@@ -83,7 +83,7 @@ def main():
     cfg = load_config(checkpoint_dir, args.task)
 
     from src.pipelines.ddib import DDIBPipeline
-    from src.models.unet.unet_ddib import DDIBUNet
+    from src.models import DDIBUNet
 
     logger.info("Loading DDIB pipeline from %s", checkpoint_dir)
     pipeline = DDIBPipeline.from_pretrained(str(checkpoint_dir))

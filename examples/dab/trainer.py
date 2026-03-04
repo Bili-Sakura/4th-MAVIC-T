@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from accelerate.logging import get_logger
 
 from src.schedulers import DABScheduler
-from src.models.unet.unet_dab import create_model as create_dab_model
+from examples.dab.model import create_dab_model
 
 from examples.bibbdm.trainer import BiBBDMTrainer
 from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest

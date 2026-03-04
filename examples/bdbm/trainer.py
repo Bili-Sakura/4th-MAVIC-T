@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from accelerate.logging import get_logger
 
 from src.schedulers import BDBMScheduler
-from src.models.unet.unet_bdbm import create_model as create_bdbm_model
+from examples.bdbm.model import create_bdbm_model
 
 from examples.bibbdm.trainer import BiBBDMTrainer
 from examples.ddbm.dataset_wrapper import resolve_paired_val_manifest

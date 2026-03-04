@@ -29,7 +29,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.models.unet.unet_dbim import DBIMUNet
+from src.models import DBIMUNet
 from src.pipelines.dbim import DBIMPipeline
 from src.schedulers import DBIMScheduler
 
