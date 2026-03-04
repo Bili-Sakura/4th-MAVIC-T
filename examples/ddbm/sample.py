@@ -244,7 +244,7 @@ def _load_pipeline(
             in_channels=cfg.model_channels,
             num_channels=cfg.num_channels,
             num_res_blocks=cfg.num_res_blocks,
-            unet_type=cfg.unet_type,
+            backbone_type=cfg.backbone_type,
             attention_resolutions=cfg.attention_resolutions,
             dropout=0.0,
             condition_mode=cfg.condition_mode,

@@ -45,14 +45,14 @@ def create_bdbm_model(
     condition_mode: Optional[str] = "dual",
     channel_mult: str = "",
     objective: str = "noise",
-    unet_type: str = UNET_TYPE_ADM,
+    backbone_type: str = UNET_TYPE_ADM,
     conditioning_channels: Optional[int] = None,
     **_: Any,
 ) -> nn.Module:
     """Factory for BDBM-compatible UNet models."""
-    if unet_type not in SUPPORTED_UNET_TYPES:
+    if backbone_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+            f"backbone_type '{backbone_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
         )
 
     attn_indices, cm_tuple = _parse_create_model_args(

@@ -35,7 +35,7 @@ def _default_sigmoid_bias(resolution: int) -> float:
 
 def _apply_sid2_defaults(cfg: TaskConfig) -> TaskConfig:
     """Convert a DDBM task config into a standalone SiD2 baseline config."""
-    cfg.unet_type = "sid"
+    cfg.backbone_type = "sid"
     cfg.use_multiscale_loss = False
     cfg.multiscale_base_resolution = 32
 

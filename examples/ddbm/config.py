@@ -35,10 +35,10 @@ class TaskConfig:
     exclude_file: Optional[str] = "datasets/BiliSakura/MACIV-T-2025-Structure-Refined/manifests/bad_samples.txt"  # path to txt of bad image paths to skip
 
     # ---- model ----
-    # Backbone: adm (default) | edm | vdm | pixnerd
+    # Backbone: adm (default) | edm | vdm | pixnerd | pixeldit | sit
     # Note: edm2 disabled (pipeline incompatible)
     # pixnerd: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder)
-    unet_type: str = "adm"
+    backbone_type: str = "adm"
     num_channels: int = 128
     num_res_blocks: int = 2
     attention_resolutions: str = "64,32"  # ADM-style; 64px and below

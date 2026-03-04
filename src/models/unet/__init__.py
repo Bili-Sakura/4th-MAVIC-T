@@ -25,7 +25,8 @@ from .unet_2d import (
     # Generic factory
     create_model,
     # Type constants
-    get_unet_type_config,
+    get_backbone_config,
+    get_unet_type_config,  # backward-compat alias
     SUPPORTED_UNET_TYPES,
     SUPPORTED_DIT_TYPES,
     SUPPORTED_BACKBONE_TYPES,
@@ -36,15 +37,13 @@ from .unet_2d import (
     DIT_TYPE_PIXNERD,
     DIT_TYPE_PIXELDIT,
     DIT_TYPE_SIT,
-    UNET_TYPE_PIXNERD,
-    UNET_TYPE_PIXELDIT,
-    UNET_TYPE_SIT,
     # Shared utilities
     _build_block_types,
     _channel_mult_for_resolution,
     _parse_layers_per_block,
     _parse_create_model_args,
-    _raise_unet_placeholder,
+    _raise_backbone_placeholder,
+    _raise_unet_placeholder,  # backward-compat alias
 )
 from .unet_cdtsde import CDTSDEUNet
 from .unet_unidb import UniDBConditionalUNet
@@ -88,15 +87,14 @@ __all__ = [
     # Factory
     "create_model",
     # Type constants
-    "get_unet_type_config",
+    "get_backbone_config", "get_unet_type_config",
     "SUPPORTED_UNET_TYPES", "SUPPORTED_DIT_TYPES", "SUPPORTED_BACKBONE_TYPES",
     "UNET_TYPE_ADM", "UNET_TYPE_EDM", "UNET_TYPE_EDM2", "UNET_TYPE_VDM",
     "DIT_TYPE_PIXNERD", "DIT_TYPE_PIXELDIT", "DIT_TYPE_SIT",
-    "UNET_TYPE_PIXNERD", "UNET_TYPE_PIXELDIT", "UNET_TYPE_SIT",
     # Shared utilities
     "_build_block_types", "_channel_mult_for_resolution",
     "_parse_layers_per_block", "_parse_create_model_args",
-    "_raise_unet_placeholder",
+    "_raise_backbone_placeholder", "_raise_unet_placeholder",
     # Backward-compat aliases
     "DDBMUNet", "DBIMUNet", "I2SBUNet", "BiBBDMUNet", "SiDUNet",
     "BDBMUNet", "DABUNet", "DDIBUNet",

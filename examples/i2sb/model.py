@@ -22,7 +22,7 @@ from src.models.unet.unet_2d import (
     _channel_mult_for_resolution,
     _parse_create_model_args,
     _parse_layers_per_block,
-    get_unet_type_config,
+    get_backbone_config,
     SUPPORTED_UNET_TYPES,
     UNET_TYPE_ADM,
     UNET_TYPE_EDM,
@@ -51,7 +51,7 @@ def create_i2sb_model(
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
-    unet_type: str = UNET_TYPE_ADM,
+    backbone_type: str = UNET_TYPE_ADM,
     **kwargs: Any,
 ) -> nn.Module:
     """Factory for I2SB-compatible UNet models.
@@ -61,18 +61,18 @@ def create_i2sb_model(
 
     Parameters
     ----------
-    unet_type : str
+    backbone_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
-    if unet_type == UNET_TYPE_EDM2:
-        cfg = get_unet_type_config(UNET_TYPE_EDM2)
+    if backbone_type == UNET_TYPE_EDM2:
+        cfg = get_backbone_config(UNET_TYPE_EDM2)
         raise ValueError(
-            f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
+            f"backbone_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
         )
-    if unet_type not in SUPPORTED_UNET_TYPES:
+    if backbone_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+            f"backbone_type '{backbone_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
         )
 
     attn_indices, cm_tuple = _parse_create_model_args(
@@ -97,9 +97,9 @@ def create_i2sb_model(
         channel_mult=cm_tuple,
     )
 
-    cls = _I2SB_CLASS_MAP[unet_type]
+    cls = _I2SB_CLASS_MAP[backbone_type]
 
-    if unet_type == UNET_TYPE_VDM:
+    if backbone_type == UNET_TYPE_VDM:
         if "gamma_min" in kwargs:
             common_kwargs["gamma_min"] = kwargs["gamma_min"]
         if "gamma_max" in kwargs:

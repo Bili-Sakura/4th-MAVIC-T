@@ -20,7 +20,7 @@ def count_model(num_channels, num_res_blocks, attention_resolutions, channel_mul
         in_channels=1,
         num_channels=num_channels,
         num_res_blocks=num_res_blocks,
-        unet_type="adm",
+        backbone_type="adm",
         attention_resolutions=attention_resolutions,
         dropout=0.0,
         condition_mode="concat",

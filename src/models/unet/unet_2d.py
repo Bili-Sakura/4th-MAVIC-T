@@ -1,7 +1,7 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""Generic UNet backbone models built on ``diffusers.UNet2DModel``.
+"""Generic backbone models for diffusion bridge methods.
 
 Following the `diffusers <https://github.com/huggingface/diffusers>`_ philosophy,
 this module provides **method-agnostic** backbone architectures.  Method-specific
@@ -9,7 +9,10 @@ model creation and initialization (e.g. for DDBM, BiBBDM, I2SB, DDIB, etc.) is
 handled by factory helpers in each method's own ``examples/<method>/model.py``
 file, **not** here.
 
-Backbone types supported via ``unet_type`` in :func:`create_model`:
+Both UNet and DiT are usable backbones for diffusion bridge (and other) baseline
+methods.  They are **not** hybridized — each has its own type constants.
+
+Backbone types supported via ``backbone_type`` in :func:`create_model`:
 
 UNet backbones (wrapping ``diffusers.UNet2DModel``):
 - ``adm`` (:class:`UNet2DWrapper`) — ADM-style UNet with sinusoidal time embedding.
@@ -56,14 +59,9 @@ SUPPORTED_DIT_TYPES = (DIT_TYPE_PIXNERD, DIT_TYPE_PIXELDIT, DIT_TYPE_SIT)
 # Combined backbone types for validation
 SUPPORTED_BACKBONE_TYPES = SUPPORTED_UNET_TYPES + SUPPORTED_DIT_TYPES
 
-# Backward-compat aliases: DiT backbones were previously registered as UNET_TYPE_*.
-UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
-UNET_TYPE_PIXELDIT = DIT_TYPE_PIXELDIT
-UNET_TYPE_SIT = DIT_TYPE_SIT
 
-
-def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
-    """Return a config hint dict for the given UNet type.
+def get_backbone_config(backbone_type: str) -> Dict[str, Any]:
+    """Return a config hint dict for the given backbone type.
 
     Used for documentation and validation.
     """
@@ -125,19 +123,27 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             "implemented": True,
         },
     }
-    if unet_type not in configs:
+    if backbone_type not in configs:
         raise ValueError(
-            f"Unknown unet_type '{unet_type}'. Supported: {tuple(configs.keys())}"
+            f"Unknown backbone_type '{backbone_type}'. Supported: {tuple(configs.keys())}"
         )
-    return configs[unet_type].copy()
+    return configs[backbone_type].copy()
 
 
-def _raise_unet_placeholder(baseline: str, unet_type: str) -> None:
-    """Raise ValueError for unknown unet_type in a given baseline."""
+# Backward-compat alias
+get_unet_type_config = get_backbone_config
+
+
+def _raise_backbone_placeholder(baseline: str, backbone_type: str) -> None:
+    """Raise ValueError for unknown backbone_type in a given baseline."""
     raise ValueError(
-        f"Unknown unet_type '{unet_type}' for {baseline}. "
+        f"Unknown backbone_type '{backbone_type}' for {baseline}. "
         f"Supported: {SUPPORTED_BACKBONE_TYPES}"
     )
+
+
+# Backward-compat alias
+_raise_unet_placeholder = _raise_backbone_placeholder
 
 
 # ---------------------------------------------------------------------------
@@ -722,7 +728,7 @@ def create_model(
     dropout: float = 0.0,
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
-    unet_type: str = UNET_TYPE_ADM,
+    backbone_type: str = UNET_TYPE_ADM,
     attention_head_dim: Optional[int] = 64,
     **kwargs: Any,
 ) -> nn.Module:
@@ -733,23 +739,27 @@ def create_model(
 
     Parameters
     ----------
-    unet_type : str
+    backbone_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
         ``pixnerd``, ``pixeldit``, ``sit``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
-    if unet_type == UNET_TYPE_EDM2:
-        cfg = get_unet_type_config(UNET_TYPE_EDM2)
+    # Backward compat: accept old kwarg name ``unet_type``
+    if "unet_type" in kwargs:
+        backbone_type = kwargs.pop("unet_type")
+
+    if backbone_type == UNET_TYPE_EDM2:
+        cfg = get_backbone_config(UNET_TYPE_EDM2)
         raise ValueError(
-            f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
+            f"backbone_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
         )
-    if unet_type not in SUPPORTED_BACKBONE_TYPES:
+    if backbone_type not in SUPPORTED_BACKBONE_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_BACKBONE_TYPES}"
+            f"backbone_type '{backbone_type}' not supported. Use one of: {SUPPORTED_BACKBONE_TYPES}"
         )
 
     # PixNerd uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_PIXNERD:
+    if backbone_type == DIT_TYPE_PIXNERD:
         from ..dit.pixnerd import PixNerdBackbone
         return PixNerdBackbone(
             image_size=image_size,
@@ -766,7 +776,7 @@ def create_model(
         )
 
     # PixelDiT uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_PIXELDIT:
+    if backbone_type == DIT_TYPE_PIXELDIT:
         from ..dit.pixeldit import PixelDiTBackbone
         return PixelDiTBackbone(
             image_size=image_size,
@@ -784,7 +794,7 @@ def create_model(
         )
 
     # SiT uses a completely different parameter set from UNet backbones.
-    if unet_type == DIT_TYPE_SIT:
+    if backbone_type == DIT_TYPE_SIT:
         from ..dit.sit import SiTBackbone
         return SiTBackbone(
             image_size=image_size,
@@ -826,10 +836,10 @@ def create_model(
         if opt_key in kwargs:
             common_kwargs[opt_key] = kwargs[opt_key]
 
-    cls = _UNET_CLASS_MAP[unet_type]
+    cls = _UNET_CLASS_MAP[backbone_type]
 
     # VDM accepts extra init parameters via kwargs
-    if unet_type == UNET_TYPE_VDM:
+    if backbone_type == UNET_TYPE_VDM:
         if "gamma_min" in kwargs:
             common_kwargs["gamma_min"] = kwargs["gamma_min"]
         if "gamma_max" in kwargs:

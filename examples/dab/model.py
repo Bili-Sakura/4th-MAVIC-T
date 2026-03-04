@@ -38,14 +38,14 @@ def create_dab_model(
     condition_mode: Optional[str] = "concat",
     channel_mult: str = "",
     objective: str = "grad",
-    unet_type: str = UNET_TYPE_ADM,
+    backbone_type: str = UNET_TYPE_ADM,
     conditioning_channels: Optional[int] = None,
     **_: Any,
 ) -> nn.Module:
     """Factory for DAB-compatible UNet models."""
-    if unet_type not in SUPPORTED_UNET_TYPES:
+    if backbone_type not in SUPPORTED_UNET_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+            f"backbone_type '{backbone_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
         )
 
     attn_indices, cm_tuple = _parse_create_model_args(

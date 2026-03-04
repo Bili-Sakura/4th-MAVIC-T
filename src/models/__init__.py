@@ -15,7 +15,8 @@ from .unet import (
     # Generic factory
     create_model,
     # Type constants
-    get_unet_type_config,
+    get_backbone_config,
+    get_unet_type_config,  # backward-compat alias
     SUPPORTED_UNET_TYPES,
     SUPPORTED_DIT_TYPES,
     SUPPORTED_BACKBONE_TYPES,
@@ -26,9 +27,6 @@ from .unet import (
     DIT_TYPE_PIXNERD,
     DIT_TYPE_PIXELDIT,
     DIT_TYPE_SIT,
-    UNET_TYPE_PIXNERD,
-    UNET_TYPE_PIXELDIT,
-    UNET_TYPE_SIT,
     # Shared utilities
     _build_block_types,
     _channel_mult_for_resolution,
@@ -101,11 +99,10 @@ __all__ = [
     # Factory
     "create_model", "create_ddbm_model", "create_dbim_model",
     # Type constants
-    "get_unet_type_config",
+    "get_backbone_config", "get_unet_type_config",
     "SUPPORTED_UNET_TYPES", "SUPPORTED_DIT_TYPES", "SUPPORTED_BACKBONE_TYPES",
     "UNET_TYPE_ADM", "UNET_TYPE_EDM", "UNET_TYPE_EDM2", "UNET_TYPE_VDM",
     "DIT_TYPE_PIXNERD", "DIT_TYPE_PIXELDIT", "DIT_TYPE_SIT",
-    "UNET_TYPE_PIXNERD", "UNET_TYPE_PIXELDIT", "UNET_TYPE_SIT",
     # Shared utilities
     "_build_block_types", "_channel_mult_for_resolution",
     "_parse_layers_per_block", "_parse_create_model_args",

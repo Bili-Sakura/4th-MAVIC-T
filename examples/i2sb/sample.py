@@ -196,7 +196,7 @@ def _load_pipeline(
             dropout=0.0,
             condition_mode=cfg.condition_mode,
             channel_mult=cfg.channel_mult,
-            unet_type=getattr(cfg, "unet_type", "adm"),
+            backbone_type=getattr(cfg, "backbone_type", "adm"),
         )
         if str(path).endswith(".safetensors"):
             from safetensors.torch import load_file

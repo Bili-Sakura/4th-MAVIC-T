@@ -30,7 +30,7 @@ class ModelConfig:
     channel_mult: str = ""
     
     # Baseline-specific fields
-    unet_type: str = ""
+    backbone_type: str = ""
     pred_mode: str = ""
     sigma_max: float = 0.0
     sigma_min: float = 0.0
@@ -528,8 +528,8 @@ def generate_markdown(results, project_root):
                 md_lines.append(f"condition_mode: {config.condition_mode}")
                 
                 if baseline_name in ['DDBM', 'DBIM']:
-                    if config.unet_type:
-                        md_lines.append(f"unet_type: {config.unet_type}")
+                    if config.backbone_type:
+                        md_lines.append(f"backbone_type: {config.backbone_type}")
                     if config.pred_mode:
                         md_lines.append(f"pred_mode: {config.pred_mode}")
                     if config.sigma_max:

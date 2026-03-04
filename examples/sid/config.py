@@ -16,7 +16,7 @@ from examples.ddbm.config import (
 
 def _apply_sid_defaults(cfg: TaskConfig) -> TaskConfig:
     """Convert a DDBM task config into a standalone SiD baseline config."""
-    cfg.unet_type = "sid"
+    cfg.backbone_type = "sid"
     cfg.use_multiscale_loss = True
     cfg.multiscale_base_resolution = 32
 

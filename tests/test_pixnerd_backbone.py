@@ -7,7 +7,7 @@ Covers:
 * Module imports and public API
 * PixNerdBackbone initialization and configuration
 * Forward pass shapes (concat and unconditional modes)
-* Factory integration (create_model with unet_type='pixnerd')
+* Factory integration (create_model with backbone_type='pixnerd')
 * Config save/load round-trip (ModelMixin / ConfigMixin)
 * Gradient flow
 """
@@ -18,11 +18,10 @@ import pytest
 from src.models.dit.pixnerd import PixNerdBackbone
 from src.models import (
     create_model,
-    get_unet_type_config,
+    get_backbone_config,
     SUPPORTED_DIT_TYPES,
     SUPPORTED_BACKBONE_TYPES,
     DIT_TYPE_PIXNERD,
-    UNET_TYPE_PIXNERD,
 )
 
 
@@ -63,15 +62,12 @@ class TestImports:
     def test_dit_type_constant(self):
         assert DIT_TYPE_PIXNERD == "pixnerd"
 
-    def test_backward_compat_unet_alias(self):
-        assert UNET_TYPE_PIXNERD == DIT_TYPE_PIXNERD
-
     def test_in_supported_types(self):
         assert DIT_TYPE_PIXNERD in SUPPORTED_DIT_TYPES
         assert DIT_TYPE_PIXNERD in SUPPORTED_BACKBONE_TYPES
 
-    def test_get_unet_type_config(self):
-        cfg = get_unet_type_config(DIT_TYPE_PIXNERD)
+    def test_get_backbone_config(self):
+        cfg = get_backbone_config(DIT_TYPE_PIXNERD)
         assert cfg["implemented"] is True
         assert "PixNerd" in cfg["description"]
 
@@ -185,7 +181,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="pixnerd",
+            backbone_type="pixnerd",
             condition_mode="concat",
             pixnerd_hidden_size=192,
             pixnerd_hidden_size_x=32,
@@ -201,7 +197,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="pixnerd",
+            backbone_type="pixnerd",
             condition_mode="concat",
             pixnerd_hidden_size=192,
             pixnerd_hidden_size_x=32,
@@ -222,7 +218,7 @@ class TestFactory:
         model = create_model(
             image_size=32,
             in_channels=1,
-            unet_type="pixnerd",
+            backbone_type="pixnerd",
         )
         assert isinstance(model, PixNerdBackbone)
 

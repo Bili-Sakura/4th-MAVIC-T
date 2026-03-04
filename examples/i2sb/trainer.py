@@ -189,7 +189,7 @@ class I2SBTrainer:
             dropout=self.cfg.dropout,
             condition_mode=self.cfg.condition_mode,
             channel_mult=self.cfg.channel_mult,
-            unet_type=self.cfg.unet_type,
+            backbone_type=self.cfg.backbone_type,
         )
 
     def build_scheduler(self):

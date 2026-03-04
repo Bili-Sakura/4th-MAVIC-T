@@ -23,7 +23,7 @@ class TestConfig:
     def test_defaults(self):
         cfg = TaskConfig()
         cfg = sar2eo_config()
-        assert cfg.unet_type == "sid"
+        assert cfg.backbone_type == "sid"
         assert cfg.prediction_type == "v"
         assert cfg.schedule_type == "cosine_interpolated"
         assert cfg.sid2_include_dlogsnr is True

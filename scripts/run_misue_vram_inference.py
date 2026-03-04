@@ -112,7 +112,7 @@ def main():
         in_channels=in_channels,
         num_channels=cfg["num_channels"],
         num_res_blocks=cfg["num_res_blocks"],
-        unet_type=cfg.get("unet_type", "adm"),
+        backbone_type=cfg.get("backbone_type", cfg.get("unet_type", "adm")),
         attention_resolutions=cfg["attention_resolutions"],
         dropout=cfg.get("dropout", 0.0),
         condition_mode=cfg.get("condition_mode", "concat"),
