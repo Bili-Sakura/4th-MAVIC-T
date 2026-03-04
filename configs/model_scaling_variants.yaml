@@ -503,7 +503,182 @@ img2img_turbo:
 
 
 # ============================================================
-# 5. Quick-Reference Summary Table
+# 5. SiT Backbone  (Scalable Interpolant Transformer)
+# ============================================================
+# SiT (Ma et al., 2024) is a DiT-style transformer backbone using
+# stochastic interpolants.  It is adapted here for image-to-image
+# diffusion bridges in DDBM / I2SB / BiBBDM by replacing class-label
+# conditioning with pure timestep conditioning and concatenating the
+# source image along the channel axis (condition_mode='concat').
+#
+# The backbone is implemented in src/models/sit_backbone.py.
+# Use via unet_type='sit' in create_model(), with sit_ prefixed kwargs.
+#
+# Original SiT sizing follows Table 1 of the paper:
+#   S: depth=12, hidden_size=384,  num_heads=6
+#   B: depth=12, hidden_size=768,  num_heads=12
+#   L: depth=24, hidden_size=1024, num_heads=16
+#   XL: depth=28, hidden_size=1152, num_heads=16
+# Patch sizes: 2 (recommended), 4, or 8.
+#
+# **Parameter counts are exact** (condition_mode='concat', image_size=256),
+# obtained by sum(p.numel() for p in model.parameters()).
+# Note: pos_embed is NOT trainable (frozen sin-cos); it is counted here
+# because it is a registered parameter.
+#
+# Conditional (concat) counts include the extra input channels for the
+# concatenated source image; unconditional counts use in_channels only.
+#
+# Exact parameter counts for all sizes at patch_size=2 (image_size=256):
+#   SiT-S/2  1ch concat: 38,758,276    1ch uncond: 38,756,740
+#   SiT-S/2  3ch concat: 38,767,500    3ch uncond: 38,762,892
+#   SiT-B/2  1ch concat: 142,102,276   1ch uncond: 142,099,204
+#   SiT-B/2  3ch concat: 142,120,716   3ch uncond: 142,111,500
+#   SiT-L/2  1ch concat: 473,555,972   1ch uncond: 473,551,876
+#   SiT-L/2  3ch concat: 473,580,556   3ch uncond: 473,568,268
+#   SiT-XL/2 1ch concat: 692,514,436   1ch uncond: 692,509,828
+#   SiT-XL/2 3ch concat: 692,542,092   3ch uncond: 692,528,268
+# ---------------------------------------------------------------------------
+
+sit:
+  # -------------------------------------------------------
+  # S  (Small)  ~39 M params
+  # -------------------------------------------------------
+  S:
+    depth: 12
+    hidden_size: 384
+    num_heads: 6
+    patch_size: 2          # recommended default; also supports 4, 8
+    mlp_ratio: 4.0
+    exact_params_1ch_concat: 38758276
+    exact_params_3ch_concat: 38767500
+    exact_params_1ch_uncond: 38756740
+    exact_params_3ch_uncond: 38762892
+    recommended_resolution: "256"
+    notes: >
+      Smallest SiT size.  ~39 M parameters (1ch conditional).  Suitable
+      for rapid prototyping at 256px.  Training is fast on a single GPU.
+
+  # -------------------------------------------------------
+  # B  (Base)  ~142 M params
+  # -------------------------------------------------------
+  B:
+    depth: 12
+    hidden_size: 768
+    num_heads: 12
+    patch_size: 2
+    mlp_ratio: 4.0
+    exact_params_1ch_concat: 142102276
+    exact_params_3ch_concat: 142120716
+    exact_params_1ch_uncond: 142099204
+    exact_params_3ch_uncond: 142111500
+    recommended_resolution: "256"
+    notes: >
+      Base SiT size.  ~142 M parameters (1ch conditional).  Good
+      balance of quality and compute for 256px image translation.
+
+  # -------------------------------------------------------
+  # L  (Large)  ~474 M params
+  # -------------------------------------------------------
+  L:
+    depth: 24
+    hidden_size: 1024
+    num_heads: 16
+    patch_size: 2
+    mlp_ratio: 4.0
+    exact_params_1ch_concat: 473555972
+    exact_params_3ch_concat: 473580556
+    exact_params_1ch_uncond: 473551876
+    exact_params_3ch_uncond: 473568268
+    recommended_resolution: "512"
+    notes: >
+      Large SiT size.  ~474 M parameters (1ch conditional).  Recommended
+      for 512px tasks.  Requires 24+ GB VRAM (fp16, batch_size=1).
+
+  # -------------------------------------------------------
+  # XL  (XLarge)  ~693 M params  (matches original SiT-XL/2)
+  # -------------------------------------------------------
+  XL:
+    depth: 28
+    hidden_size: 1152
+    num_heads: 16
+    patch_size: 2
+    mlp_ratio: 4.0
+    exact_params_1ch_concat: 692514436
+    exact_params_3ch_concat: 692542092
+    exact_params_1ch_uncond: 692509828
+    exact_params_3ch_uncond: 692528268
+    recommended_resolution: "512-1024"
+    notes: >
+      Largest SiT size, matching SiT-XL/2 from the original paper.
+      ~693 M parameters (1ch conditional).  Multi-GPU recommended for
+      512px+ tasks.
+
+  # -------------------------------------------------------
+  # Patch size comparison (SiT-B at 256px)
+  # -------------------------------------------------------
+  # Larger patch_size → fewer tokens → faster training but coarser output.
+  # All patch sizes are exact-count verified (1ch conditional, image_size=256).
+  #
+  #  patch_size | SiT-S (1ch) | SiT-B (1ch) | SiT-L (1ch) | SiT-XL (1ch)
+  # ------------|-------------|-------------|-------------|-------------
+  #  2          | 38,758,276  | 142,102,276 | 473,555,972 | 692,514,436
+  #  4          | 34,053,520  | 132,692,752 | 461,009,936 | 678,400,144
+  #  8          | 32,929,216  | 130,444,096 | 458,011,712 | 675,027,136
+  #
+  # patch_size=2 has more parameters because the patch embedding Conv2d and
+  # final linear layer scale with patch_size**2.
+
+  # -------------------------------------------------------
+  # Per-task guidance
+  # -------------------------------------------------------
+  tasks:
+    sar2eo:
+      source_channels: 1
+      target_channels: 1
+      condition_mode: "concat"
+      resolution: 256
+      recommended_size: "S or B"
+      sit_patch_size: 2
+      notes: >
+        256×256.  Use SiT-S (fast, ~39 M) or SiT-B (better quality, ~142 M).
+        Pass sit_hidden_size / sit_depth / sit_num_heads / sit_patch_size
+        as kwargs to create_model(unet_type='sit', ...).
+
+    rgb2ir:
+      source_channels: 3
+      target_channels: 1
+      condition_mode: "concat"
+      resolution: 1024
+      recommended_size: "L or XL"
+      sit_patch_size: 2
+      notes: >
+        1024×1024.  Use SiT-L (~474 M) or SiT-XL (~693 M).
+        Multi-GPU recommended for XL at 1024px.
+
+    sar2ir:
+      source_channels: 1
+      target_channels: 1
+      condition_mode: "concat"
+      resolution: 1024
+      recommended_size: "L or XL"
+      sit_patch_size: 2
+      notes: >
+        1024×1024.  Use SiT-L (~474 M) or SiT-XL (~693 M).
+
+    sar2rgb:
+      source_channels: 1
+      target_channels: 3
+      condition_mode: "concat"
+      resolution: 1024
+      recommended_size: "L or XL"
+      sit_patch_size: 2
+      notes: >
+        1024×1024.  Use SiT-L (~474 M) or SiT-XL (~693 M).
+
+
+# ============================================================
+# 6. Quick-Reference Summary Table
 # ============================================================
 # Exact parameter counts for sar2eo task (1-channel):
 #
@@ -516,6 +691,15 @@ img2img_turbo:
 #
 #  ★ = current project default
 #
+# SiT backbone exact parameter counts (1ch conditional, patch_size=2, image_size=256):
+#
+#  Size | params (1ch concat)
+# ------|--------------------
+#  S    |  38,758,276
+#  B    | 142,102,276
+#  L    | 473,555,972
+#  XL   | 692,514,436
+#
 # ---------------------------------------------------------------------------
 # VRAM Guidelines (approximate, fp16/bf16, batch_size=1)
 # ---------------------------------------------------------------------------
@@ -525,6 +709,12 @@ img2img_turbo:
 #  medium |  8-16 GB          | 256 px
 #  large  |  24-40 GB         | 512 px
 #  huge   |  40+ GB           | 1024 px; multi-GPU recommended
+#
+# SiT VRAM guidelines (fp16/bf16, batch_size=1):
+#  S   |  4-8 GB    | 256 px, fast training
+#  B   |  8-16 GB   | 256 px
+#  L   |  24-40 GB  | 512 px
+#  XL  |  40+ GB    | 512-1024 px; multi-GPU recommended
 #
 # ---------------------------------------------------------------------------
 # How to use these variants
@@ -538,6 +728,19 @@ img2img_turbo:
 #       num_res_blocks=2,
 #       attention_resolutions="128,64,32",
 #       channel_mult="1,1,2,2,4,8",
+#   )
+#
+# Example for SiT-B (Base) with sar2eo (256px):
+#
+#   model = create_model(
+#       image_size=256,
+#       in_channels=1,
+#       unet_type="sit",
+#       condition_mode="concat",
+#       sit_hidden_size=768,
+#       sit_depth=12,
+#       sit_num_heads=12,
+#       sit_patch_size=2,
 #   )
 #
 # Or pass them as command-line overrides to the train scripts that accept
