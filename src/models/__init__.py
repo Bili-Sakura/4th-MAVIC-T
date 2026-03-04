@@ -15,6 +15,7 @@ from .unet_ddbm import (
     UNET_TYPE_EDM,
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
+    DIT_TYPE_PIXNERD,
     UNET_TYPE_PIXNERD,
     UNET_TYPE_SIT,
 )
@@ -91,6 +92,7 @@ __all__ = [
     "UNET_TYPE_EDM",
     "UNET_TYPE_EDM2",
     "UNET_TYPE_VDM",
+    "DIT_TYPE_PIXNERD",
     "UNET_TYPE_PIXNERD",
     "UNET_TYPE_SIT",
     "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet",
