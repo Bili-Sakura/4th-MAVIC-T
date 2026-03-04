@@ -19,7 +19,8 @@ from src.models.dit.sit_backbone import SiTBackbone
 from src.models.unet.unet_ddbm import (
     create_model,
     get_unet_type_config,
-    SUPPORTED_UNET_TYPES,
+    SUPPORTED_BACKBONE_TYPES,
+    DIT_TYPE_SIT,
     UNET_TYPE_SIT,
 )
 
@@ -60,7 +61,7 @@ class TestImports:
         assert UNET_TYPE_SIT == "sit"
 
     def test_in_supported_types(self):
-        assert UNET_TYPE_SIT in SUPPORTED_UNET_TYPES
+        assert UNET_TYPE_SIT in SUPPORTED_BACKBONE_TYPES
 
     def test_get_unet_type_config(self):
         cfg = get_unet_type_config(UNET_TYPE_SIT)
