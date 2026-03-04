@@ -29,7 +29,10 @@ where $\hat{z}_0 = D_\theta(z_{t_{n+1}}, t_{n+1}, \bm{x})$ is the UNet denoiser 
 Since $c_{t_N} = 0$ leads to a singularity at initialization, we force the first step to be stochastic by setting $\rho_{N-1} = c_{t_{N-1}}$, injecting Gaussian booting noise $\epsilon_{\text{boot}}$ that encodes the one-to-many mapping ambiguity.
 
 \paragraph{Architecture.}
-Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that receives the channel-wise concatenation $[z_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). The architecture overview is shown in \cref{fig:method_overview}.
+Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that receives the channel-wise concatenation $[\bm{z}_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). The architecture overview is shown in \cref{fig:method_overview}.
+
+\paragraph{Channel Handling for Mismatched Modalities.}
+For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared \texttt{model\_channels} space (typically 3 for RGB-related tasks). Single-band modalities are expanded to \texttt{model\_channels} by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
 
 \begin{figure}[h]
     \centering

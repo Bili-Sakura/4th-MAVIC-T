@@ -62,6 +62,9 @@ where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clea
 
 \paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
 
+\paragraph{Channel Handling for Mismatched Modalities.}
+For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared \texttt{model\_channels} space (typically 3 for RGB-related tasks). Single-band modalities are expanded to \texttt{model\_channels} by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
+
 \subsection{Method 2: Contrastive Unpaired Translation (CUT)}
 \label{sec:cut_formalism}
 
