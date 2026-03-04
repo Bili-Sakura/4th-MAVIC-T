@@ -3,59 +3,55 @@
 
 """Model architectures for MAVIC-T baselines."""
 
-from .unet_ddbm import (
+# ---------------------------------------------------------------------------
+# UNet backbones (src/models/unet/)
+# ---------------------------------------------------------------------------
+from .unet import (
     DDBMUNet,
     EDMUNet,
     EDM2UNet,
     VDMUNet,
-    create_model as create_ddbm_model,
+    create_ddbm_model,
     get_unet_type_config,
     SUPPORTED_UNET_TYPES,
+    SUPPORTED_DIT_TYPES,
+    SUPPORTED_BACKBONE_TYPES,
     UNET_TYPE_ADM,
     UNET_TYPE_EDM,
     UNET_TYPE_EDM2,
     UNET_TYPE_VDM,
     DIT_TYPE_PIXNERD,
+    DIT_TYPE_PIXELDIT,
+    DIT_TYPE_SIT,
     UNET_TYPE_PIXNERD,
     UNET_TYPE_PIXELDIT,
-)
-from .pixnerd_backbone import PixNerdBackbone
-from .pixeldit_backbone import PixelDiTBackbone
     UNET_TYPE_SIT,
-)
-from .pixnerd_backbone import PixNerdBackbone
-from .sit_backbone import SiTBackbone
-from .unet_sid import SiDUNet, create_sid_model
-from .unet_dbim import (
-    DBIMUNet,
-    DBIMEDMUNet,
-    DBIMEDM2UNet,
-    DBIMVDMUNet,
+    SiDUNet, create_sid_model,
+    DBIMUNet, DBIMEDMUNet, DBIMEDM2UNet, DBIMVDMUNet,
     create_dbim_model,
+    BiBBDMUNet, EDMBiBBDMUNet, EDM2BiBBDMUNet, VDMBiBBDMUNet,
+    create_bibbdm_model,
+    BDBMUNet, create_bdbm_model,
+    DDIBUNet, create_ddib_model,
+    I2SBUNet, EDMI2SBUNet, EDM2I2SBUNet, VDMI2SBUNet,
+    create_i2sb_model,
+    CDTSDEUNet, create_cdtsde_model,
+    DABUNet, create_dab_model,
+    UniDBConditionalUNet,
 )
-from .unet_bibbdm import (
-    BiBBDMUNet,
-    EDMBiBBDMUNet,
-    EDM2BiBBDMUNet,
-    VDMBiBBDMUNet,
+
+# ---------------------------------------------------------------------------
+# DiT backbones (src/models/dit/)
+# ---------------------------------------------------------------------------
+from .dit import (
+    PixNerdBackbone,
+    PixelDiTBackbone,
+    SiTBackbone,
 )
-from .unet_bibbdm import create_model as create_bibbdm_model
-from .unet_bdbm import BDBMUNet
-from .unet_bdbm import create_model as create_bdbm_model
-from .unet_ddib import DDIBUNet
-from .unet_ddib import create_model as create_ddib_model
-from .unet_i2sb import (
-    I2SBUNet,
-    EDMI2SBUNet,
-    EDM2I2SBUNet,
-    VDMI2SBUNet,
-)
-from .unet_i2sb import create_model as create_i2sb_model
-from .unet_cdtsde import CDTSDEUNet
-from .unet_cdtsde import create_model as create_cdtsde_model
-from .unet_dab import DABUNet
-from .unet_dab import create_model as create_dab_model
-from .unet_unidb import UniDBConditionalUNet
+
+# ---------------------------------------------------------------------------
+# GAN / other models (remain at src/models/ root)
+# ---------------------------------------------------------------------------
 from .cut_model import (
     CUTGenerator,
     PatchGANDiscriminator,
@@ -85,22 +81,17 @@ from .cyclegan_turbo import (
 )
 
 __all__ = [
+    # UNet backbones
     "DDBMUNet", "EDMUNet", "EDM2UNet", "VDMUNet",
-    "PixNerdBackbone",
-    "PixelDiTBackbone",
-    "SiTBackbone",
     "create_ddbm_model",
     "SiDUNet", "create_sid_model",
     "get_unet_type_config",
     "SUPPORTED_UNET_TYPES",
-    "UNET_TYPE_ADM",
-    "UNET_TYPE_EDM",
-    "UNET_TYPE_EDM2",
-    "UNET_TYPE_VDM",
-    "DIT_TYPE_PIXNERD",
-    "UNET_TYPE_PIXNERD",
-    "UNET_TYPE_PIXELDIT",
-    "UNET_TYPE_SIT",
+    "SUPPORTED_DIT_TYPES",
+    "SUPPORTED_BACKBONE_TYPES",
+    "UNET_TYPE_ADM", "UNET_TYPE_EDM", "UNET_TYPE_EDM2", "UNET_TYPE_VDM",
+    "DIT_TYPE_PIXNERD", "DIT_TYPE_PIXELDIT", "DIT_TYPE_SIT",
+    "UNET_TYPE_PIXNERD", "UNET_TYPE_PIXELDIT", "UNET_TYPE_SIT",
     "DBIMUNet", "DBIMEDMUNet", "DBIMEDM2UNet", "DBIMVDMUNet",
     "create_dbim_model",
     "BiBBDMUNet", "EDMBiBBDMUNet", "EDM2BiBBDMUNet", "VDMBiBBDMUNet",
@@ -112,6 +103,11 @@ __all__ = [
     "CDTSDEUNet", "create_cdtsde_model",
     "DABUNet", "create_dab_model",
     "UniDBConditionalUNet",
+    # DiT backbones
+    "PixNerdBackbone",
+    "PixelDiTBackbone",
+    "SiTBackbone",
+    # GAN / other models
     "CUTGenerator", "PatchGANDiscriminator", "PatchSampleMLP",
     "GANLoss", "PatchNCELoss",
     "create_generator", "create_discriminator", "create_patch_sample_mlp",

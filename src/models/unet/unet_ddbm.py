@@ -1,8 +1,7 @@
 # Copyright (c) 2026 EarthBridge Team.
 # Credits: Built on open-source libraries and papers acknowledged in README.md citations.
 
-"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, and PixelDiT.
-"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, and SiT.
+"""DDBM-compatible backbone models built on ``diffusers.UNet2DModel``, PixNerd, PixelDiT, and SiT.
 
 The vendor DDBM UNet accepts ``(x, timestep, xT=…)`` where ``xT`` is the
 source/condition image.  With ``condition_mode='concat'`` the model
@@ -15,10 +14,14 @@ the underlying ``UNet2DModel``, so the rest of the training / sampling code
 can call ``model(x, t, xT=source)`` just like the vendor code.
 
 Supported backbone types (via ``unet_type`` in :func:`create_model`):
+
+*UNet backbones:*
 - ``adm``: ADM-style diffusers UNet2DModel (default).
 - ``edm``: EDM/DDPM++ style using UNet2DModel with Fourier time embedding.
 - ``edm2``: DISABLED. See :class:`EDM2UNet` docstring for the incompatibility issue.
 - ``vdm``: Variational Diffusion Model with logSNR time normalization.
+
+*DiT backbones (located under ``src/models/dit/``):*
 - ``pixnerd``: PixNerd DiT + NerfBlock (pixel-space transformer with neural field decoder).
 - ``pixeldit``: PixelDiT dual-level DiT (patch-level semantics + pixel-level texture detail).
 - ``sit``: SiT (Scalable Interpolant Transformer) DiT blocks (pure PyTorch).
@@ -39,22 +42,25 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 # Backbone type registry and config placeholders
 # ---------------------------------------------------------------------------
 
+# UNet backbone types
 UNET_TYPE_ADM = "adm"
 UNET_TYPE_EDM = "edm"
 UNET_TYPE_EDM2 = "edm2"
 UNET_TYPE_VDM = "vdm"
-UNET_TYPE_PIXNERD = "pixnerd"
-UNET_TYPE_PIXELDIT = "pixeldit"
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD, UNET_TYPE_PIXELDIT)
-UNET_TYPE_SIT = "sit"
-
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, UNET_TYPE_PIXNERD, UNET_TYPE_SIT)
+# DiT backbone types
 DIT_TYPE_PIXNERD = "pixnerd"
-# Backward-compat alias: PixNerd is a DiT backbone, not a UNet.
-UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
+DIT_TYPE_PIXELDIT = "pixeldit"
+DIT_TYPE_SIT = "sit"
 
-SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM, DIT_TYPE_PIXNERD)
+# Backward-compat aliases: DiT backbones were historically registered as UNET_TYPE_*
+UNET_TYPE_PIXNERD = DIT_TYPE_PIXNERD
+UNET_TYPE_PIXELDIT = DIT_TYPE_PIXELDIT
+UNET_TYPE_SIT = DIT_TYPE_SIT
+
+SUPPORTED_UNET_TYPES = (UNET_TYPE_ADM, UNET_TYPE_EDM, UNET_TYPE_VDM)
+SUPPORTED_DIT_TYPES = (DIT_TYPE_PIXNERD, DIT_TYPE_PIXELDIT, DIT_TYPE_SIT)
+SUPPORTED_BACKBONE_TYPES = SUPPORTED_UNET_TYPES + SUPPORTED_DIT_TYPES
 
 
 def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
@@ -98,14 +104,17 @@ def get_unet_type_config(unet_type: str) -> Dict[str, Any]:
             ),
             "implemented": True,
         },
-        UNET_TYPE_PIXELDIT: {
+        DIT_TYPE_PIXELDIT: {
             "source": "PixelDiT dual-level DiT (pure PyTorch)",
             "description": (
                 "PixelDiT pixel-space dual-level DiT with patch-level semantic "
                 "blocks and pixel-level transformer blocks using pixel-wise AdaLN "
                 "and token compaction. Backbone only — the original PixelDiT "
                 "flow-matching scheduler is NOT used."
-        UNET_TYPE_SIT: {
+            ),
+            "implemented": True,
+        },
+        DIT_TYPE_SIT: {
             "source": "SiT DiT blocks (pure PyTorch)",
             "description": (
                 "SiT (Scalable Interpolant Transformer) backbone with adaLN-Zero "
@@ -634,8 +643,7 @@ def create_model(
     ----------
     unet_type : str
         Backbone architecture. One of: ``adm`` (default), ``edm``, ``vdm``,
-        ``pixnerd``, ``pixeldit``.
-        ``pixnerd``, ``sit``.
+        ``pixnerd``, ``pixeldit``, ``sit``.
         Note: ``edm2`` is disabled due to pipeline incompatibility.
     """
     if unet_type == UNET_TYPE_EDM2:
@@ -643,14 +651,14 @@ def create_model(
         raise ValueError(
             f"unet_type 'edm2' is disabled. {cfg.get('issue', 'Incompatible with pipeline.')}"
         )
-    if unet_type not in SUPPORTED_UNET_TYPES:
+    if unet_type not in SUPPORTED_BACKBONE_TYPES:
         raise ValueError(
-            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_UNET_TYPES}"
+            f"unet_type '{unet_type}' not supported. Use one of: {SUPPORTED_BACKBONE_TYPES}"
         )
 
     # PixNerd uses a completely different parameter set from UNet backbones.
     if unet_type == DIT_TYPE_PIXNERD:
-        from .pixnerd_backbone import PixNerdBackbone
+        from ..dit.pixnerd_backbone import PixNerdBackbone
         return PixNerdBackbone(
             image_size=image_size,
             in_channels=in_channels,
@@ -666,8 +674,8 @@ def create_model(
         )
 
     # PixelDiT uses a completely different parameter set from UNet backbones.
-    if unet_type == UNET_TYPE_PIXELDIT:
-        from .pixeldit_backbone import PixelDiTBackbone
+    if unet_type == DIT_TYPE_PIXELDIT:
+        from ..dit.pixeldit_backbone import PixelDiTBackbone
         return PixelDiTBackbone(
             image_size=image_size,
             in_channels=in_channels,
@@ -679,9 +687,13 @@ def create_model(
             pixel_num_heads=kwargs.get("pixeldit_pixel_num_heads", 16),
             patch_size=kwargs.get("pixeldit_patch_size", 16),
             mlp_ratio=kwargs.get("pixeldit_mlp_ratio", 4.0),
+            condition_mode=condition_mode,
+            dropout=dropout,
+        )
+
     # SiT uses a completely different parameter set from UNet backbones.
-    if unet_type == UNET_TYPE_SIT:
-        from .sit_backbone import SiTBackbone
+    if unet_type == DIT_TYPE_SIT:
+        from ..dit.sit_backbone import SiTBackbone
         return SiTBackbone(
             image_size=image_size,
             patch_size=kwargs.get("sit_patch_size", 2),
