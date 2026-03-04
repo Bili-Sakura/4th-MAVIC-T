@@ -397,7 +397,7 @@ def enable_efficient_attention(
             try:
                 fn()
                 log.info("xformers memory-efficient attention enabled.")
-            except Exception as exc:  # noqa: BLE001
+            except (ImportError, ModuleNotFoundError, RuntimeError) as exc:
                 log.warning("Could not enable xformers: %s", exc)
         else:
             log.warning(
@@ -420,7 +420,7 @@ def enable_efficient_attention(
                     "Model %s does not support set_attn_processor; skipping Flash Attention 2.",
                     type(target).__name__,
                 )
-        except Exception as exc:  # noqa: BLE001
+        except (ImportError, ModuleNotFoundError, RuntimeError) as exc:
             log.warning("Could not enable Flash Attention 2: %s", exc)
 
 

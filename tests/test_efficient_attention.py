@@ -42,6 +42,8 @@ class TestEnableEfficientAttention:
 
     def test_flash_attention_2_sets_processor(self, small_unet, caplog):
         """Flash Attention 2 gracefully handles UNet2DModel (warns when unsupported)."""
+        from diffusers.models.attention_processor import AttnProcessor2_0
+
         with caplog.at_level(logging.WARNING):
             enable_efficient_attention(small_unet, enable_flash_attention_2=True)
         # UNet2DModel may not have set_attn_processor - check it warns or succeeds
@@ -49,7 +51,6 @@ class TestEnableEfficientAttention:
         if not has_set_fn:
             assert any("does not support" in r.message for r in caplog.records)
         else:
-            from diffusers.models.attention_processor import AttnProcessor2_0
             for name, proc in small_unet.attn_processors.items():
                 assert isinstance(proc, AttnProcessor2_0)
 
