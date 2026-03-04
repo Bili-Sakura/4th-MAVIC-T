@@ -25,7 +25,7 @@ from diffusers import DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from src.schedulers.scheduling_ddib import DDIBScheduler
-from src.models.unet_ddib import DDIBUNet
+from src.models.unet.unet_ddib import DDIBUNet
 
 
 @dataclass
