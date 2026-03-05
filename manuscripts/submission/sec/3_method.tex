@@ -6,7 +6,7 @@ We propose EarthBridge, built on Diffusion Bridge Implicit Models (DBIM)~\cite{z
 \subsection{Diffusion Bridge Implicit Models (DBIM)}
 \label{sec:dbim_formalism}
 
-Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogenous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
+Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogeneous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
 
 \paragraph{Stochastic Bridges via $h$-transform.}
 Given a base diffusion process $dx_t = f(x_t, t)dt + g(t)dw_t$, the conditioned SDE that almost surely reaches a prescribed target $x_0 = y$ at $t=0$ starting from a source $x_T = x$ at $t=T$ is given by:
@@ -24,43 +24,32 @@ Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024}
     z_t = a_t x + b_t y + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
     \label{eq:bridge_forward}
 \end{equation}
-where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excels in high-fidelity generation, its inference typically relies on simulating Eq.~\ref{eq:bridge_sde} via computationally expensive numerical solvers (e.g., Heun or stochastic samplers), often requiring hundreds of function evaluations (NFE) for optimal results. In this work, we adopt the more efficient \emph{implicit} formulation to accelerate this process.
+where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excels in high-fidelity generation, its inference typically relies on simulating Eq.~\ref{eq:bridge_sde} via computationally expensive numerical solvers (e.g., Heun or stochastic samplers), often requiring hundreds of function evaluations (NFE) for optimal results. In this work, we adopt the more efficient \emph{implicit} formulation to accelerate this process. \cref{fig:bridge_evolution} illustrates the distribution evolution from source to target.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[page=2,width=\linewidth,trim=0 54pt 0 81pt,clip]{figures/Figures.pdf}
+    \caption{Distribution evolution of the diffusion bridge. The source distribution at $\bm{z}_T=\bm{x}$ (left) converges through time $t$ to the target distribution at $\bm{z}_0=\bm{y}$ (right), governed by the DBIM update rule and denoiser $D_\theta$.}
+    \label{fig:bridge_evolution}
+\end{figure*}
 
 \subsection{EarthBridge: Non-Markovian DBIM}
 \label{sec:earthbridge_nonmarkovian}
 
-We present our DBIM approach which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
+We present our DBIM approach which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:denoising_process,fig:unet_architecture} show our sampling procedure and the UNet architecture.
 
 \begin{figure*}[t]
     \centering
-    \begin{subfigure}{\linewidth}
-        \centering
-        \includegraphics[page=3,width=\linewidth]{figures/Figures.pdf}
-        \caption{UNet denoiser for 1024px tasks.}
-        \label{fig:method_overview:a}
-    \end{subfigure}\\[0.25em]
-    \begin{subfigure}{0.48\linewidth}
-        \centering
-        \includegraphics[page=4,width=\linewidth]{figures/Figures.pdf}
-        \caption{\TODO{Subfigure placeholder.}}
-        \label{fig:method_overview:b}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\linewidth}
-        \centering
-        \includegraphics[page=5,width=\linewidth]{figures/Figures.pdf}
-        \caption{\TODO{Subfigure placeholder.}}
-        \label{fig:method_overview:c}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\linewidth}
-        \centering
-        \includegraphics[page=2,width=\linewidth]{figures/Figures.pdf}
-        \caption{\TODO{Subfigure placeholder.}}
-        \label{fig:method_overview:d}
-    \end{subfigure}
-    \caption{UNet architecture of our DBIM for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). We train at 512$\times$512 and infer at full resolution. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by this denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
-    \label{fig:method_overview}
+    \includegraphics[page=4,width=\linewidth]{figures/Figures.pdf}
+    \caption{Deterministic DBIM sampling. The noisy input $\bm{z}_T=\bm{x}+\bm{\epsilon}_{\text{boot}}$ is progressively denoised by $D_\theta(\bm{z}_t, t, \bm{x})$ to produce the clean output $\bm{z}_0=\bm{y}$. The step sequence shows conditioning, booting noise injection, and gradual refinement from $t=T$ to $t=0$.}
+    \label{fig:denoising_process}
+\end{figure*}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[page=3,width=\linewidth]{figures/Figures.pdf}
+    \caption{UNet denoiser architecture for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). The encoder downsamples via ResBlocks and average pooling; the decoder upsamples with skip connections. Source $\bm{x}$ is channel-concatenated with $\bm{z}_t$; the output is $\hat{\bm{z}}_0$. We train at 512$\times$512 and infer at full resolution.}
+    \label{fig:unet_architecture}
 \end{figure*}
 
 \paragraph{Non-Markovian Diffusion Bridges.}
@@ -86,7 +75,7 @@ where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clea
 \paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
 
 \paragraph{Channel Handling for Mismatched Modalities.}
-For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared model channels space (typically 3 for RGB-related tasks). Single-band modalities are expanded to model channels by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
+For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared model channel space (typically 3 for RGB-related tasks). Single-band modalities are expanded to model channels by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
 
 \subsection{Contrastive Unpaired Translation (CUT) — Supplementary}
 \label{sec:cut_formalism}

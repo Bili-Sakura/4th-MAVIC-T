@@ -41,11 +41,11 @@ where $w(t)$ is the Karras bridge weighting. Diffusion time $t$ is sampled from 
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Main results on the MAVIC-T evaluation set. $\downarrow$ lower is better. Time is per-sample inference latency; SAR$\to$EO is run at 256px with large batch size, and its latency is averaged.}
 \label{tab:main_results}
-\resizebox{\columnwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 {\small\renewcommand{\arraystretch}{1.1}%
 \begin{tabular}{llcccccc}
 \toprule
@@ -57,13 +57,13 @@ SAR$\to$IR  & CUT & 0.65 & 0.60 & 0.15 & 0.46 & 1 & 0.47\,s \\
 RGB$\to$IR  & DBIM & 0.36 & 0.15 & 0.09 & 0.20 & 5 & 1.5\,s \\
 \bottomrule
 \end{tabular}}}
-\end{table}
+\end{table*}
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Leaderboard comparison. Per-task scores (SAR$\to$EO, SAR$\to$RGB, SAR$\to$IR, RGB$\to$IR) from the challenge evaluation.}
 \label{tab:leaderboard_comparison}
-\resizebox{\columnwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 {\small\renewcommand{\arraystretch}{1.1}%
 \begin{tabular}{lcccccc}
 \toprule
@@ -74,19 +74,19 @@ Rank & Participant & SAR$\to$EO & SAR$\to$RGB & SAR$\to$IR & RGB$\to$IR & Combin
 2nd & EarthBridge (\textbf{Ours}) & \underline{0.27} & \underline{0.58} & \textbf{0.46} & \textbf{0.20} & \underline{0.38} \\
 \bottomrule
 \end{tabular}}}
-\end{table}
+\end{table*}
 
 \cref{tab:main_results} presents the quantitative performance comparison between EarthBridge and the CUT baseline across the challenge tasks. \cref{tab:leaderboard_comparison} compares our second-place submission with the first-place result (wangzhiyu918); note that lower scores indicate better performance (the official leaderboard display was initially reversed). The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
 
 \subsection{Qualitative Results}
 \label{sec:qualitative}
 
-\begin{figure*}[t]
+\begin{figure}[t]
     \centering
-    \includegraphics[page=6,width=0.95\textwidth,trim=150pt 0 150pt 0,clip]{figures/Figures.pdf}
+    \includegraphics[page=5,width=\columnwidth,trim=150pt 0 150pt 0,clip]{figures/Figures.pdf}
     \caption{Qualitative results across all four MAVIC-T translation tasks. Each row corresponds to one task (SAR$\rightarrow$EO, SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR). Columns show: source image, EarthBridge output, and ground-truth target. Our model preserves structural layout from the source while synthesizing faithful target-modality textures across both 256$\times$256 and 1024$\times$1024 resolutions.}
     \label{fig:qualitative}
-\end{figure*}
+\end{figure}
 
 \cref{fig:qualitative} shows qualitative examples across all four tasks. EarthBridge preserves fine-grained structural information from the source modality while accurately synthesizing target textures, demonstrating consistent performance across both low- and high-resolution settings.
 
