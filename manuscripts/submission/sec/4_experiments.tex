@@ -4,7 +4,7 @@
 \subsection{Dataset and Preprocessing}
 \label{sec:dataset}
 
-We use the MAVIC-T 2025 dataset from the challenge organizers, with imagery from UNICORN, USGS EROS HRO, and UMBRA across four regions: Bingham, Centerfield, Manhattan, and UC Davis. \cref{tab:dataset_tasks} summarizes the four translation tasks. SAR$\rightarrow$EO operates at 256$\times$256; the other three tasks use 1024$\times$1024. For SAR$\rightarrow$IR and SAR$\rightarrow$RGB, we spatially align SAR scenes with optical mosaics before resampling. We also create crop-augmented training sets for the 1024$\times$1024 tasks to increase data diversity.
+We use the MAVIC-T 2025 dataset from the challenge organizers, with imagery from UNICORN, USGS EROS HRO, and UMBRA across four regions: Bingham, Centerfield, Manhattan, and UC Davis. We do not use any external datasets beyond the official challenge data. \cref{tab:dataset_tasks} summarizes the four translation tasks. SAR$\rightarrow$EO operates at 256$\times$256; the other three tasks use 1024$\times$1024. For SAR$\rightarrow$IR and SAR$\rightarrow$RGB, we spatially align SAR scenes with optical mosaics before resampling. We also create crop-augmented training sets for the 1024$\times$1024 tasks to increase data diversity.
 
 \begin{table}[t]
 \centering
@@ -27,26 +27,23 @@ RGB$\rightarrow$IR  & 1024$\times$1024 & 3$\rightarrow$1 & 2,272  & 7,388  \\
 \subsection{Architecture and Training Objectives}
 \label{sec:objectives}
 
-\paragraph{UNet Denoising Backbone}
-Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} that predicts the clean target from the noisy sample $\bm{z}_t$ conditioned on timestep $t$ and source $\bm{x}$. We use task-specific scaling (128 base channels with resolution-dependent multipliers) and train with the Prodigy~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} optimizer. Detailed architectural parameters and source conditioning strategies are provided in \cref{sec:suppl_architecture}.
+\paragraph{Design Choice}
+For DBIM-based tasks (SAR$\rightarrow$EO, SAR$\rightarrow$RGB, RGB$\rightarrow$IR), we use a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} denoiser that predicts the clean target from the noisy sample conditioned on timestep and source image. For SAR$\rightarrow$IR, we adopt CUT~\cite{parkContrastiveLearningUnpaired2020} as an alternative baseline, exploiting its patch-based contrastive learning for structural consistency. Per-task architectural and hyperparameter choices are summarized in \cref{tab:suppl_arch_tasks}.
 
 \paragraph{Training Objective}
-The primary training objective is a weighted mean squared error between the denoised prediction $D_\theta(\bm{z}_t, t, \bm{x})$ and the clean target $\bm{y}$:
+For DBIM, the primary training objective is a weighted mean squared error between the denoised prediction and the clean target:
 \begin{equation}
     \mathcal{L}_{\text{denoise}} = \mathbb{E}_{(\bm{x},\bm{y}),\, t,\, \epsilon} \left[ w(t) \cdot \| D_\theta(\bm{z}_t, t, \bm{x}) - \bm{y} \|_2^2 \right],
     \label{eq:denoising_loss}
 \end{equation}
-where $w(t)$ is the Karras bridge weighting. The diffusion time $t$ is sampled from a Karras inverse-$\rho$ distribution. During inference, we utilize deterministic DBIM sampling for efficiency. Full technical details on the loss weighting, time-sampling distribution, and per-task training configurations are deferred to the appendix (\cref{sec:suppl_impl}).
-
-\paragraph{Baseline: Contrastive Unpaired Translation (CUT)}
-To assess the performance of our EarthBridge framework, we incorporate Contrastive Unpaired Translation (CUT)~\cite{parkContrastiveLearningUnpaired2020} as a primary baseline. Our implementation of CUT follows the original patch-based contrastive learning strategy, where patches from the generated target image are encouraged to be closer to the corresponding patches from the source image in a shared embedding space. We adapt the CUT architecture with ResNet-based generators and PatchGAN discriminators, scaled to match the resolution requirements of each task (e.g., medium tier for 256$\times$256 and large/huge tiers for 1024$\times$1024 as detailed in \cref{sec:suppl_impl}).
+where $w(t)$ is the Karras bridge weighting. Diffusion time $t$ is sampled from a Karras inverse-$\rho$ distribution; inference uses deterministic DBIM sampling. Full technical details on architecture, schedule, and per-task configurations are in \cref{sec:suppl_architecture}.
 
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
 \begin{table}[t]
 \centering
-\caption{Main results on the MAVIC-T evaluation set. $\downarrow$ lower is better.}
+\caption{Main results on the MAVIC-T evaluation set. $\downarrow$ lower is better. Time is per-sample inference latency; SAR$\to$EO is run at 256px with large batch size, and its latency is averaged.}
 \label{tab:main_results}
 \resizebox{\columnwidth}{!}{%
 {\small\renewcommand{\arraystretch}{1.1}%
@@ -54,15 +51,32 @@ To assess the performance of our EarthBridge framework, we incorporate Contrasti
 \toprule
 Track & Method & FID$\downarrow$ & LPIPS$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ & NFE & Time \\
 \midrule
-SAR$\to$EO  & DBIM 500 & 0.222 & 0.504 & 0.080 & 0.269 & 1000 & 0.42\,s \\
-SAR$\to$RGB & DBIM 1000 & 0.878 & 0.636 & 0.214 & 0.576 & 2000 & 160\,s \\
-SAR$\to$IR  & CUT huge & 0.645 & 0.603 & 0.145 & 0.464 & 1 & 0.47\,s \\
-RGB$\to$IR  & DBIM 5 & 0.357 & 0.151 & 0.090 & 0.200 & 10 & 1.5\,s \\
+SAR$\to$EO  & DBIM & 0.22 & 0.50 & 0.08 & 0.27 & 500 & 0.42\,s \\
+SAR$\to$RGB & DBIM & 0.88 & 0.64 & 0.21 & 0.58 & 1000 & 160\,s \\
+SAR$\to$IR  & CUT & 0.65 & 0.60 & 0.15 & 0.46 & 1 & 0.47\,s \\
+RGB$\to$IR  & DBIM & 0.36 & 0.15 & 0.09 & 0.20 & 5 & 1.5\,s \\
 \bottomrule
 \end{tabular}}}
 \end{table}
 
-\cref{tab:main_results} presents the quantitative performance comparison between EarthBridge and the CUT baseline across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
+\begin{table}[t]
+\centering
+\caption{Leaderboard comparison. Per-task scores (SAR$\to$EO, SAR$\to$RGB, SAR$\to$IR, RGB$\to$IR) from the challenge evaluation.}
+\label{tab:leaderboard_comparison}
+\resizebox{\columnwidth}{!}{%
+{\small\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{lcccccc}
+\toprule
+Rank & Participant & SAR$\to$EO & SAR$\to$RGB & SAR$\to$IR & RGB$\to$IR & Combined \\
+\midrule
+\rowcolor{gray!20}
+1st & wangzhiyu918 & \textbf{0.11} & \textbf{0.50} & \underline{0.49} & \textbf{0.20} & \textbf{0.32} \\
+2nd & EarthBridge (\textbf{Ours}) & \underline{0.27} & \underline{0.58} & \textbf{0.46} & \textbf{0.20} & \underline{0.38} \\
+\bottomrule
+\end{tabular}}}
+\end{table}
+
+\cref{tab:main_results} presents the quantitative performance comparison between EarthBridge and the CUT baseline across the challenge tasks. \cref{tab:leaderboard_comparison} compares our second-place submission with the first-place result (wangzhiyu918); note that lower scores indicate better performance (the official leaderboard display was initially reversed). The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
 
 \subsection{Qualitative Results}
 \label{sec:qualitative}
@@ -76,88 +90,73 @@ RGB$\to$IR  & DBIM 5 & 0.357 & 0.151 & 0.090 & 0.200 & 10 & 1.5\,s \\
 
 \cref{fig:qualitative} shows qualitative examples across all four tasks. EarthBridge preserves fine-grained structural information from the source modality while accurately synthesizing target textures, demonstrating consistent performance across both low- and high-resolution settings.
 
-\subsection{\texorpdfstring{{\color{gray}Failure Case and Challenging Scenario Analysis}}{Failure Case and Challenging Scenario Analysis}}
-\label{sec:failure_cases}
-
-{\color{gray}
-\TODO{Add failure case analysis and challenging scenarios.}
-}
-
 \section{Implementation Details}
 \label{sec:suppl_impl}
 
-This section provides the comprehensive technical details of the EarthBridge architecture, training hyperparameters, and multi-modal refinement modules.
+This section provides the comprehensive technical details of the EarthBridge architecture, training hyperparameters, and multi-modal refinement modules. We use the Prodigy optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} for all training.
 
 \subsection{Architecture, Sampling, and Scheduler Settings}
 \label{sec:suppl_architecture}
 
-The EarthBridge architecture and sampling configurations are designed for high-fidelity cross-modal translation with efficiency. We utilize a \texttt{UNet2DModel} backbone (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) with per-task architectural parameters: number of channels, number of residual blocks, attention resolutions, channel multipliers, resolution, and training settings (epochs, augmentations) as detailed in \cref{tab:suppl_arch_tasks}. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). Source image conditioning is implemented via channel-wise concatenation (\texttt{concat} mode) $[\bm{z}_t, \bm{x}]$.
+\paragraph{DBIM.}
+We use an ADM-style UNet~\cite{dhariwalDiffusionModelsBeat2021} denoiser with channel concatenation $[\bm{z}_t, \bm{x}]$ for source conditioning. Sampling follows the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with task-dependent inference steps (\cref{tab:main_results}). \Cref{tab:suppl_arch_tasks} summarizes per-task architectural and training configurations.
 
-Sampling is performed using the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with task-dependent inference steps (see \cref{tab:main_results}) and a Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$ at $t=T$. The bridge process follows a variance-preserving (VP) log-SNR schedule with $\beta_d=2.0$ and $\beta_{\min}=0.1$. For training, we sample diffusion time from a Karras inverse-$\rho$ distribution with $\rho=7$. Per-task architectural and training configurations are summarized in \cref{tab:suppl_arch_tasks}.
+\paragraph{CUT.}
+The CUT formulation (PatchNCE loss, training objective) is described in \cref{sec:cut_formalism}. Our implementation follows the original architecture~\cite{parkContrastiveLearningUnpaired2020} with three core components: a ResNet-based generator, a PatchGAN~\cite{isolaImageToImageTranslationConditional2017} discriminator, and a PatchSampleMLP for patch-wise contrastive learning. \Cref{tab:suppl_arch_tasks} summarizes per-task architectural and training configurations.
 
-The CUT baseline follows the standard configuration with ResNet-based generators and PatchGAN discriminators. We use the \emph{medium} tier for the $256\times256$ SAR$\rightarrow$EO task and the \emph{huge} tier for the $1024\times1024$ tasks to ensure sufficient capacity for high-resolution synthesis. The training hyperparameters for CUT, including the number of filters and residual blocks, are detailed in \cref{tab:suppl_cut_tasks}.
-
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \footnotesize\renewcommand{\arraystretch}{1.05}
-\caption{DBIM (SAR$\to$EO, SAR$\to$RGB, RGB$\to$IR).}
+\caption{Per-task architectural and training configurations. Top: DBIM settings for SAR$\to$EO, SAR$\to$RGB, and RGB$\to$IR. Bottom: CUT settings for SAR$\to$IR (ResNet-9block generator, 4-layer PatchGAN discriminator).}
 \label{tab:suppl_arch_tasks}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
 \toprule
-Parameter & SAR$\to$EO & SAR$\to$RGB & RGB$\to$IR \\
+Configuration & SAR$\to$EO & SAR$\to$RGB & SAR$\to$IR & RGB$\to$IR \\
 \midrule
-Base channels & 64 & 96 & 128 \\
-Channel multipliers & (1,2,3,4) & \multicolumn{2}{c}{(1,1,2,2,4,4)} \\
-Attention resolutions & N/A & \multicolumn{2}{c}{32, 16, 8} \\
-Training resolution & $256^2$ & \multicolumn{2}{c}{$512^2$} \\
-Epochs & 55 & 24 & 86 \\
+\rowcolor{blue!15}\multicolumn{5}{l}{\textit{DBIM}} \\
+Denoiser & ADM UNet~\cite{dhariwalDiffusionModelsBeat2021} & (same) & -- & (same) \\
+Conditioning & \multicolumn{4}{l}{Channel concat $[\bm{z}_t, \bm{x}]$} \\
+Optimizer & Prodigy~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} & (same) & -- & (same) \\
+REPA & -- & yes~\cite{yuRepresentationAlignmentGeneration2025} & -- & -- \\
+Booting noise & \multicolumn{4}{l}{Gaussian $\bm{\epsilon}_{\text{boot}}$ at $t=T$} \\
+VP schedule ($\beta_d$, $\beta_{\min}$) & 2.0, 0.1 & (same) & -- & (same) \\
+Karras $\rho$ & 7 & (same) & -- & (same) \\
+Base channels & 64 & 96 & -- & 128 \\
+Channel multipliers & (1,2,3,4) & (1,1,2,2,4,4) & -- & (1,1,2,2,4,4) \\
+Attention resolutions & N/A & 32, 16, 8 & -- & 32, 16, 8 \\
+Training resolution & $256^2$ & $512^2$ & -- & $512^2$ \\
+Epochs & 55 & 24 & -- & 86 \\
+\midrule
+\rowcolor{orange!20}\multicolumn{5}{l}{\textit{CUT}} \\
+Generator (ResNet blocks) & -- & -- & 9 & -- \\
+Discriminator & -- & -- & 4-layer PatchGAN & -- \\
+Filters (ngf, ndf) & -- & -- & 256 & -- \\
+GAN objective & -- & -- & LSGAN & -- \\
+$\tau$, $\lambda_{\text{GAN}}$, $\lambda_{\text{NCE}}$ & -- & -- & 0.1, 0.5, 1.0 & -- \\
+Identity NCE & -- & -- & disabled & -- \\
+Training resolution & -- & -- & $512^2$ & -- \\
+Epochs & -- & -- & 11 & -- \\
 \bottomrule
 \end{tabular}%
 }
-\end{table}
-
-\begin{table}[t]
-\centering
-\footnotesize\renewcommand{\arraystretch}{1.05}
-\caption{CUT (SAR$\to$IR). ResNet-9block, 4-layer PatchGAN.}
-\label{tab:suppl_cut_tasks}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lc}
-\toprule
-Parameter & SAR$\to$IR \\
-\midrule
-ngf / ndf & 256 \\
-Generator & ResNet-9block \\
-Discriminator & 4-layer PatchGAN \\
-Train res. & $512^2$ \\
-Epochs & 11 \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
-
-We train EarthBridge using the Prodigy adaptive optimizer across all translation tasks. The training objective follows the weighted Karras bridge loss with task-specific batch sizes and augmentations.
+\end{table*}
 
 \section{Lessons and Insights}
 \label{sec:suppl_lessons}
 
 We summarize key lessons and insights from developing EarthBridge for the MAVIC-T translation track.
 
-\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 1: Diffusion Bridge vs.\ Standard Diffusion}]
+\paragraph{Diffusion Bridge vs.\ Standard Diffusion.}
 The diffusion bridge directly builds a mapping from the source domain to the target domain, whereas standard diffusion starts from a noise prior (typically Gaussian noise) and requires a conditional generation strategy to accomplish this task. We hypothesize that the diffusion bridge is more efficient for training and achieves better results for cross-modal translation. However, standard diffusion can be more flexible for further conditional development, e.g., leveraging pre-trained models for a good prior. There is a trade-off between these approaches; we encourage readers to further explore both directions.
-\end{tcolorbox}
 
-\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 2: Resolution Scaling and Multi-Stage Curriculum}]
+\paragraph{Resolution Scaling and Multi-Stage Curriculum.}
 For 1024px modeling, we train on 512px only and directly infer on 1024px, which yields strong results while saving training compute budget. If time permits, we may further perform a quick fine-tuning on 1024px directly---we term this approach \emph{multi-stage resolution curriculum learning}.
-\end{tcolorbox}
 
-\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 3: Task Difficulty and Input Modality}]
+\paragraph{Task Difficulty and Input Modality.}
 We found that SAR$\rightarrow$EO and RGB$\rightarrow$IR are substantially easier than the other two tasks. For RGB$\rightarrow$IR, the three-channel input provides sufficient information for the translation. For SAR$\rightarrow$EO, the relative ease may stem from both modalities originating from the same sensor, reducing the domain gap.
-\end{tcolorbox}
 
-\begin{tcolorbox}[colback=mainquestionbg, colframe=mainquestionframe, title=\textbf{Insight 4: Inference Steps and Metric Trade-offs}]
+\paragraph{Inference Steps and Metric Trade-offs.}
 Using the DBIM ODE solver, few-step inference yields visually appealing results. For RGB$\rightarrow$IR, even a single-step generation is sufficient, and increasing steps tends to hallucinate details. In practice, however, many more inference steps greatly improve FID and LPIPS in the competition metrics, even when L1 remains unchanged---highlighting a trade-off between perceptual quality, metric optimization, and inference efficiency.
-\end{tcolorbox}
 
 \hypersetup{pageanchor=true}

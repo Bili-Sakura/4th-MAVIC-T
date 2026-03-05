@@ -1,9 +1,9 @@
-\section{EarthBridge: Multi-method Framework for RS Translation}
+\section{EarthBridge}
 \label{sec:method}
 
-We propose EarthBridge, a flexible framework that explores two distinct methodologies for cross-modal image translation: Diffusion Bridge Implicit Models (DBIM) and Contrastive Unpaired Translation (CUT).
+We propose EarthBridge, built on Diffusion Bridge Implicit Models (DBIM)~\cite{zhengDiffusionBridgeImplicit2025} for high-fidelity cross-modal translation. We also include Contrastive Unpaired Translation (CUT)~\cite{parkContrastiveLearningUnpaired2020} as a supplementary baseline for comparison.
 
-\subsection{Method 1: Diffusion Bridge Implicit Models (DBIM)}
+\subsection{Diffusion Bridge Implicit Models (DBIM)}
 \label{sec:dbim_formalism}
 
 Diffusion models have recently revolutionized generative modeling, yet they are fundamentally designed to transport complex distributions to a standard Gaussian prior. Adapting them to translate between two arbitrary distributions, such as heterogenous remote sensing modalities, requires conditioning the diffusion process on a fixed endpoint. This is achieved via Doob's $h$-transform~\cite{doob1984classical,rogers2000diffusions}.
@@ -78,10 +78,7 @@ with $\bm{\eta}_{n+1} = (\bm{z}_{t_{n+1}} - a_{t_{n+1}} \bm{x} - b_{t_{n+1}} \bm
 \paragraph{Reverse Generative Process and Sampling.}
 The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ and iteratively samples $\bm{z}_{t_n}$ from $\bm{z}_{t_{n+1}}$ via a parameterized data predictor $D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$. The core updating rule is given by:
 \begin{equation}
-    \begin{split}
-        \bm{z}_{t_n} &= a_{t_n} \bm{x} + b_{t_n} \hat{\bm{z}}_0 \\
-        &\quad + \sqrt{c_{t_n}^2 - \rho_n^2} \hat{\bm{\epsilon}} + \rho_n \bm{\epsilon},
-    \end{split}
+    \bm{z}_{t_n} = a_{t_n} \bm{x} + b_{t_n} \hat{\bm{z}}_0 + \sqrt{c_{t_n}^2 - \rho_n^2} \hat{\bm{\epsilon}} + \rho_n \bm{\epsilon},
     \label{eq:dbim_update}
 \end{equation}
 where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clean data prediction and $\hat{\bm{\epsilon}}$ is the predicted noise at time $t_{n+1}$. Setting $\rho_n = 0$ for all steps yields the deterministic \emph{Diffusion Bridge Implicit Model (DBIM)}, which can be viewed as an Euler discretization of a probability flow ODE specifically tailored for diffusion bridges.
@@ -89,9 +86,15 @@ where $\hat{\bm{z}}_0 = D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$ is the clea
 \paragraph{Booting Noise.} A critical refinement in our sampling procedure is the introduction of \emph{booting noise} at the initial step ($t_N = T$). Since $c_{t_N} = 0$, the denominator in $\hat{\bm{\epsilon}}$ leads to singularity. To address this, we force the initial step to be stochastic by choosing $\rho_{N-1} = c_{t_{N-1}}$, which injects a standard Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$. This booting noise serves as the latent variable, encoding the one-to-many mapping ambiguity in RS translation (e.g., several plausible infrared images for a single SAR input).
 
 \paragraph{Channel Handling for Mismatched Modalities.}
-For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared \texttt{model\_channels} space (typically 3 for RGB-related tasks). Single-band modalities are expanded to \texttt{model\_channels} by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
+For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared model channels space (typically 3 for RGB-related tasks). Single-band modalities are expanded to model channels by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
 
-\subsection{Method 2: Contrastive Unpaired Translation (CUT)}
+\subsection{Contrastive Unpaired Translation (CUT) — Supplementary}
 \label{sec:cut_formalism}
 
-In addition to our diffusion-based approach, we leverage Contrastive Unpaired Translation (CUT)~\cite{parkContrastiveLearningUnpaired2020} as an alternative method for cross-modal translation. Unlike diffusion bridges, CUT utilizes contrastive learning to maintain structural correspondence. Our implementation uses a Patch-based Contrastive Learning (PCL) strategy to maximize the mutual information between corresponding patches of the source and generated target images.
+As a supplementary baseline, we use CUT~\cite{parkContrastiveLearningUnpaired2020} for the SAR$\rightarrow$IR task. Unlike diffusion bridges, CUT is a feed-forward GAN that performs translation in a single forward pass. It combines an adversarial loss with a patch-based contrastive loss to maintain structural correspondence between source and output. Architecture and hyperparameter details are in \cref{sec:suppl_architecture}.
+
+\paragraph{PatchNCE Loss.}
+CUT extracts multi-layer encoder features from both the source $\bm{x}$ and the generated image $\hat{\bm{y}} = G(\bm{x})$. A lightweight MLP samples spatial patches per layer, projects them to an embedding space, and applies L2 normalization. The PatchNCE (InfoNCE~\cite{oordRepresentationLearningContrastive2019}) loss encourages that the query embedding from a patch in $\hat{\bm{y}}$ is closer to the key embedding from the corresponding patch in $\bm{x}$ than to embeddings from other patches. Formally, for query $q$ and key $k$ at the same spatial location, the loss uses $\ell_{\text{NCE}} = -\log \frac{\exp(q^\top k / \tau)}{\exp(q^\top k / \tau) + \sum_{k'} \exp(q^\top k' / \tau)}$, with temperature $\tau$ and negatives $k'$ from other patches. This contrastive objective preserves structural layout across the translation.
+
+\paragraph{Training Objective.}
+The generator minimizes $\mathcal{L}_G = \lambda_{\text{GAN}} \mathcal{L}_{\text{GAN}} + \lambda_{\text{NCE}} \mathcal{L}_{\text{NCE}}$, where $\mathcal{L}_{\text{GAN}}$ is the LSGAN~\cite{maoLeastSquaresGenerative2017} objective (generator encourages the discriminator to classify $G(\bm{x})$ as real) and $\mathcal{L}_{\text{NCE}}$ is the per-layer PatchNCE loss averaged over the selected encoder layers.
