@@ -1,11 +1,11 @@
 \section{Method}
 \label{sec:method}
 
-\subsection{Problem Formulation}
-Let $\mathcal{X} \subset \mathbb{R}^{C_s \times H \times W}$ be the source domain and $\mathcal{Y} \subset \mathbb{R}^{C_t \times H \times W}$ be the target domain. Given spatially-aligned training pairs $\{(x_i, y_i)\}_{i=1}^{N}$, the goal is to learn a mapping $G: \mathcal{X} \rightarrow \mathcal{Y}$. The four MAVIC-T tasks are: SAR$\rightarrow$EO ($1{\rightarrow}1$ ch, $256{\times}256$), SAR$\rightarrow$RGB ($1{\rightarrow}3$, $1024{\times}1024$), SAR$\rightarrow$IR ($1{\rightarrow}1$, $1024{\times}1024$), and RGB$\rightarrow$IR ($3{\rightarrow}1$, $1024{\times}1024$).
-
 \subsection{Method 1: Diffusion Bridge Implicit Models (DBIM)}
 \label{sec:dbim}
+
+\subsubsection{Bridge Design and Training}
+\label{sec:dbim-bridge}
 
 \paragraph{Stochastic Bridges.}
 Given a base diffusion process $dx_t = f(x_t,t)dt + g(t)dw_t$, the bridge conditioned to reach target $x_0 = \bm{y}$ starting from source $x_T = \bm{x}$ is:
@@ -18,28 +18,12 @@ Under a variance-preserving (VP) schedule, intermediate states are:
 \end{equation}
 where $\bm{x}$ is the source image, $\bm{y}$ is the target image, and $a_t, b_t, \sigma_t$ are schedule coefficients~\cite{zhouDenoisingDiffusionBridge2024}.
 
-\paragraph{Non-Markovian Generalization.}
+\paragraph{Non-Markovian Generalization and Booting Noise.}
 We extend the Markovian bridge to a family of non-Markovian processes parametrized by variance $\rho \in \mathbb{R}^{N-1}$. The reverse update rule is:
 \begin{equation}
     z_{t_n} = a_{t_n} \bm{x} + b_{t_n} \hat{z}_0 + \sqrt{c_{t_n}^2 - \rho_n^2}\,\hat{\epsilon} + \rho_n \epsilon,
 \end{equation}
-where $\hat{z}_0 = D_\theta(z_{t_{n+1}}, t_{n+1}, \bm{x})$ is the UNet denoiser prediction. Setting $\rho_n = 0$ gives the deterministic DBIM~\cite{zhengDiffusionBridgeImplicit2025}, analogous to an Euler discretization of a probability-flow ODE over the bridge.
-
-\paragraph{Booting Noise.}
-Since $c_{t_N} = 0$ leads to a singularity at initialization, we force the first step to be stochastic by setting $\rho_{N-1} = c_{t_{N-1}}$, injecting Gaussian booting noise $\epsilon_{\text{boot}}$ that encodes the one-to-many mapping ambiguity.
-
-\paragraph{Architecture.}
-Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) that receives the channel-wise concatenation $[\bm{z}_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). The architecture overview is shown in \cref{fig:method_overview}.
-
-\paragraph{Channel Handling for Mismatched Modalities.}
-For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared \texttt{model\_channels} space (typically 3 for RGB-related tasks). Single-band modalities are expanded to \texttt{model\_channels} by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
-
-\begin{figure}[h]
-    \centering
-    \fbox{\rule{0pt}{2in} \rule{0.95\columnwidth}{0pt}}
-    \caption{Architecture placeholder: EarthBridge DBIM pipeline. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by a UNet denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
-    \label{fig:method_overview}
-\end{figure}
+where $\hat{z}_0 = D_\theta(z_{t_{n+1}}, t_{n+1}, \bm{x})$ is the UNet denoiser prediction. Setting $\rho_n = 0$ gives the deterministic DBIM~\cite{zhengDiffusionBridgeImplicit2025}, analogous to an Euler discretization of a probability-flow ODE over the bridge. Since $c_{t_N} = 0$ leads to a singularity at initialization, we force the first step to be stochastic by setting $\rho_{N-1} = c_{t_{N-1}}$, injecting Gaussian booting noise that encodes the one-to-many mapping ambiguity.
 
 \paragraph{Training Objective.}
 The model is trained with Karras-weighted bridge loss:
@@ -49,7 +33,23 @@ The model is trained with Karras-weighted bridge loss:
 \end{equation}
 where $w(t)$ follows Karras bridge weighting~\cite{karras2022elucidating} and $t$ is sampled from a Karras inverse-$\rho$ distribution.
 
+\subsubsection{Architecture and Channel Handling}
+\label{sec:dbim-arch}
+
+Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} that receives the channel-wise concatenation $[\bm{z}_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN, ADM-style~\cite{dhariwalDiffusionModelsBeat2021}). The architecture overview is shown in \cref{fig:method_overview}.
+
+For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared channel space (typically 3 for RGB-related tasks). Single-band modalities are expanded by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
+
+\vspace{-1em}
+\begin{figure}[h]
+    \centering
+    \includegraphics[page=3,width=\columnwidth]{../submission/figures/Figures.pdf}
+    \caption{UNet architecture of our DBIM for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). We train at 512$\times$512 and infer at full resolution. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by this denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
+    \label{fig:method_overview}
+\end{figure}
+\vspace{-1em}
+
 \subsection{Method 2: Contrastive Unpaired Translation (CUT)}
 \label{sec:cut}
 
-For the SAR$\rightarrow$IR task, we employ CUT~\cite{parkContrastiveLearningUnpaired2020} as our final method. CUT uses patch-based contrastive learning to maintain structural correspondence between source and generated target, enabling effective translation even without pixel-aligned pairs. We use the \emph{huge} tier (256 ResNet filters, 4-layer PatchGAN) to handle the $1024{\times}1024$ resolution.
+For the SAR$\rightarrow$IR task, we employ CUT~\cite{parkContrastiveLearningUnpaired2020} as our final method. CUT uses patch-based contrastive learning to maintain structural correspondence between source and generated target, enabling effective translation even without pixel-aligned pairs. We use the \emph{huge} tier (256 ResNet filters, 4-layer PatchGAN) to handle the $1024{\times}1024$ resolution. For channel handling: the single-band SAR input and single-band IR output are processed directly without modality expansion.

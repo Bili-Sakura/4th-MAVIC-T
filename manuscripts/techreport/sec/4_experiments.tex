@@ -4,105 +4,85 @@
 \subsection{Dataset}
 \label{sec:dataset}
 
-We use the MAVIC-T 2025 dataset from the challenge organizers, with imagery from UNICORN, USGS EROS HRO, and UMBRA across four regions: Bingham, Centerfield, Manhattan, and UC Davis. SAR$\rightarrow$EO operates at $256{\times}256$; the remaining three tasks use $1024{\times}1024$. For SAR$\rightarrow$IR and SAR$\rightarrow$RGB, we spatially align SAR scenes with optical mosaics before resampling. We create crop-augmented training sets for the $1024{\times}1024$ tasks (sliding windows, stride 512) to increase data diversity.
-
-\begin{table}[h]
-\centering
-\caption{Task specifications and training data.}
-\label{tab:dataset}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lcccc}
-\toprule
-Task & Res. & Channels & Orig. & Aug. \\
-\midrule
-SAR$\rightarrow$EO  & $256^2$  & $1{\to}1$ & 89,411 & -- \\
-SAR$\rightarrow$RGB & $1024^2$ & $1{\to}3$ & 10,576 & 75,703 \\
-SAR$\rightarrow$IR  & $1024^2$ & $1{\to}1$ & 10,576 & 74,317 \\
-RGB$\rightarrow$IR  & $1024^2$ & $3{\to}1$ &  2,272 &  7,388 \\
-\bottomrule
-\end{tabular}
-}%
-\end{table}
+SAR$\rightarrow$EO uses $256{\times}256$ imagery with 89,411 pairs. The other three tasks use $1024{\times}1024$: SAR$\rightarrow$RGB (10,576 orig., 75,703 aug.), SAR$\rightarrow$IR (10,576 orig., 74,317 aug.), RGB$\rightarrow$IR (2,272 orig., 7,388 aug.). For SAR$\rightarrow$IR and SAR$\rightarrow$RGB, we spatially align SAR scenes with optical mosaics before resampling. For $1024{\times}1024$ tasks, we augment training data with sliding-window crops (stride 512).
 
 \subsection{Training Details}
 \label{sec:training}
 
-All DBIM models are trained with the Prodigy adaptive optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024}. For $1024{\times}1024$ tasks, we train at $512{\times}512$ and infer at full resolution (resolution curriculum). The bridge follows a VP log-SNR schedule with $\beta_d=2.0$, $\beta_{\min}=0.1$.
+All DBIM models are trained with the Prodigy adaptive optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024}. For $1024{\times}1024$ tasks, we train at $512{\times}512$ and infer at full resolution (resolution curriculum). The bridge follows a VP log-SNR schedule with $\beta_d=2.0$, $\beta_{\min}=0.1$. We use DBIM for SAR$\rightarrow$EO, SAR$\rightarrow$RGB, and RGB$\rightarrow$IR; CUT for SAR$\rightarrow$IR only. CUT (huge tier) is trained with Prodigy, batch size 2 per GPU across 8 GPUs, for 11 epochs, with NCE temperature 0.1 and $\lambda_{\text{GAN}}=0.5$. Configurations are given in \cref{tab:dbim_config,tab:cut_config}.
 
+\vspace{-1em}
 \begin{table}[h]
 \centering
-\caption{Per-task DBIM configuration.}
-\label{tab:arch}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lcccc}
+\footnotesize\renewcommand{\arraystretch}{1.05}
+\caption{DBIM (SAR$\to$EO, SAR$\to$RGB, RGB$\to$IR).}
+\label{tab:dbim_config}
+\begin{tabular}{lccc}
 \toprule
-Parameter & S2EO & S2RGB & S2IR & R2IR \\
+Parameter & SAR$\to$EO & SAR$\to$RGB & RGB$\to$IR \\
 \midrule
-Base channels & 64 & 96 & 96 & 128 \\
-Channel mults & (1,2,3,4) & \multicolumn{3}{c}{(1,1,2,2,4,4)} \\
-Attention res. & N/A & \multicolumn{3}{c}{32, 16, 8} \\
-Training res. & $256^2$ & \multicolumn{3}{c}{$512^2$} \\
-Epochs & 55 & 24 & 39 & 86 \\
+Base ch. & 64 & 96 & 128 \\
+Ch. mults & (1,2,3,4) & \multicolumn{2}{c}{(1,1,2,2,4,4)} \\
+Attn res. & N/A & \multicolumn{2}{c}{32, 16, 8} \\
+Train res. & $256^2$ & \multicolumn{2}{c}{$512^2$} \\
+Epochs & 55 & 24 & 86 \\
 \bottomrule
 \end{tabular}
-}%
+\end{table}
+\vspace{-1em}
+\begin{table}[h]
+\centering
+\footnotesize\renewcommand{\arraystretch}{1.05}
+\caption{CUT (SAR$\to$IR). ResNet-9block, 4-layer PatchGAN.}
+\label{tab:cut_config}
+\begin{tabular}{lc}
+\toprule
+Parameter & SAR$\to$IR \\
+\midrule
+ngf / ndf & 256 \\
+Generator & ResNet-9block \\
+Discriminator & 4-layer PatchGAN \\
+Train res. & $512^2$ \\
+Epochs & 11 \\
+\bottomrule
+\end{tabular}
 \end{table}
 
+\vspace{0.5em}
+\subsection{Hardware and Software}
+\label{sec:hardware}
+
+\paragraph{Hardware.}
+Eight NVIDIA H200 GPUs; x86\_64 multi-core CPU (AMD EPYC / Intel Xeon); 512\,GB+ RAM.
+
+\paragraph{Software.}
+Python~3.10+; PyTorch~2.8; HuggingFace Diffusers~0.36; Transformers; Accelerate; Rasterio (geospatial). Code: \href{https://github.com/Bili-Sakura/EarthBridge-Preview}{github.com/Bili-Sakura/EarthBridge-Preview}.
+
+\vspace{0.5em}
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
-\cref{tab:main_results} reports the performance of our \textbf{EarthBridge} final submission (DBIM for SAR$\rightarrow$EO, SAR$\rightarrow$RGB, RGB$\rightarrow$IR; CUT for SAR$\rightarrow$IR) and selected baselines. The composite task score is defined as:
-\begin{equation}
-    S_{\text{task}} = \frac{\tfrac{2}{\pi}\arctan(\text{FID}) + \text{LPIPS} + \text{L1}}{3},
-\end{equation}
-where the $\arctan$ normalization maps FID to $[0,1]$.
+\cref{tab:main_results} reports the performance of our \textbf{EarthBridge} final submission. NFE denotes number of function evaluations (for DBIM, NFE = steps $\times$ 2; for CUT, NFE = 1).
 
+\vspace{-1em}
 \begin{table}[h]
 \centering
-\caption{Results on the MAVIC-T evaluation set. $\downarrow$ lower is better. \textbf{Bold} marks our final submission per track.}
+\caption{Results on the MAVIC-T evaluation set. $\downarrow$ lower is better.}
 \label{tab:main_results}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{llcccc}
+{\small\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{llcccccc}
 \toprule
-Track & Method & FID$\downarrow$ & LPIPS$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ \\
+Track & Method & FID$\downarrow$ & LPIPS$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ & NFE & Time \\
 \midrule
-\multirow{2}{*}{SAR$\rightarrow$EO}
-  & DBIM (100 steps)  & 0.451 & 0.477 & 0.077 & 0.335 \\
-  & \textbf{DBIM (500 steps)} & \textbf{0.222} & \textbf{0.504} & \textbf{0.080} & \textbf{0.269} \\
-\midrule
-\multirow{2}{*}{SAR$\rightarrow$RGB}
-  & DDBM (100 steps) & 0.894 & 0.656 & 0.236 & 0.595 \\
-  & \textbf{DBIM (1000 steps)} & \textbf{0.878} & \textbf{0.636} & \textbf{0.214} & \textbf{0.576} \\
-\midrule
-\multirow{2}{*}{SAR$\rightarrow$IR}
-  & DBIM (1000 steps) & 0.958 & 0.630 & 0.194 & 0.594 \\
-  & \textbf{CUT (huge)} & \textbf{0.645} & \textbf{0.603} & \textbf{0.145} & \textbf{0.464} \\
-\midrule
-\multirow{3}{*}{RGB$\rightarrow$IR}
-  & DBIM (1 step)    & 0.786 & 0.293 & 0.093 & 0.390 \\
-  & DBIM (10 steps)  & 0.380 & 0.150 & 0.090 & 0.206 \\
-  & \textbf{DBIM (5 steps)}  & \textbf{0.357} & \textbf{0.151} & \textbf{0.090} & \textbf{0.200} \\
+SAR$\to$EO  & DBIM (500) & 0.222 & 0.504 & 0.080 & 0.269 & 1000 & 0.42\,s \\
+SAR$\to$RGB & DBIM (1000) & 0.878 & 0.636 & 0.214 & 0.576 & 2000 & 160\,s \\
+SAR$\to$IR  & CUT (huge) & 0.645 & 0.603 & 0.145 & 0.464 & 1 & 0.47\,s \\
+RGB$\to$IR  & DBIM (5) & 0.357 & 0.151 & 0.090 & 0.200 & 10 & 1.5\,s \\
 \bottomrule
-\end{tabular}
-}%
+\end{tabular}}}
 \end{table}
+\vspace{-1em}
 
 \paragraph{Key Observations.}
-SAR$\rightarrow$EO and RGB$\rightarrow$IR are easier tasks: the former benefits from shared imaging geometry, the latter from RGB's rich three-channel input. SAR$\rightarrow$RGB and SAR$\rightarrow$IR are more challenging due to the large modality gap. For RGB$\rightarrow$IR, even one inference step yields reasonable results, but 5 steps achieves the best composite task score (0.200 vs.\ 0.206 at 10 steps), balancing FID, LPIPS, and L1. For SAR$\rightarrow$IR, CUT outperforms DBIM by a large margin (score 0.464 vs.\ 0.594), demonstrating that contrastive unpaired methods can be more effective when modality gaps are severe.
-
-\subsection{Qualitative Results}
-\label{sec:qualitative}
-
-\begin{figure}[h]
-    \centering
-    \fbox{\rule{0pt}{2in} \rule{0.95\columnwidth}{0pt}}
-    \caption{Qualitative results placeholder. Rows: SAR$\rightarrow$EO, SAR$\rightarrow$RGB, SAR$\rightarrow$IR, RGB$\rightarrow$IR. Columns: source image, EarthBridge output, ground-truth target.}
-    \label{fig:qualitative}
-\end{figure}
-
-\cref{fig:qualitative} shows representative outputs from all four tasks. EarthBridge preserves fine-grained structural information from the source modality while accurately synthesizing target-modality textures across both $256{\times}256$ and $1024{\times}1024$ resolutions.
-
-\subsection{Inference Speed}
-\label{sec:inference_speed}
-
-We report single-image inference times on a single NVIDIA 4090 (24~GB): RGB$\rightarrow$IR DBIM (5 steps)~$\approx$1.5\,s; SAR$\rightarrow$EO DBIM (500 steps)~$\approx$0.42\,s; SAR$\rightarrow$IR CUT~$\approx$0.47\,s; SAR$\rightarrow$RGB DBIM (1000 steps)~$\approx$160\,s.
+\textbf{(1)} SAR$\rightarrow$EO and RGB$\rightarrow$IR are extremely easy to model; we achieve high performance on both test and validation sets, which aligns with peer rankings in previous years. \textbf{(2)} SAR$\rightarrow$RGB and SAR$\rightarrow$IR are quite difficult, also consistent with prior competition results. Given the difficulty of SAR$\rightarrow$IR, we switched from DBIM to the GAN-based CUT. This yielded better results: diffusion bridges for this hard task tend to produce over-smooth, blurry outputs with low training loss that nonetheless deviate from the actual target appearance; CUT's discriminator addresses this. \textbf{(3)} Although inference requires full $1024{\times}1024$ resolution, we find that training our UNet at $512{\times}512$ effectively extends to $1024{\times}1024$ inference without modification. \textbf{(4)} Our solution is computationally heavy: we employ a large model (about 200M parameters) and train on a node cluster with eight NVIDIA H200 GPUs for approximately ten hours.
