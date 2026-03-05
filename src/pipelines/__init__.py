@@ -17,3 +17,4 @@ from .dab import DABPipeline, DABPipelineOutput, DABLatentPipeline, DABLatentPip
 from .stegogan import StegoGANPipeline, StegoGANPipelineOutput
 from .sid import SIDPipeline, SIDPipelineOutput
 from .sid2 import SID2Pipeline, SID2PipelineOutput
+from .lbm import LBMPipeline, LBMPipelineOutput, LBMLatentPipeline, LBMLatentPipelineOutput
