@@ -19,3 +19,4 @@ from .scheduling_sid2 import SiD2Scheduler, SiD2SchedulerOutput
 from .scheduling_unidb import UniDBScheduler, UniDBSchedulerOutput
 from .scheduling_dab import DABScheduler, DABSchedulerOutput
 from .scheduling_stegogan import StegoGANScheduler, StegoGANSchedulerOutput
+from .scheduling_lbm import LBMScheduler, LBMSchedulerOutput

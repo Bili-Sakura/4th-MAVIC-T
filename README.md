@@ -199,3 +199,5 @@ Implementation notes:
 <a href="https://openaccess.thecvf.com/content/CVPR2025/html/Xiao_Deterministic_Image-to-Image_Translation_via_Denoising_Brownian_Bridge_Models_with_Dual_CVPR_2025_paper.html">Deterministic Image-to-Image Translation via Denoising Brownian Bridge Models with Dual Approximators (DAB, CVPR 2025)</a>
 
 <a href="https://openaccess.thecvf.com/content/CVPR2024/papers/Wu_StegoGAN_Leveraging_Steganography_for_Non-Bijective_Image-to-Image_Translation_CVPR_2024_paper.pdf">StegoGAN: Leveraging Steganography for Non-Bijective Image-to-Image Translation (CVPR 2024)</a>
+
+<a href="https://arxiv.org/abs/2503.07535">LBM: Latent Bridge Matching for Fast Image-to-Image Translation (ICCV 2025)</a>
