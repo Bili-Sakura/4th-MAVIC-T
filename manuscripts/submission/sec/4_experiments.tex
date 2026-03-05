@@ -93,13 +93,13 @@ Rank & Participant & SAR$\to$EO & SAR$\to$RGB & SAR$\to$IR & RGB$\to$IR & Combin
 \section{Implementation Details}
 \label{sec:suppl_impl}
 
-This section provides the comprehensive technical details of the EarthBridge architecture, training hyperparameters, and multi-modal refinement modules. We use the Prodigy optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} for all training.
+This section provides the comprehensive technical details of the EarthBridge architecture, training hyperparameters, and multi-modal refinement modules. We use the Prodigy optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} for all training. Training employs mixed precision in BF16; inference is also run in BF16.
 
 \subsection{Architecture, Sampling, and Scheduler Settings}
 \label{sec:suppl_architecture}
 
 \paragraph{DBIM.}
-We use an ADM-style UNet~\cite{dhariwalDiffusionModelsBeat2021} denoiser with channel concatenation $[\bm{z}_t, \bm{x}]$ for source conditioning. Sampling follows the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with task-dependent inference steps (\cref{tab:main_results}). \Cref{tab:suppl_arch_tasks} summarizes per-task architectural and training configurations.
+The denoiser uses an ADM-style UNet~\cite{dhariwalDiffusionModelsBeat2021}. Source conditioning is via channel-wise concatenation $[\bm{z}_t, \bm{x}]$. For SAR$\rightarrow$RGB, we use REPA~\cite{yuRepresentationAlignmentGeneration2025} in our implementation, which relieves the loss spike issue in the early training steps. Sampling follows the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with task-dependent inference steps (\cref{tab:main_results}) and Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$ at $t=T$. \Cref{tab:suppl_arch_tasks} summarizes per-task architectural and training configurations, including the VP log-SNR schedule and Karras diffusion-time sampling.
 
 \paragraph{CUT.}
 The CUT formulation (PatchNCE loss, training objective) is described in \cref{sec:cut_formalism}. Our implementation follows the original architecture~\cite{parkContrastiveLearningUnpaired2020} with three core components: a ResNet-based generator, a PatchGAN~\cite{isolaImageToImageTranslationConditional2017} discriminator, and a PatchSampleMLP for patch-wise contrastive learning. \Cref{tab:suppl_arch_tasks} summarizes per-task architectural and training configurations.
@@ -115,13 +115,9 @@ The CUT formulation (PatchNCE loss, training objective) is described in \cref{se
 Configuration & SAR$\to$EO & SAR$\to$RGB & SAR$\to$IR & RGB$\to$IR \\
 \midrule
 \rowcolor{blue!15}\multicolumn{5}{l}{\textit{DBIM}} \\
-Denoiser & ADM UNet~\cite{dhariwalDiffusionModelsBeat2021} & (same) & -- & (same) \\
-Conditioning & \multicolumn{4}{l}{Channel concat $[\bm{z}_t, \bm{x}]$} \\
-Optimizer & Prodigy~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024} & (same) & -- & (same) \\
-REPA & -- & yes~\cite{yuRepresentationAlignmentGeneration2025} & -- & -- \\
-Booting noise & \multicolumn{4}{l}{Gaussian $\bm{\epsilon}_{\text{boot}}$ at $t=T$} \\
-VP schedule ($\beta_d$, $\beta_{\min}$) & 2.0, 0.1 & (same) & -- & (same) \\
-Karras $\rho$ & 7 & (same) & -- & (same) \\
+Parameters & $\sim$20M & $\sim$120M & -- & $\sim$120M \\
+VP schedule ($\beta_d$, $\beta_{\min}$) & 2.0, 0.1 & 2.0, 0.1 & -- & 2.0, 0.1 \\
+Karras $\rho$ & 7 & 7 & -- & 7 \\
 Base channels & 64 & 96 & -- & 128 \\
 Channel multipliers & (1,2,3,4) & (1,1,2,2,4,4) & -- & (1,1,2,2,4,4) \\
 Attention resolutions & N/A & 32, 16, 8 & -- & 32, 16, 8 \\
@@ -129,6 +125,8 @@ Training resolution & $256^2$ & $512^2$ & -- & $512^2$ \\
 Epochs & 55 & 24 & -- & 86 \\
 \midrule
 \rowcolor{orange!20}\multicolumn{5}{l}{\textit{CUT}} \\
+Parameters (total) & -- & -- & $\sim$225M & -- \\
+\quad Generator; Discriminator & -- & -- & $\sim$180M; $\sim$45M & -- \\
 Generator (ResNet blocks) & -- & -- & 9 & -- \\
 Discriminator & -- & -- & 4-layer PatchGAN & -- \\
 Filters (ngf, ndf) & -- & -- & 256 & -- \\
