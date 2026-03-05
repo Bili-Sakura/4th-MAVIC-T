@@ -1,11 +1,8 @@
 \section{Method}
 \label{sec:method}
 
-\subsection{Method 1: Diffusion Bridge Implicit Models (DBIM)}
+\subsection{Diffusion Bridge Implicit Models (DBIM)}
 \label{sec:dbim}
-
-\subsubsection{Bridge Design and Training}
-\label{sec:dbim-bridge}
 
 \paragraph{Stochastic Bridges.}
 Given a base diffusion process $dx_t = f(x_t,t)dt + g(t)dw_t$, the bridge conditioned to reach target $x_0 = \bm{y}$ starting from source $x_T = \bm{x}$ is:
@@ -33,23 +30,21 @@ The model is trained with Karras-weighted bridge loss:
 \end{equation}
 where $w(t)$ follows Karras bridge weighting~\cite{karras2022elucidating} and $t$ is sampled from a Karras inverse-$\rho$ distribution.
 
-\subsubsection{Architecture and Channel Handling}
-\label{sec:dbim-arch}
-
+\paragraph{Architecture.}
 Our denoiser $D_\theta$ is a UNet~\cite{ronnebergerUNetConvolutionalNetworks2015} that receives the channel-wise concatenation $[\bm{z}_t, \bm{x}]$ as input. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN, ADM-style~\cite{dhariwalDiffusionModelsBeat2021}). The architecture overview is shown in \cref{fig:method_overview}.
 
 For tasks where source and target modalities have different channel counts (e.g., RGB$\rightarrow$IR or SAR$\rightarrow$RGB), we operate the bridge in a shared channel space (typically 3 for RGB-related tasks). Single-band modalities are expanded by channel repetition before entering the UNet, ensuring the concatenation $[\bm{z}_t, \bm{x}]$ remains well-defined across all tasks.
 
-\vspace{-1em}
+% \vspace{-1em}
 \begin{figure}[h]
     \centering
-    \includegraphics[page=3,width=\columnwidth]{../submission/figures/Figures.pdf}
+    \includegraphics[page=3,width=\columnwidth]{figures/Figures.pdf}
     \caption{UNet architecture of our DBIM for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). We train at 512$\times$512 and infer at full resolution. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by this denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
     \label{fig:method_overview}
 \end{figure}
 \vspace{-1em}
 
-\subsection{Method 2: Contrastive Unpaired Translation (CUT)}
+\subsection{Contrastive Unpaired Translation (CUT)}
 \label{sec:cut}
 
-For the SAR$\rightarrow$IR task, we employ CUT~\cite{parkContrastiveLearningUnpaired2020} as our final method. CUT uses patch-based contrastive learning to maintain structural correspondence between source and generated target, enabling effective translation even without pixel-aligned pairs. We use the \emph{huge} tier (256 ResNet filters, 4-layer PatchGAN) to handle the $1024{\times}1024$ resolution. For channel handling: the single-band SAR input and single-band IR output are processed directly without modality expansion.
+For SAR$\rightarrow$IR we use CUT~\cite{parkContrastiveLearningUnpaired2020}: patch-based contrastive learning preserves structure without pixel-aligned pairs. Config: \cref{tab:cut_config}.

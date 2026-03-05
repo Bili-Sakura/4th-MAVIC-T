@@ -1,8 +1,8 @@
 \backcite {zhengDiffusionBridgeImplicit2025}{{1}{(document)}{Doc-Start}}
-\backcite {zhouDenoisingDiffusionBridge2024}{{1}{1.1.1}{equation.1.2}}
-\backcite {zhengDiffusionBridgeImplicit2025}{{1}{1.1.1}{equation.1.3}}
-\backcite {karras2022elucidating}{{1}{1.1.1}{equation.1.4}}
-\backcite {ronnebergerUNetConvolutionalNetworks2015}{{1}{1.1.2}{subsubsection.1.1.2}}
-\backcite {dhariwalDiffusionModelsBeat2021}{{1}{1.1.2}{subsubsection.1.1.2}}
+\backcite {zhouDenoisingDiffusionBridge2024}{{1}{1.1}{equation.1.2}}
+\backcite {zhengDiffusionBridgeImplicit2025}{{1}{1.1}{equation.1.3}}
+\backcite {karras2022elucidating}{{1}{1.1}{equation.1.4}}
+\backcite {ronnebergerUNetConvolutionalNetworks2015}{{1}{1.1}{section*.4}}
+\backcite {dhariwalDiffusionModelsBeat2021}{{1}{1.1}{section*.4}}
 \backcite {parkContrastiveLearningUnpaired2020}{{1}{1.2}{subsection.1.2}}
 \backcite {mishchenkoProdigyExpeditiouslyAdaptive2024}{{2}{2.2}{subsection.2.2}}
