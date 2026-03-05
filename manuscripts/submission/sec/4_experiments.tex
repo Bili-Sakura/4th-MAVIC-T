@@ -44,22 +44,23 @@ To assess the performance of our EarthBridge framework, we incorporate Contrasti
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
-\caption{Main results: EarthBridge and CUT baseline quantitative performance across the four MAVIC-T translation tasks. We report LPIPS ($\downarrow$), FID ($\downarrow$), L1 ($\downarrow$), and the composite Task Score ($\downarrow$).}
+\caption{Main results on the MAVIC-T evaluation set. $\downarrow$ lower is better.}
 \label{tab:main_results}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{l | cccc | cccc | cccc | cccc | c}
+\resizebox{\columnwidth}{!}{%
+{\small\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{llcccccc}
 \toprule
-\multirow{2}{*}{Method} & \multicolumn{4}{c|}{SAR$\rightarrow$EO} & \multicolumn{4}{c|}{SAR$\rightarrow$RGB} & \multicolumn{4}{c|}{SAR$\rightarrow$IR} & \multicolumn{4}{c|}{RGB$\rightarrow$IR} & \multirow{2}{*}{Overall} \\
- & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & LPIPS & FID & L1 & Score & \\
+Track & Method & FID$\downarrow$ & LPIPS$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ & NFE & Time \\
 \midrule
-CUT (Baseline)        & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A \\
-EarthBridge (Ours)    & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A & N/A \\
+SAR$\to$EO  & DBIM 500 & 0.222 & 0.504 & 0.080 & 0.269 & 1000 & 0.42\,s \\
+SAR$\to$RGB & DBIM 1000 & 0.878 & 0.636 & 0.214 & 0.576 & 2000 & 160\,s \\
+SAR$\to$IR  & CUT huge & 0.645 & 0.603 & 0.145 & 0.464 & 1 & 0.47\,s \\
+RGB$\to$IR  & DBIM 5 & 0.357 & 0.151 & 0.090 & 0.200 & 10 & 1.5\,s \\
 \bottomrule
-\end{tabular}
-}%
-\end{table*}
+\end{tabular}}}
+\end{table}
 
 \cref{tab:main_results} presents the quantitative performance comparison between EarthBridge and the CUT baseline across the challenge tasks. The composite task score provides a balanced evaluation of perceptual, distributional, and structural fidelity. EarthBridge demonstrates consistent performance across both low- and high-resolution tasks.
 
@@ -92,62 +93,49 @@ This section provides the comprehensive technical details of the EarthBridge arc
 
 The EarthBridge architecture and sampling configurations are designed for high-fidelity cross-modal translation with efficiency. We utilize a \texttt{UNet2DModel} backbone (ADM-style~\cite{dhariwalDiffusionModelsBeat2021}) with per-task architectural parameters: number of channels, number of residual blocks, attention resolutions, channel multipliers, resolution, and training settings (epochs, augmentations) as detailed in \cref{tab:suppl_arch_tasks}. Timestep information is injected via sinusoidal embeddings and Adaptive Group Normalization (AdaGN). Source image conditioning is implemented via channel-wise concatenation (\texttt{concat} mode) $[\bm{z}_t, \bm{x}]$.
 
-Sampling is performed using the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with 1000 inference steps and a Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$ at $t=T$. The bridge process follows a variance-preserving (VP) log-SNR schedule with $\beta_d=2.0$ and $\beta_{\min}=0.1$. For training, we sample diffusion time from a Karras inverse-$\rho$ distribution with $\rho=7$. Per-task architectural and training configurations are summarized in \cref{tab:suppl_arch_tasks}.
+Sampling is performed using the deterministic DBIM formulation~\cite{zhengDiffusionBridgeImplicit2025} with task-dependent inference steps (see \cref{tab:main_results}) and a Gaussian booting noise $\bm{\epsilon}_{\text{boot}}$ at $t=T$. The bridge process follows a variance-preserving (VP) log-SNR schedule with $\beta_d=2.0$ and $\beta_{\min}=0.1$. For training, we sample diffusion time from a Karras inverse-$\rho$ distribution with $\rho=7$. Per-task architectural and training configurations are summarized in \cref{tab:suppl_arch_tasks}.
 
 The CUT baseline follows the standard configuration with ResNet-based generators and PatchGAN discriminators. We use the \emph{medium} tier for the $256\times256$ SAR$\rightarrow$EO task and the \emph{huge} tier for the $1024\times1024$ tasks to ensure sufficient capacity for high-resolution synthesis. The training hyperparameters for CUT, including the number of filters and residual blocks, are detailed in \cref{tab:suppl_cut_tasks}.
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
-\caption{Per-task EarthBridge (DBIM) architectural and training configurations. Resolution denotes the training image input resolution.}
+\footnotesize\renewcommand{\arraystretch}{1.05}
+\caption{DBIM (SAR$\to$EO, SAR$\to$RGB, RGB$\to$IR).}
 \label{tab:suppl_arch_tasks}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccc}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
 \toprule
-Parameter & SAR$\rightarrow$EO & SAR$\rightarrow$RGB & SAR$\rightarrow$IR & RGB$\rightarrow$IR \\
+Parameter & SAR$\to$EO & SAR$\to$RGB & RGB$\to$IR \\
 \midrule
-Number of channels & 64 & 96 & 96 & 128 \\
-Number of residual blocks & 2 & 2 & 2 & 2 \\
-Attention resolutions & N/A & 32, 16, 8 & 32, 16, 8 & 32, 16, 8 \\
-Attention head dimension & N/A & 64 & 64 & 64 \\
-Resolution & $256\times256$ & $512\times512$ & $512\times512$ & $512\times512$ \\
-Input channels & 2 & 1 & 2 & 4 \\
-Output channels & 1 & 3 & 1 & 1 \\
-Channel multipliers & (1,2,3,4) & (1,1,2,2,4,4) & (1,1,2,2,4,4) & (1,1,2,2,4,4) \\
-\midrule
-Number of epochs & 55 & 24 & 39 & 86 \\
-Use augmented & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use random crop & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use horizontal flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use vertical flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+Base channels & 64 & 96 & 128 \\
+Channel multipliers & (1,2,3,4) & \multicolumn{2}{c}{(1,1,2,2,4,4)} \\
+Attention resolutions & N/A & \multicolumn{2}{c}{32, 16, 8} \\
+Training resolution & $256^2$ & \multicolumn{2}{c}{$512^2$} \\
+Epochs & 55 & 24 & 86 \\
 \bottomrule
-\end{tabular}
-}%
-\end{table*}
+\end{tabular}%
+}
+\end{table}
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
-\caption{Per-task CUT baseline architectural and training configurations. Resolution denotes the training image input resolution.}
+\footnotesize\renewcommand{\arraystretch}{1.05}
+\caption{CUT (SAR$\to$IR). ResNet-9block, 4-layer PatchGAN.}
 \label{tab:suppl_cut_tasks}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccc}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lc}
 \toprule
-Parameter & SAR$\rightarrow$EO & SAR$\rightarrow$RGB & SAR$\rightarrow$IR & RGB$\rightarrow$IR \\
+Parameter & SAR$\to$IR \\
 \midrule
-Generator filters (ngf) & 64 & 256 & 256 & 256 \\
-Discriminator filters (ndf) & 64 & 256 & 256 & 256 \\
-Number of ResNet blocks & 9 & 9 & 9 & 9 \\
-Discriminator layers & 3 & 4 & 4 & 4 \\
-Resolution & $256\times256$ & $512\times512$ & $512\times512$ & $512\times512$ \\
-\midrule
-Number of epochs & 100 & 50 & 50 & 50 \\
-Use augmented & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use random crop & N/A & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use horizontal flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
-Use vertical flip & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} & \textcolor{green}{\checkmark} \\
+ngf / ndf & 256 \\
+Generator & ResNet-9block \\
+Discriminator & 4-layer PatchGAN \\
+Train res. & $512^2$ \\
+Epochs & 11 \\
 \bottomrule
-\end{tabular}
-}%
-\end{table*}
+\end{tabular}%
+}
+\end{table}
 
 We train EarthBridge using the Prodigy adaptive optimizer across all translation tasks. The training objective follows the weighted Karras bridge loss with task-specific batch sizes and augmentations.
 

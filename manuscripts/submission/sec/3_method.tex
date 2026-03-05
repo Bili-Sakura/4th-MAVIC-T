@@ -18,6 +18,7 @@ Given a base diffusion process $dx_t = f(x_t, t)dt + g(t)dw_t$, the conditioned 
 where $p(x_0 = y \mid x_t)$ is the transition density of the original process. When the endpoints are fixed, the resulting conditioned process is called a \emph{diffusion bridge}~\cite{sarkka2019applied,heng2021simulating,delyon2006simulation,schauer2017guided,peluchettinon,liu2022let}, which forms the foundational mechanism for transporting one state to another. In the context of cross-modal translation, $x$ represents the source modality (e.g., SAR) and $y$ the target modality (e.g., optical). This formulation ensures that the generative trajectory is directly constrained by both endpoints, providing a more principled framework for paired translation than standard conditional diffusion.
 
 \paragraph{Denoising Diffusion Bridge Models.}
+\label{sec:vp_schedule}
 Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024} provide a tractable realization of Eq.~\ref{eq:bridge_sde}. Under a variance-preserving (VP) schedule, the forward bridge process constructs intermediate states $z_t$ as:
 \begin{equation}
     z_t = a_t x + b_t y + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0, I),
@@ -32,8 +33,33 @@ We present our DBIM approach which generalizes the diffusion bridge framework wi
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[page=2,width=0.95\textwidth]{figures/Figures.pdf}
-    \caption{Overview of our EarthBridge translation pipeline based on DBIM. The source image $\bm{x}$ is concatenated with the noisy sample $\bm{z}_t$ and fed to a UNet denoiser. During training, the bridge forward process constructs $\bm{z}_t$ from the target $\bm{y}$ and source $\bm{x}$ via bridge scalings. During inference, deterministic DBIM sampling transforms $\bm{x}$ into the translated output $\hat{\bm{z}}_0$.}
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[page=3,width=\linewidth]{figures/Figures.pdf}
+        \caption{UNet denoiser for 1024px tasks.}
+        \label{fig:method_overview:a}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \fbox{\rule{0pt}{2in} \rule{0.9\linewidth}{0pt}}
+        \caption{\TODO{Subfigure placeholder.}}
+        \label{fig:method_overview:b}
+    \end{subfigure}\\[0.5em]
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \fbox{\rule{0pt}{2in} \rule{0.9\linewidth}{0pt}}
+        \caption{\TODO{Subfigure placeholder.}}
+        \label{fig:method_overview:c}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \fbox{\rule{0pt}{2in} \rule{0.9\linewidth}{0pt}}
+        \caption{\TODO{Subfigure placeholder.}}
+        \label{fig:method_overview:d}
+    \end{subfigure}
+    \caption{UNet architecture of our DBIM for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). We train at 512$\times$512 and infer at full resolution. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by this denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
     \label{fig:method_overview}
 \end{figure*}
 
@@ -47,7 +73,7 @@ where $q_0$ is the target modality distribution and each step $q^{(\rho)}$ is de
 \begin{equation}
     \mathcal{N}\big( a_{t_n} \bm{x} + b_{t_n} \bm{z}_0 + \sqrt{c_{t_n}^2 - \rho_n^2}\, \bm{\eta}_{n+1},\, \rho_n^2 \bm{I} \big),
 \end{equation}
-with $\bm{\eta}_{n+1} = (\bm{z}_{t_{n+1}} - a_{t_{n+1}} \bm{x} - b_{t_{n+1}} \bm{z}_0) / c_{t_{n+1}}$. Here, $a_t, b_t, c_t$ are known coefficients determined by the VP log-SNR schedule (\cref{sec:background}). Under this construction, the marginal distributions $q^{(\rho)}(\bm{z}_{t_n} \mid \bm{x})$ are preserved to be consistent with the continuous-time forward bridge (\cref{eq:bridge_forward}). The variance parameter $\rho$ controls the level of stochasticity in the sampling process, ranging from a purely Markovian stochastic process to a fully deterministic implicit model.
+with $\bm{\eta}_{n+1} = (\bm{z}_{t_{n+1}} - a_{t_{n+1}} \bm{x} - b_{t_{n+1}} \bm{z}_0) / c_{t_{n+1}}$. Here, $a_t, b_t, c_t$ are known coefficients determined by the VP log-SNR schedule (\cref{sec:vp_schedule}). Under this construction, the marginal distributions $q^{(\rho)}(\bm{z}_{t_n} \mid \bm{x})$ are preserved to be consistent with the continuous-time forward bridge (\cref{eq:bridge_forward}). The variance parameter $\rho$ controls the level of stochasticity in the sampling process, ranging from a purely Markovian stochastic process to a fully deterministic implicit model.
 
 \paragraph{Reverse Generative Process and Sampling.}
 The generative process is initialized at the source image $\bm{z}_T = \bm{x}$ and iteratively samples $\bm{z}_{t_n}$ from $\bm{z}_{t_{n+1}}$ via a parameterized data predictor $D_\theta(\bm{z}_{t_{n+1}}, t_{n+1}, \bm{x})$. The core updating rule is given by:
