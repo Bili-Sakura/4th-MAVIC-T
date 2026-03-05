@@ -27,7 +27,7 @@ Denoising Diffusion Bridge Models (DDBM)~\cite{zhouDenoisingDiffusionBridge2024}
 where $a_t, b_t, \sigma_t$ are schedule-dependent coefficients. While DDBM excels in high-fidelity generation, its inference typically relies on simulating Eq.~\ref{eq:bridge_sde} via computationally expensive numerical solvers (e.g., Heun or stochastic samplers), often requiring hundreds of function evaluations (NFE) for optimal results. In this work, we adopt the more efficient \emph{implicit} formulation to accelerate this process.
 
 \subsection{EarthBridge: Non-Markovian DBIM}
-\label{sec:dbim_formalism}
+\label{sec:earthbridge_nonmarkovian}
 
 We present our DBIM approach which generalizes the diffusion bridge framework with non-Markovian bridge processes defined on discretized timesteps. Our solution leverages the deterministic sampling property of DBIM to achieve high-fidelity cross-modal translation with significantly fewer sampling steps compared to the vanilla DDBM. \cref{fig:method_overview} shows an overview of our EarthBridge pipeline.
 

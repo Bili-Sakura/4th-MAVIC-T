@@ -42,7 +42,7 @@ For tasks where source and target modalities have different channel counts (e.g.
     \caption{UNet architecture of our DBIM for 1024px tasks (SAR$\rightarrow$RGB, RGB$\rightarrow$IR). We train at 512$\times$512 and infer at full resolution. Source $\bm{x}$ is channel-concatenated with noisy sample $\bm{z}_t$ and processed by this denoiser. Bridge scalings $a_t, b_t, c_t$ construct $\bm{z}_t$ during training; deterministic DBIM sampling generates $\hat{\bm{z}}_0$ during inference.}
     \label{fig:method_overview}
 \end{figure}
-\vspace{-1em}
+% \vspace{-1em}
 
 \subsection{Contrastive Unpaired Translation (CUT)}
 \label{sec:cut}

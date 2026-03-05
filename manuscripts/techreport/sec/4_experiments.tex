@@ -9,62 +9,65 @@ SAR$\rightarrow$EO uses $256{\times}256$ imagery with 89,411 pairs. The other th
 \subsection{Training Details}
 \label{sec:training}
 
-All DBIM models are trained with the Prodigy adaptive optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024}. For $1024{\times}1024$ tasks, we train at $512{\times}512$ and infer at full resolution (resolution curriculum). The bridge follows a VP log-SNR schedule with $\beta_d=2.0$, $\beta_{\min}=0.1$. We use DBIM for SAR$\rightarrow$EO, SAR$\rightarrow$RGB, and RGB$\rightarrow$IR; CUT for SAR$\rightarrow$IR only. CUT (huge tier) is trained with Prodigy, batch size 2 per GPU across 8 GPUs, for 11 epochs, with NCE temperature 0.1 and $\lambda_{\text{GAN}}=0.5$. Configurations are given in \cref{tab:dbim_config,tab:cut_config}.
+All DBIM models are trained with the Prodigy optimizer~\cite{mishchenkoProdigyExpeditiouslyAdaptive2024}. For $1024{\times}1024$ tasks, we train at $512{\times}512$ and infer at full resolution. The bridge follows a VP log-SNR schedule with $\beta_d=2.0$, $\beta_{\min}=0.1$. We use DBIM for SAR$\rightarrow$EO, SAR$\rightarrow$RGB, and RGB$\rightarrow$IR; CUT for SAR$\rightarrow$IR only. CUT is trained with Prodigy, batch size 2 per GPU across 8 GPUs, for 11 epochs, with NCE temperature 0.1 and $\lambda_{\text{GAN}}=0.5$. Configurations are given in \cref{tab:dbim_config,tab:cut_config}.
 
-\vspace{-1em}
+% \vspace{-1em}
 \begin{table}[h]
 \centering
 \footnotesize\renewcommand{\arraystretch}{1.05}
-\caption{DBIM (SAR$\to$EO, SAR$\to$RGB, RGB$\to$IR).}
+\caption{Architecture and training settings for DBIM models used in the SAR$\to$EO, SAR$\to$RGB, and RGB$\to$IR tasks.}
 \label{tab:dbim_config}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
-Parameter & SAR$\to$EO & SAR$\to$RGB & RGB$\to$IR \\
+Configurations & SAR$\to$EO & SAR$\to$RGB & RGB$\to$IR \\
 \midrule
-Base ch. & 64 & 96 & 128 \\
-Ch. mults & (1,2,3,4) & \multicolumn{2}{c}{(1,1,2,2,4,4)} \\
-Attn res. & N/A & \multicolumn{2}{c}{32, 16, 8} \\
-Train res. & $256^2$ & \multicolumn{2}{c}{$512^2$} \\
+Base channels & 64 & 96 & 128 \\
+Channel multipliers & (1,2,3,4) & \multicolumn{2}{c}{(1,1,2,2,4,4)} \\
+Attention resolutions & N/A & \multicolumn{2}{c}{32, 16, 8} \\
+Training resolution & $256^2$ & \multicolumn{2}{c}{$512^2$} \\
 Epochs & 55 & 24 & 86 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
-\vspace{-1em}
+% \vspace{-1em}
 \begin{table}[h]
 \centering
 \footnotesize\renewcommand{\arraystretch}{1.05}
-\caption{CUT (SAR$\to$IR). ResNet-9block, 4-layer PatchGAN.}
+\caption{Network architecture and optimization details for CUT model used in the SAR$\to$IR task.}
 \label{tab:cut_config}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lc}
 \toprule
-Parameter & SAR$\to$IR \\
+Configurations & SAR$\to$IR \\
 \midrule
-ngf / ndf & 256 \\
-Generator & ResNet-9block \\
-Discriminator & 4-layer PatchGAN \\
-Train res. & $512^2$ \\
-Epochs & 11 \\
+Number of generator filters & 256 \\
+Number of discriminator filters & 256 \\
+Generator architecture & ResNet-9block \\
+Discriminator architecture & 4-layer PatchGAN \\
+Training resolution & $512^2$ \\
+Training epochs & 11 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
-\vspace{0.5em}
+% \vspace{0.5em}
 \subsection{Hardware and Software}
 \label{sec:hardware}
 
 \paragraph{Hardware.}
-Eight NVIDIA H200 GPUs; x86\_64 multi-core CPU (AMD EPYC / Intel Xeon); 512\,GB+ RAM.
+A single node cluster with 8 NVIDIA H200 GPUs (140GB); x86\_64 multi-core CPU (AMD EPYC / Intel Xeon); 512\,GB+ RAM.
 
 \paragraph{Software.}
-Python~3.10+; PyTorch~2.8; HuggingFace Diffusers~0.36; Transformers; Accelerate; Rasterio (geospatial). Code: \href{https://github.com/Bili-Sakura/EarthBridge-Preview}{github.com/Bili-Sakura/EarthBridge-Preview}.
+Python~3.10+; PyTorch~2.8; HuggingFace Diffusers~0.36; Transformers; Accelerate; Rasterio. Code: \href{https://github.com/Bili-Sakura/EarthBridge-Preview}{github.com/Bili-Sakura/EarthBridge-Preview}.
 
-\vspace{0.5em}
+% \vspace{0.5em}
 \subsection{Quantitative Results}
 \label{sec:quantitative}
 
-\cref{tab:main_results} reports the performance of our \textbf{EarthBridge} final submission. NFE denotes number of function evaluations (for DBIM, NFE = steps $\times$ 2; for CUT, NFE = 1).
+\cref{tab:main_results} reports the performance of our \textbf{EarthBridge} final submission. NFE denotes number of function evaluations.
 
-\vspace{-1em}
+% \vspace{-1em}
 \begin{table}[h]
 \centering
 \caption{Results on the MAVIC-T evaluation set. $\downarrow$ lower is better.}
@@ -75,14 +78,14 @@ Python~3.10+; PyTorch~2.8; HuggingFace Diffusers~0.36; Transformers; Accelerate;
 \toprule
 Track & Method & FID$\downarrow$ & LPIPS$\downarrow$ & L1$\downarrow$ & Score$\downarrow$ & NFE & Time \\
 \midrule
-SAR$\to$EO  & DBIM (500) & 0.222 & 0.504 & 0.080 & 0.269 & 1000 & 0.42\,s \\
-SAR$\to$RGB & DBIM (1000) & 0.878 & 0.636 & 0.214 & 0.576 & 2000 & 160\,s \\
-SAR$\to$IR  & CUT (huge) & 0.645 & 0.603 & 0.145 & 0.464 & 1 & 0.47\,s \\
-RGB$\to$IR  & DBIM (5) & 0.357 & 0.151 & 0.090 & 0.200 & 10 & 1.5\,s \\
+SAR$\to$EO  & DBIM  & 0.222 & 0.504 & 0.080 & 0.269 & 500 & 0.42\,s \\
+SAR$\to$RGB & DBIM  & 0.878 & 0.636 & 0.214 & 0.576 & 1000 & 160\,s \\
+SAR$\to$IR  & CUT  & 0.645 & 0.603 & 0.145 & 0.464 & 1 & 0.47\,s \\
+RGB$\to$IR  & DBIM  & 0.357 & 0.151 & 0.090 & 0.200 & 5 & 1.5\,s \\
 \bottomrule
 \end{tabular}}}
 \end{table}
-\vspace{-1em}
+% \vspace{-1em}
 
 \paragraph{Key Observations.}
-\textbf{(1)} SAR$\rightarrow$EO and RGB$\rightarrow$IR are extremely easy to model; we achieve high performance on both test and validation sets, which aligns with peer rankings in previous years. \textbf{(2)} SAR$\rightarrow$RGB and SAR$\rightarrow$IR are quite difficult, also consistent with prior competition results. Given the difficulty of SAR$\rightarrow$IR, we switched from DBIM to the GAN-based CUT. This yielded better results: diffusion bridges for this hard task tend to produce over-smooth, blurry outputs with low training loss that nonetheless deviate from the actual target appearance; CUT's discriminator addresses this. \textbf{(3)} Although inference requires full $1024{\times}1024$ resolution, we find that training our UNet at $512{\times}512$ effectively extends to $1024{\times}1024$ inference without modification. \textbf{(4)} Our solution is computationally heavy: we employ a large model (about 200M parameters) and train on a node cluster with eight NVIDIA H200 GPUs for approximately ten hours.
+\textbf{(1)} SAR$\rightarrow$EO and RGB$\rightarrow$IR are extremely easy to model; we achieve high performance on both test and validation sets, which aligns with peer rankings in previous years. \textbf{(2)} SAR$\rightarrow$RGB and SAR$\rightarrow$IR are quite difficult, also consistent with prior competition results. Given the difficulty of SAR$\rightarrow$IR, we switched from DBIM to the GAN-based CUT. This yielded better results: diffusion bridges for this hard task tend to produce over-smooth, blurry outputs with low training loss that nonetheless deviate from the actual target appearance; CUT's discriminator addresses this. \textbf{(3)} Although inference requires full $1024{\times}1024$ resolution, we find that training our UNet at $512{\times}512$ effectively extends to $1024{\times}1024$ inference without modification. \textbf{(4)} Our solution is computationally heavy: we employ models over 100M parameters and train on a node cluster with 8 NVIDIA H200 GPUs for hours.
