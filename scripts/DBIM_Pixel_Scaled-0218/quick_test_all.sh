@@ -10,9 +10,9 @@
 
 set -euo pipefail
 
-export HF_TOKEN="${HF_TOKEN:-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}"
+export HF_TOKEN="${HF_TOKEN:-}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
-export SWANLAB_API_KEY="${SWANLAB_API_KEY:-MR3DpLBq2VJ01nXRIMh8f}"
+export SWANLAB_API_KEY="${SWANLAB_API_KEY:-}"
 
 # --- Quick-test overrides (extremely small) ---
 MAX_TRAIN_STEPS=40
