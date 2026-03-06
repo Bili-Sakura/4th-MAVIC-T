@@ -13,6 +13,8 @@ set -euo pipefail
 export HF_TOKEN="${HF_TOKEN:-}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export SWANLAB_API_KEY="${SWANLAB_API_KEY:-}"
+# For PUSH_TO_HUB/SwanLab logging in this quick test, set HF_TOKEN and
+# SWANLAB_API_KEY in your environment before running.
 
 # --- Quick-test overrides (extremely small) ---
 MAX_TRAIN_STEPS=40
