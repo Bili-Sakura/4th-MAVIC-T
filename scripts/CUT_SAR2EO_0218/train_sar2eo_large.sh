@@ -13,7 +13,7 @@
 set -euo pipefail
 
 # Hugging Face (set HF_TOKEN for push to hub; optional HF_ENDPOINT for mirror)
-export HF_TOKEN="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"
+export HF_TOKEN="${HF_TOKEN:-}"
 export HF_ENDPOINT="https://hf-mirror.com"
 
 LOG_DIR="./logs"
